@@ -1,17 +1,20 @@
-import express from "express";
-import cors from "cors";
+// src/index.js
+import { env } from './config/environment.js';
+import { connectDB, sequelize } from './config/database.js';
+import app from './config/app.js';
 
-const app = express();
+// Importar modelos para que Sequelize los registre antes del sync
+import './models/index.js'; // ← agrega esta línea
 
-app.use(cors());
-app.use(express.json());
+const startServer = async () => {
+  await connectDB();
+  await sequelize.sync({ alter: env.nodeEnv === 'development' });
+  console.log('✅ Modelos sincronizados con la base de datos.');
 
-app.get("/", (req, res) => {
-  res.send("Servidor funcionando 🚀");
-});
+  app.listen(env.port, () => {
+    console.log(`🚀 Servidor corriendo en http://localhost:${env.port}`);
+    console.log(`📋 Health check: http://localhost:${env.port}/api/health`);
+  });
+};
 
-const PORT = 3000;
-
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
-});
+startServer();
