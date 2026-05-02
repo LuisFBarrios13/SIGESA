@@ -18,12 +18,12 @@ const SALT_ROUNDS = 10;
  * DTO shape expected by crearMatriculaConAcudiente:
  * {
  *   estudiante: { numero_identidad, nombre, fecha_nacimiento, rh?, direccion?, observaciones? },
- *   matricula:  { id_grado, year, fecha_matricula? },
+ *   matricula:  { id_grado, year, jornada: 'MAÑANA'|'TARDE', fecha_matricula? },
  *   acudiente:  { cedula, nombre, telefono?, correo?, direccion?, telefono_trabajo?, direccion_trabajo? },
  *   relacion:   { parentesco? }
  * }
  *
- * Transactional: all-or-nothing (Liskov / Dependency Inversion — depends on Sequelize abstraction).
+ * Transactional: all-or-nothing.
  */
 export const crearMatriculaConAcudiente = async (dto) => {
   const { estudiante, matricula, acudiente, relacion = {} } = dto;
@@ -65,6 +65,7 @@ export const crearMatriculaConAcudiente = async (dto) => {
         id_grado: matricula.id_grado,
         id_estudiante: estudianteRecord.numero_identidad,
         year: matricula.year,
+        jornada: matricula.jornada,          // ← nuevo campo
         fecha_matricula: matricula.fecha_matricula ?? new Date(),
         estado: 'ACTIVO',
       },
@@ -72,11 +73,8 @@ export const crearMatriculaConAcudiente = async (dto) => {
     );
 
     // ── 4. Create Usuario for Acudiente ───────────────────────
-    //    Username = numero_identidad, password = numero_identidad (hashed)
-    //    primer_login = true → frontend forces password change
     const passwordHash = await bcrypt.hash(estudiante.numero_identidad, SALT_ROUNDS);
 
-    // If user with this username already exists, skip creation and reuse
     let usuarioAcudiente = await Usuario.findOne({
       where: { username: estudiante.numero_identidad },
       transaction: t,
@@ -93,7 +91,6 @@ export const crearMatriculaConAcudiente = async (dto) => {
         { transaction: t }
       );
 
-      // Assign ACUDIENTE role
       const rolAcudiente = await Rol.findOne({
         where: { nombre: ROLES.ACUDIENTE },
         transaction: t,

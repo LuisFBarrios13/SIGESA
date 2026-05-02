@@ -6,6 +6,8 @@ import SectionCard from '../components/ui/SectionCard';
 
 // ── Types ─────────────────────────────────────────────────────
 
+type Jornada = 'MAÑANA' | 'TARDE';
+
 interface FormState {
   // Estudiante
   numero_identidad: string;
@@ -17,6 +19,7 @@ interface FormState {
   // Matricula
   id_grado: string;
   year: string;
+  jornada: Jornada | '';
   // Acudiente
   cedula_acudiente: string;
   nombre_acudiente: string;
@@ -35,6 +38,7 @@ const EMPTY_FORM: FormState = {
   observaciones: '',
   id_grado: '',
   year: String(new Date().getFullYear()),
+  jornada: '',
   cedula_acudiente: '',
   nombre_acudiente: '',
   telefono_acudiente: '',
@@ -42,6 +46,55 @@ const EMPTY_FORM: FormState = {
   direccion_acudiente: '',
   parentesco: '',
 };
+
+// ── Jornada Option Card ───────────────────────────────────────
+
+interface JornadaOptionProps {
+  value: Jornada;
+  label: string;
+  description: string;
+  icon: string;
+  selected: boolean;
+  onSelect: (v: Jornada) => void;
+}
+
+const JornadaOption = ({
+  value,
+  label,
+  description,
+  icon,
+  selected,
+  onSelect,
+}: JornadaOptionProps) => (
+  <button
+    type="button"
+    onClick={() => onSelect(value)}
+    className={`flex-1 flex items-center gap-4 px-5 py-4 rounded-xl border-2 text-left transition-all
+      ${
+        selected
+          ? 'border-primary bg-primary-fixed/20 shadow-sm'
+          : 'border-outline-variant bg-white hover:border-primary/40 hover:bg-stone-50'
+      }`}
+  >
+    <div
+      className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition-colors
+        ${selected ? 'bg-primary text-white' : 'bg-stone-100 text-stone-500'}`}
+    >
+      <span className="material-symbols-outlined text-xl">{icon}</span>
+    </div>
+    <div>
+      <p className={`font-semibold text-sm ${selected ? 'text-primary' : 'text-on-surface'}`}>
+        {label}
+      </p>
+      <p className="text-xs text-on-surface-variant mt-0.5">{description}</p>
+    </div>
+    {selected && (
+      <span className="material-symbols-outlined text-primary ml-auto text-xl">
+        check_circle
+      </span>
+    )}
+  </button>
+);
 
 // ── Success Modal ─────────────────────────────────────────────
 
@@ -130,6 +183,11 @@ const MatriculaPage = () => {
     setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
+  const handleJornadaSelect = (value: Jornada) => {
+    setForm((prev) => ({ ...prev, jornada: value }));
+    setErrors((prev) => ({ ...prev, jornada: undefined }));
+  };
+
   const validate = (): boolean => {
     const next: Partial<FormState> = {};
 
@@ -138,6 +196,7 @@ const MatriculaPage = () => {
     if (!form.fecha_nacimiento) next.fecha_nacimiento = 'Requerido';
     if (!form.id_grado) next.id_grado = 'Selecciona un grado';
     if (!form.year || isNaN(Number(form.year))) next.year = 'Año inválido';
+    if (!form.jornada) next.jornada = 'Selecciona una jornada';
     if (!form.cedula_acudiente.trim()) next.cedula_acudiente = 'Requerido';
     if (!form.nombre_acudiente.trim()) next.nombre_acudiente = 'Requerido';
 
@@ -163,6 +222,7 @@ const MatriculaPage = () => {
       matricula: {
         id_grado: Number(form.id_grado),
         year: Number(form.year),
+        jornada: form.jornada as Jornada,
       },
       acudiente: {
         cedula: form.cedula_acudiente.trim(),
@@ -330,6 +390,40 @@ const MatriculaPage = () => {
               ))}
             </select>
           </FormField>
+
+          {/* Jornada — full width with visual selector */}
+          <div className="md:col-span-2">
+            <p className="text-xs font-semibold tracking-wide text-on-surface-variant uppercase mb-3">
+              Jornada del Estudiante
+              <span className="text-error ml-1">*</span>
+            </p>
+            <div className="flex gap-3">
+              <JornadaOption
+                value="MAÑANA"
+                label="Jornada Mañana"
+                description="Horario: Preescolar 7:00 a.m. – 11:30 m.
+                Primaria 6:30 a.m. – 11:45 a.m."
+                icon="wb_sunny"
+                selected={form.jornada === 'MAÑANA'}
+                onSelect={handleJornadaSelect}
+              />
+              <JornadaOption
+                value="TARDE"
+                label="Jornada Tarde"
+                description="Horario: Preescolar 1:00 p.m. – 5:30 p.m.
+                Primaria 12:40 p.m. – 5:40 p.m."
+                icon="wb_twilight"
+                selected={form.jornada === 'TARDE'}
+                onSelect={handleJornadaSelect}
+              />
+            </div>
+            {errors.jornada && (
+              <p className="text-xs text-error font-medium flex items-center gap-1 mt-2">
+                <span className="material-symbols-outlined text-[14px]">error</span>
+                {errors.jornada}
+              </p>
+            )}
+          </div>
         </SectionCard>
 
         {/* ── Sección 3: Acudiente ──────────────────────────── */}

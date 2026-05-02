@@ -30,6 +30,18 @@ export const Docente = sequelize.define(
         isEmail: { msg: 'El correo no tiene formato válido' },
       },
     },
+    // Jornada laboral del docente: puede cubrir mañana, tarde o ambas
+    jornada: {
+      type: DataTypes.ENUM('MAÑANA', 'TARDE', 'COMPLETA'),
+      allowNull: false,
+      defaultValue: 'MAÑANA',
+      validate: {
+        isIn: {
+          args: [['MAÑANA', 'TARDE', 'COMPLETA']],
+          msg: 'La jornada del docente debe ser MAÑANA, TARDE o COMPLETA',
+        },
+      },
+    },
     // FK hacia Usuario
     id_usuario: {
       type: DataTypes.INTEGER,

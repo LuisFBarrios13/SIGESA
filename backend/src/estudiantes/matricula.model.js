@@ -30,6 +30,18 @@ export const Matricula = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    // Jornada en la que cursa el estudiante en esta matrícula
+    jornada: {
+      type: DataTypes.ENUM('MAÑANA', 'TARDE'),
+      allowNull: false,
+      defaultValue: 'MAÑANA',
+      validate: {
+        isIn: {
+          args: [['MAÑANA', 'TARDE']],
+          msg: 'La jornada de la matrícula debe ser MAÑANA o TARDE',
+        },
+      },
+    },
     fecha_matricula: {
       type: DataTypes.DATEONLY,
       allowNull: false,

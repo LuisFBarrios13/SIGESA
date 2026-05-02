@@ -76,6 +76,7 @@ export const authApi = {
 export interface Grado {
   id_grado: number;
   nombre: string;
+  jornada: 'MAÑANA' | 'TARDE';
   docente?: { cedula: string; nombre: string } | null;
 }
 
@@ -95,6 +96,8 @@ export interface MatriculaPayload {
   matricula: {
     id_grado: number;
     year: number;
+    /** Jornada en la que cursará el estudiante: MAÑANA o TARDE */
+    jornada: 'MAÑANA' | 'TARDE';
     fecha_matricula?: string;
   };
   acudiente: {
