@@ -3,22 +3,18 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './hooks/useAuth';
 
-// Pages
-import LoginPage from './pages/LoginPage';
-import ChangePasswordPage from './pages/ChangePasswordPage';
-import DashboardPage from './pages/DashboardPage';
-import MatriculaPage from './pages/MatriculaPage';
+import LoginPage           from './pages/LoginPage';
+import ChangePasswordPage  from './pages/ChangePasswordPage';
+import DashboardPage       from './pages/DashboardPage';
+import MatriculaPage       from './pages/MatriculaPage';
+import DocentesPage        from './pages/DocentesPage';   // ← nuevo
 
-// Layout
-import Layout from './components/layout/Layout';
+import Layout         from './components/layout/Layout';
 import ProtectedRoute from './components/ui/ProtectedRoute';
-
-// ── Inner router (needs to be inside AuthProvider) ────────────
 
 const AppRoutes = () => {
   const { user, isAuthenticated } = useAuth();
 
-  // Force password change on first login
   if (isAuthenticated && user?.primerLogin) {
     return (
       <Routes>
@@ -30,43 +26,31 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      {/* Public */}
-      <Route
-        path="/login"
-        element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
-      />
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
 
-      {/* Protected — all roles */}
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Layout user={user!}>
-              <DashboardPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/" element={
+        <ProtectedRoute>
+          <Layout user={user!}><DashboardPage /></Layout>
+        </ProtectedRoute>
+      } />
 
-      {/* Protected — ADMINISTRADOR only */}
-      <Route
-        path="/matricula"
-        element={
-          <ProtectedRoute roles={['ADMINISTRADOR']}>
-            <Layout user={user!}>
-              <MatriculaPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/matricula" element={
+        <ProtectedRoute roles={['ADMINISTRADOR']}>
+          <Layout user={user!}><MatriculaPage /></Layout>
+        </ProtectedRoute>
+      } />
 
-      {/* Fallback */}
+      {/* ── Docentes — solo ADMINISTRADOR ── */}
+      <Route path="/docentes" element={
+        <ProtectedRoute roles={['ADMINISTRADOR']}>
+          <Layout user={user!}><DocentesPage /></Layout>
+        </ProtectedRoute>
+      } />
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };
-
-// ── Root ──────────────────────────────────────────────────────
 
 const App = () => (
   <BrowserRouter>
