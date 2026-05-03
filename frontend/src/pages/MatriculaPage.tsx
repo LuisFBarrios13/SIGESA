@@ -183,9 +183,10 @@ const MatriculaPage = () => {
     setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
+  // ── FIX: reset id_grado when jornada changes ──────────────
   const handleJornadaSelect = (value: Jornada) => {
-    setForm((prev) => ({ ...prev, jornada: value }));
-    setErrors((prev) => ({ ...prev, jornada: undefined }));
+    setForm((prev) => ({ ...prev, jornada: value, id_grado: '' }));
+    setErrors((prev) => ({ ...prev, jornada: undefined, id_grado: undefined }));
   };
 
   const validate = (): boolean => {
@@ -360,38 +361,7 @@ const MatriculaPage = () => {
           iconBg="bg-tertiary-fixed"
           iconColor="text-tertiary"
         >
-          <FormField label="Grado" id="id_grado" required error={errors.id_grado}>
-            <select
-              id="id_grado"
-              name="id_grado"
-              value={form.id_grado}
-              onChange={handleChange}
-              className={selectClass}
-            >
-              <option value="">Selecciona un grado</option>
-              {grados.map((g) => (
-                <option key={g.id_grado} value={g.id_grado}>
-                  {g.nombre}
-                </option>
-              ))}
-            </select>
-          </FormField>
-
-          <FormField label="Año Lectivo" id="year" required error={errors.year}>
-            <select
-              id="year"
-              name="year"
-              value={form.year}
-              onChange={handleChange}
-              className={selectClass}
-            >
-              {yearOptions.map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
-          </FormField>
-
-          {/* Jornada — full width with visual selector */}
+          {/* ── FIX: jornada va PRIMERO para poder filtrar grados ── */}
           <div className="md:col-span-2">
             <p className="text-xs font-semibold tracking-wide text-on-surface-variant uppercase mb-3">
               Jornada del Estudiante
@@ -424,6 +394,43 @@ const MatriculaPage = () => {
               </p>
             )}
           </div>
+
+          {/* ── FIX: grados filtrados por jornada seleccionada ── */}
+          <FormField label="Grado" id="id_grado" required error={errors.id_grado}>
+            <select
+              id="id_grado"
+              name="id_grado"
+              value={form.id_grado}
+              onChange={handleChange}
+              className={selectClass}
+              disabled={!form.jornada}
+            >
+              <option value="">
+                {form.jornada ? 'Selecciona un grado' : 'Primero selecciona la jornada'}
+              </option>
+              {grados
+                .filter((g) => !form.jornada || g.jornada === form.jornada)
+                .map((g) => (
+                  <option key={g.id_grado} value={g.id_grado}>
+                    {g.nombre}
+                  </option>
+                ))}
+            </select>
+          </FormField>
+
+          <FormField label="Año Lectivo" id="year" required error={errors.year}>
+            <select
+              id="year"
+              name="year"
+              value={form.year}
+              onChange={handleChange}
+              className={selectClass}
+            >
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </FormField>
         </SectionCard>
 
         {/* ── Sección 3: Acudiente ──────────────────────────── */}
