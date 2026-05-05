@@ -7,7 +7,8 @@ import LoginPage           from './pages/LoginPage';
 import ChangePasswordPage  from './pages/ChangePasswordPage';
 import DashboardPage       from './pages/DashboardPage';
 import MatriculaPage       from './pages/MatriculaPage';
-import DocentesPage        from './pages/DocentesPage';   // ← nuevo
+import DocentesPage        from './pages/DocentesPage';
+import PagosPage           from './pages/PagosPage';      // ← nuevo
 
 import Layout         from './components/layout/Layout';
 import ProtectedRoute from './components/ui/ProtectedRoute';
@@ -40,10 +41,16 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
-      {/* ── Docentes — solo ADMINISTRADOR ── */}
       <Route path="/docentes" element={
         <ProtectedRoute roles={['ADMINISTRADOR']}>
           <Layout user={user!}><DocentesPage /></Layout>
+        </ProtectedRoute>
+      } />
+
+      {/* ── Pagos — solo ADMINISTRADOR ── */}
+      <Route path="/pagos" element={
+        <ProtectedRoute roles={['ADMINISTRADOR']}>
+          <Layout user={user!}><PagosPage /></Layout>
         </ProtectedRoute>
       } />
 

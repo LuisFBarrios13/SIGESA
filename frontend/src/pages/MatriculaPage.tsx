@@ -29,6 +29,8 @@ interface FormState {
   parentesco: string;
 }
 
+type FormErrors = Partial<Record<keyof FormState, string>>;
+
 const EMPTY_FORM: FormState = {
   numero_identidad: '',
   nombre_estudiante: '',
@@ -162,8 +164,10 @@ const SuccessModal = ({ credenciales, onClose }: SuccessModalProps) => (
 
 const MatriculaPage = () => {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [errors, setErrors] = useState<Partial<FormState>>({});
+  const [errors, setErrors] = useState<FormErrors>({});
   const [grados, setGrados] = useState<Grado[]>([]);
+  const [isLoadingGrados, setIsLoadingGrados] = useState(true);
+  const [gradosLoadError, setGradosLoadError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [successCredenciales, setSuccessCredenciales] = useState<{
@@ -172,9 +176,16 @@ const MatriculaPage = () => {
 
   // Load grades on mount
   useEffect(() => {
+    setIsLoadingGrados(true);
+    setGradosLoadError('');
+
     gradosApi.listar()
       .then(setGrados)
-      .catch(() => { /* grades load failure is non-critical */ });
+      .catch((error) => {
+        console.error('Error cargando grados:', error);
+        setGradosLoadError('No se pudieron cargar los grados. Verifica tu sesión o la conexión con la API.');
+      })
+      .finally(() => setIsLoadingGrados(false));
   }, []);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -190,7 +201,7 @@ const MatriculaPage = () => {
   };
 
   const validate = (): boolean => {
-    const next: Partial<FormState> = {};
+    const next: FormErrors = {};
 
     if (!form.numero_identidad.trim()) next.numero_identidad = 'Requerido';
     if (!form.nombre_estudiante.trim()) next.nombre_estudiante = 'Requerido';
@@ -396,17 +407,21 @@ const MatriculaPage = () => {
           </div>
 
           {/* ── FIX: grados filtrados por jornada seleccionada ── */}
-          <FormField label="Grado" id="id_grado" required error={errors.id_grado}>
+          <FormField label="Grado" id="id_grado" required error={errors.id_grado || gradosLoadError}>
             <select
               id="id_grado"
               name="id_grado"
               value={form.id_grado}
               onChange={handleChange}
               className={selectClass}
-              disabled={!form.jornada}
+              disabled={!form.jornada || isLoadingGrados}
             >
-              <option value="">
-                {form.jornada ? 'Selecciona un grado' : 'Primero selecciona la jornada'}
+              <option value="" disabled>
+                {isLoadingGrados
+                  ? 'Cargando grados...'
+                  : form.jornada
+                    ? 'Selecciona un grado'
+                    : 'Primero selecciona la jornada'}
               </option>
               {grados
                 .filter((g) => !form.jornada || g.jornada === form.jornada)
@@ -415,6 +430,9 @@ const MatriculaPage = () => {
                     {g.nombre}
                   </option>
                 ))}
+              {!isLoadingGrados && form.jornada && grados.filter((g) => g.jornada === form.jornada).length === 0 && (
+                <option value="" disabled>No hay grados disponibles para esta jornada</option>
+              )}
             </select>
           </FormField>
 
