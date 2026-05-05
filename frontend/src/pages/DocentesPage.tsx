@@ -375,9 +375,9 @@ const DocentesPage = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
+      <div className="space-y-8">
 
-        {/* ── Columna izquierda: formulario ────────────────── */}
+        {/* ── Formulario ───────────────────────────────────── */}
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-outline-variant shadow-sm overflow-hidden">
             {/* Card header */}
@@ -500,7 +500,7 @@ const DocentesPage = () => {
           </div>
         </div>
 
-        {/* ── Columna derecha: docentes registrados ────────── */}
+        {/* ── Docentes registrados ─────────────────────────── */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-on-surface">
@@ -521,7 +521,7 @@ const DocentesPage = () => {
               <p className="text-sm font-medium">No hay docentes registrados aún</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {docentes.map((d) => <DocenteCard key={d.cedula} docente={d} />)}
             </div>
           )}
