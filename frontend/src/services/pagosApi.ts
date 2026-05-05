@@ -7,6 +7,13 @@ import { api } from './api';
 
 export type EstadoCuenta = 'PENDIENTE' | 'PAGADO' | 'VENCIDO';
 
+export interface Tarifa {
+  id_tarifa: number;
+  year: number;
+  valor_pension: string;
+  valor_matricula: string;
+}
+
 export interface ConceptoPago {
   id_concepto_pago: number;
   nombre: string;
@@ -61,6 +68,7 @@ export interface ResumenPagos {
   matricula: MatriculaResumen;
   cuentas: CuentaCobro[];
   totales: { deuda: number; pagado: number; pendiente: number };
+  tarifa: Tarifa | null;
 }
 
 export interface RegistrarPagoPayload {
@@ -77,24 +85,19 @@ export interface PagoResult {
   saldoRestante: number;
 }
 
-export interface GenerarPensionPayload {
-  id_matricula: number;
-  valor_pension: number;
-  year: number;
-}
-
-export interface CuentaMatriculaPayload {
-  id_matricula: number;
-  valor: number;
-  year: number;
-}
-
 // ── API calls ─────────────────────────────────────────────────
 
 export const pagosApi = {
   /** Reference data */
   getConceptos: ()                       => api.get<ConceptoPago[]>('/pagos/conceptos'),
   getMetodos:   ()                       => api.get<MetodoPago[]>('/pagos/metodos'),
+
+  /** Tarifas globales */
+  getTarifa: (year: number) =>
+    api.get<Tarifa | null>(`/pagos/tarifas/${year}`),
+
+  upsertTarifa: (year: number, valor_pension: number, valor_matricula: number) =>
+    api.post<Tarifa>('/pagos/tarifas', { year, valor_pension, valor_matricula }),
 
   /** Matrícula search + detail */
   buscarMatriculas: (q: string, year?: number) =>
@@ -103,12 +106,15 @@ export const pagosApi = {
   getResumen: (id_matricula: number) =>
     api.get<ResumenPagos>(`/pagos/matriculas/${id_matricula}`),
 
-  /** Account generation */
-  generarPension: (p: GenerarPensionPayload) =>
-    api.post<{ creadas: CuentaCobro[]; total: number }>('/pagos/cuentas/pension', p),
+  /** Account generation — now use global tarifa, no valor needed */
+  generarPension: (id_matricula: number, year: number) =>
+    api.post<{ creadas: CuentaCobro[]; total: number; valor_pension: string }>(
+      '/pagos/cuentas/pension',
+      { id_matricula, year },
+    ),
 
-  crearCuentaMatricula: (p: CuentaMatriculaPayload) =>
-    api.post<CuentaCobro>('/pagos/cuentas/matricula', p),
+  crearCuentaMatricula: (id_matricula: number, year: number) =>
+    api.post<CuentaCobro>('/pagos/cuentas/matricula', { id_matricula, year }),
 
   /** Payment registration */
   registrarPago: (p: RegistrarPagoPayload) =>

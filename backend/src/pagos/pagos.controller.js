@@ -10,6 +10,8 @@ import {
   crearCuentaMatricula,
   registrarPago,
   listarTodasCuentas,
+  getTarifa,
+  upsertTarifa,
 } from './pagos.service.js';
 import { successResponse, errorResponse } from '../utils/responseHandler.js';
 
@@ -27,6 +29,34 @@ export const getMetodos = async (_req, res, next) => {
     const data = await listarMetodos();
     return successResponse(res, data);
   } catch (err) { next(err); }
+};
+
+/** GET /api/pagos/tarifas/:year */
+export const getTarifaHandler = async (req, res, next) => {
+  try {
+    const year = Number(req.params.year);
+    if (!year || year < 2000) return errorResponse(res, 'Año inválido', 400);
+    const data = await getTarifa(year);
+    return successResponse(res, data ?? null);
+  } catch (err) { next(err); }
+};
+
+/** POST /api/pagos/tarifas  — crea o actualiza la tarifa de un año */
+export const upsertTarifaHandler = async (req, res, next) => {
+  try {
+    const { year, valor_pension, valor_matricula } = req.body;
+    if (!year || valor_pension == null || valor_matricula == null) {
+      return errorResponse(res, 'year, valor_pension y valor_matricula son requeridos', 400);
+    }
+    if (parseFloat(valor_pension) < 0 || parseFloat(valor_matricula) < 0) {
+      return errorResponse(res, 'Los valores no pueden ser negativos', 400);
+    }
+    const data = await upsertTarifa(Number(year), parseFloat(valor_pension), parseFloat(valor_matricula));
+    return successResponse(res, data, 'Tarifa guardada correctamente');
+  } catch (err) {
+    if (err.status) return errorResponse(res, err.message, err.status);
+    next(err);
+  }
 };
 
 /** GET /api/pagos/matriculas/buscar?q=&year= */
@@ -50,19 +80,17 @@ export const getResumenPagos = async (req, res, next) => {
   }
 };
 
-/** POST /api/pagos/cuentas/pension */
+/**
+ * POST /api/pagos/cuentas/pension
+ * Ya no recibe valor_pension — lo toma de la tarifa global del año.
+ */
 export const postGenerarPension = async (req, res, next) => {
   try {
-    const { id_matricula, valor_pension, year } = req.body;
-    if (!id_matricula || !valor_pension || !year) {
-      return errorResponse(res, 'id_matricula, valor_pension y year son requeridos', 400);
+    const { id_matricula, year } = req.body;
+    if (!id_matricula || !year) {
+      return errorResponse(res, 'id_matricula y year son requeridos', 400);
     }
-    if (parseFloat(valor_pension) <= 0) {
-      return errorResponse(res, 'El valor de la pensión debe ser mayor a 0', 400);
-    }
-    const data = await generarCuentasPension(
-      Number(id_matricula), parseFloat(valor_pension), Number(year),
-    );
+    const data = await generarCuentasPension(Number(id_matricula), Number(year));
     return successResponse(res, data, 'Cuentas de pensión generadas', 201);
   } catch (err) {
     if (err.status) return errorResponse(res, err.message, err.status);
@@ -70,16 +98,17 @@ export const postGenerarPension = async (req, res, next) => {
   }
 };
 
-/** POST /api/pagos/cuentas/matricula */
+/**
+ * POST /api/pagos/cuentas/matricula
+ * Ya no recibe valor — lo toma de la tarifa global del año.
+ */
 export const postCuentaMatricula = async (req, res, next) => {
   try {
-    const { id_matricula, valor, year } = req.body;
-    if (!id_matricula || !valor || !year) {
-      return errorResponse(res, 'id_matricula, valor y year son requeridos', 400);
+    const { id_matricula, year } = req.body;
+    if (!id_matricula || !year) {
+      return errorResponse(res, 'id_matricula y year son requeridos', 400);
     }
-    const data = await crearCuentaMatricula(
-      Number(id_matricula), parseFloat(valor), Number(year),
-    );
+    const data = await crearCuentaMatricula(Number(id_matricula), Number(year));
     return successResponse(res, data, 'Cuenta de matrícula creada', 201);
   } catch (err) {
     if (err.status) return errorResponse(res, err.message, err.status);

@@ -15,11 +15,11 @@ import { ConceptoPago }  from '../pagos/concepto_pago.model.js';
 import { MetodoPago }    from '../pagos/metodo_pago.model.js';
 import { CuentaCobro }   from '../pagos/cuenta_cobro.model.js';
 import { Pago }          from '../pagos/pago.model.js';
+import { Tarifa }        from '../pagos/tarifa.model.js';
 import { Materia }       from '../notas/materia.model.js';
 import { Nota }          from '../notas/nota.model.js';
 
 // ── Asociaciones Usuario ──────────────────────────────────────
-// Un usuario tiene muchos roles (a través de UsuarioRol)
 Usuario.belongsToMany(Rol, {
   through: UsuarioRol,
   foreignKey: 'id_usuario',
@@ -34,7 +34,6 @@ Rol.belongsToMany(Usuario, {
 });
 
 // ── Asociaciones Acudiente ────────────────────────────────────
-// Un acudiente pertenece a un usuario (para login)
 Acudiente.belongsTo(Usuario, { foreignKey: 'id_usuario', as: 'usuario' });
 Usuario.hasOne(Acudiente, { foreignKey: 'id_usuario', as: 'acudiente' });
 
@@ -47,7 +46,6 @@ Grado.belongsTo(Docente, { foreignKey: 'id_docente', as: 'docente' });
 Docente.hasMany(Grado, { foreignKey: 'id_docente', as: 'grados' });
 
 // ── Asociaciones Estudiante ───────────────────────────────────
-// Un estudiante tiene muchos acudientes (a través de RelacionEA)
 Estudiante.belongsToMany(Acudiente, {
   through: RelacionEA,
   foreignKey: 'id_estudiante',
@@ -99,6 +97,7 @@ export {
   MetodoPago,
   CuentaCobro,
   Pago,
+  Tarifa,
   Materia,
   Nota,
 };

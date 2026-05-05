@@ -77,3 +77,28 @@ export const docentesApi = {
   listar:          ()                  => api.get<DocenteListItem[]>('/docentes'),
   disponibilidad:  ()                  => api.get<GradoDisponibilidad[]>('/docentes/disponibilidad'),
 };
+
+// ── Matrículas (lista completa) ───────────────────────────────
+export interface MatriculaListItem {
+  id_matricula: number;
+  year: number;
+  jornada: 'MAÑANA' | 'TARDE';
+  fecha_matricula: string;
+  estado: 'ACTIVO' | 'RETIRADO' | 'GRADUADO';
+  estudiante: {
+    numero_identidad: string;
+    nombre: string;
+    fecha_nacimiento: string;
+    rh?: string;
+    direccion?: string;
+  };
+  grado?: {
+    id_grado: number;
+    nombre: string;
+    jornada: 'MAÑANA' | 'TARDE';
+  };
+}
+
+export const estudiantesApi = {
+  listarMatriculas: () => api.get<MatriculaListItem[]>('/matriculas'),
+};

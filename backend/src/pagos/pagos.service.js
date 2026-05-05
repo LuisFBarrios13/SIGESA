@@ -11,6 +11,7 @@ import {
   Matricula,
   Estudiante,
   Grado,
+  Tarifa,
 } from '../models/index.js';
 import { Op } from 'sequelize';
 
@@ -27,10 +28,6 @@ export const NOMBRE_MES = {
 
 // ── Seed helpers (idempotent) ──────────────────────────────────
 
-/**
- * Ensures default ConceptoPago records exist.
- * Returns map: nombre → instancia.
- */
 export const ensureConceptos = async () => {
   const CONCEPTOS = ['MATRÍCULA', 'PENSIÓN'];
   const results = {};
@@ -41,9 +38,6 @@ export const ensureConceptos = async () => {
   return results;
 };
 
-/**
- * Ensures default MetodoPago records exist.
- */
 export const ensureMetodos = async () => {
   const METODOS = ['EFECTIVO', 'TRANSFERENCIA', 'CONSIGNACIÓN', 'TARJETA'];
   const results = {};
@@ -54,19 +48,62 @@ export const ensureMetodos = async () => {
   return results;
 };
 
+// ── Tarifas ────────────────────────────────────────────────────
+
+/**
+ * Returns the tarifa for a given year, or null if not configured.
+ */
+export const getTarifa = (year) =>
+  Tarifa.findOne({ where: { year } });
+
+/**
+ * Creates or updates the global tarifa for a year.
+ * Uses upsert so calling it multiple times is safe.
+ */
+export const upsertTarifa = async (year, valor_pension, valor_matricula) => {
+  const existing = await Tarifa.findOne({ where: { year } });
+  if (existing) {
+    await existing.update({ valor_pension, valor_matricula });
+    return existing.reload();
+  }
+  return Tarifa.create({ year, valor_pension, valor_matricula });
+};
+
 // ── Queries ────────────────────────────────────────────────────
 
-/** Returns all conceptos */
 export const listarConceptos = () =>
   ConceptoPago.findAll({ order: [['nombre', 'ASC']] });
 
-/** Returns all métodos de pago */
 export const listarMetodos = () =>
   MetodoPago.findAll({ order: [['nombre', 'ASC']] });
 
 /**
- * Returns all cuentas de cobro for a matricula, with pagos nested.
+ * Marks as VENCIDO any PENDIENTE cuenta whose month has already ended.
+ *
+ * A cuenta (year, mes) is overdue when today is strictly after the last
+ * day of that month. May 2026 is NOT overdue on 2026-05-05 (still current);
+ * April 2026 IS overdue on that same date.
+ *
+ * @param {number|null} id_matricula - scopes the update to one matricula
  */
+export const actualizarVencidos = async (id_matricula = null) => {
+  const now = new Date();
+  const currentYear  = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-12
+
+  const where = {
+    estado: 'PENDIENTE',
+    [Op.or]: [
+      { year: { [Op.lt]: currentYear } },
+      { year: currentYear, mes: { [Op.lt]: currentMonth } },
+    ],
+  };
+
+  if (id_matricula) where.id_matricula = id_matricula;
+
+  await CuentaCobro.update({ estado: 'VENCIDO' }, { where });
+};
+
 export const listarCuentasPorMatricula = (id_matricula) =>
   CuentaCobro.findAll({
     where: { id_matricula },
@@ -82,9 +119,6 @@ export const listarCuentasPorMatricula = (id_matricula) =>
     order: [['mes', 'ASC'], ['id_cuenta', 'ASC']],
   });
 
-/**
- * Search matriculas by student name or identity number.
- */
 export const buscarMatriculas = async (query, year) => {
   const whereMatricula = { estado: 'ACTIVO' };
   if (year) whereMatricula.year = year;
@@ -109,10 +143,10 @@ export const buscarMatriculas = async (query, year) => {
   });
 };
 
-/**
- * Returns a single matricula with full payment context.
- */
 export const obtenerResumenPagos = async (id_matricula) => {
+  // Actualiza vencidos de esta matrícula antes de devolver los datos
+  await actualizarVencidos(id_matricula);
+
   const matricula = await Matricula.findByPk(id_matricula, {
     include: [
       { model: Estudiante, as: 'estudiante' },
@@ -123,7 +157,6 @@ export const obtenerResumenPagos = async (id_matricula) => {
 
   const cuentas = await listarCuentasPorMatricula(id_matricula);
 
-  // Aggregate totals
   const totales = cuentas.reduce(
     (acc, c) => {
       const totalPagado = (c.pagos ?? []).reduce(
@@ -137,22 +170,32 @@ export const obtenerResumenPagos = async (id_matricula) => {
     { deuda: 0, pagado: 0, pendiente: 0 },
   );
 
-  return { matricula, cuentas, totales };
+  // Include tarifa for the matricula's year
+  const tarifa = await getTarifa(matricula.year);
+
+  return { matricula, cuentas, totales, tarifa };
 };
 
 // ── Commands ───────────────────────────────────────────────────
 
 /**
- * Generates monthly "pensión" cuentas de cobro for a matricula.
+ * Generates monthly "pensión" cuentas de cobro using the global tarifa.
  * Idempotent: skips months that already have a cuenta.
  *
  * @param {number} id_matricula
- * @param {number} valor_pension - monthly fee amount
  * @param {number} year
  */
-export const generarCuentasPension = async (id_matricula, valor_pension, year) => {
+export const generarCuentasPension = async (id_matricula, year) => {
   const matricula = await Matricula.findByPk(id_matricula);
   if (!matricula) throw { status: 404, message: 'Matrícula no encontrada' };
+
+  const tarifa = await getTarifa(year);
+  if (!tarifa) {
+    throw {
+      status: 400,
+      message: `No hay tarifa configurada para el año ${year}. Configura el valor de pensión y matrícula antes de generar cuentas.`,
+    };
+  }
 
   const conceptos = await ensureConceptos();
   const conceptoPension = conceptos['PENSIÓN'];
@@ -163,28 +206,35 @@ export const generarCuentasPension = async (id_matricula, valor_pension, year) =
       const [cuenta, isNew] = await CuentaCobro.findOrCreate({
         where: { id_matricula, id_concepto_pago: conceptoPension.id_concepto_pago, mes, year },
         defaults: {
-          valor_deuda: valor_pension,
+          valor_deuda: tarifa.valor_pension,
           estado: 'PENDIENTE',
         },
         transaction: t,
       });
       if (isNew) creadas.push(cuenta);
     }
-    return { creadas, total: MESES_COBRO.length };
+    return { creadas, total: MESES_COBRO.length, valor_pension: tarifa.valor_pension };
   });
 };
 
 /**
- * Creates a single "matrícula" cuenta de cobro.
+ * Creates a single "matrícula" cuenta de cobro using the global tarifa.
  * Fails if one already exists for this matricula/year.
  *
  * @param {number} id_matricula
- * @param {number} valor
  * @param {number} year
  */
-export const crearCuentaMatricula = async (id_matricula, valor, year) => {
+export const crearCuentaMatricula = async (id_matricula, year) => {
   const matricula = await Matricula.findByPk(id_matricula);
   if (!matricula) throw { status: 404, message: 'Matrícula no encontrada' };
+
+  const tarifa = await getTarifa(year);
+  if (!tarifa) {
+    throw {
+      status: 400,
+      message: `No hay tarifa configurada para el año ${year}. Configura el valor de pensión y matrícula antes de generar cuentas.`,
+    };
+  }
 
   const conceptos = await ensureConceptos();
   const conceptoMatricula = conceptos['MATRÍCULA'];
@@ -203,9 +253,9 @@ export const crearCuentaMatricula = async (id_matricula, valor, year) => {
   return CuentaCobro.create({
     id_matricula,
     id_concepto_pago: conceptoMatricula.id_concepto_pago,
-    mes: 1, // La matrícula se registra en enero (mes 1)
+    mes: 1,
     year,
-    valor_deuda: valor,
+    valor_deuda: tarifa.valor_matricula,
     estado: 'PENDIENTE',
   });
 };
@@ -213,8 +263,6 @@ export const crearCuentaMatricula = async (id_matricula, valor, year) => {
 /**
  * Registers a payment against a cuenta de cobro.
  * Updates cuenta estado automatically.
- *
- * @param {object} dto - { id_cuenta, monto_pago, id_metodo_pago, fecha_pago?, observaciones? }
  */
 export const registrarPago = async (dto) => {
   const { id_cuenta, monto_pago, id_metodo_pago, fecha_pago, observaciones } = dto;
@@ -231,7 +279,6 @@ export const registrarPago = async (dto) => {
     const metodo = await MetodoPago.findByPk(id_metodo_pago, { transaction: t });
     if (!metodo) throw { status: 404, message: 'Método de pago no válido' };
 
-    // Validate amount
     const totalYaPagado = pagos.reduce(
       (s, p) => s + parseFloat(p.monto_pago), 0,
     );
@@ -258,7 +305,6 @@ export const registrarPago = async (dto) => {
       { transaction: t },
     );
 
-    // Recalculate estado
     const nuevoTotal = totalYaPagado + parseFloat(monto_pago);
     let nuevoEstado = 'PENDIENTE';
     if (nuevoTotal >= parseFloat(cuenta.valor_deuda) - 0.01) nuevoEstado = 'PAGADO';
@@ -273,6 +319,9 @@ export const registrarPago = async (dto) => {
  * Returns all cuentas paginated/filterable for the admin view.
  */
 export const listarTodasCuentas = async ({ year, estado, search } = {}) => {
+  // Actualiza vencidos globalmente antes de listar
+  await actualizarVencidos();
+
   const whereMatricula = {};
   if (year) whereMatricula.year = year;
 

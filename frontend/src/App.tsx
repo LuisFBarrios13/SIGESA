@@ -9,6 +9,7 @@ import DashboardPage       from './pages/DashboardPage';
 import MatriculaPage       from './pages/MatriculaPage';
 import DocentesPage        from './pages/DocentesPage';
 import PagosPage           from './pages/PagosPage';      // ← nuevo
+import EstudiantesPage     from './pages/EstudiantesPage';
 
 import Layout         from './components/layout/Layout';
 import ProtectedRoute from './components/ui/ProtectedRoute';
@@ -53,6 +54,12 @@ const AppRoutes = () => {
           <Layout user={user!}><PagosPage /></Layout>
         </ProtectedRoute>
       } />
+
+      <Route path="/estudiantes" element={
+       <ProtectedRoute roles={['ADMINISTRADOR']}>
+        <Layout user={user!}><EstudiantesPage /></Layout>
+       </ProtectedRoute>
+      }  />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

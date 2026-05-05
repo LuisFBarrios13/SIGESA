@@ -101,14 +101,12 @@ interface DisponibilidadGridProps {
 const DisponibilidadGrid = ({
   grados, gradoSeleccionado, jornadaSeleccionada, onSelect,
 }: DisponibilidadGridProps) => {
-  // Agrupa por nombre de grado
   const porNombre = NOMBRES_GRADOS.map((nombre) => {
     const manana = grados.find((g) => g.nombre === nombre && g.jornada === 'MAÑANA');
     const tarde  = grados.find((g) => g.nombre === nombre && g.jornada === 'TARDE');
     return { nombre, manana, tarde };
   });
 
-  /** Indica si un grado está disponible para la jornada seleccionada */
   const estaDisponible = (nombre: NombreGrado): boolean => {
     if (!jornadaSeleccionada) return true;
     const item = porNombre.find((g) => g.nombre === nombre)!;
@@ -117,7 +115,6 @@ const DisponibilidadGrid = ({
     }
     const fila = jornadaSeleccionada === 'MAÑANA' ? item.manana : item.tarde;
     const filaOpuesta = jornadaSeleccionada === 'MAÑANA' ? item.tarde : item.manana;
-    // Bloqueado si ya hay docente en esa jornada o si el opuesto tiene uno COMPLETA
     if (fila?.docente) return false;
     if (filaOpuesta?.docente?.jornada === 'COMPLETA') return false;
     return true;
@@ -237,7 +234,6 @@ const SuccessModal = ({ data, onClose }: SuccessModalProps) => (
         </div>
       </div>
       <div className="px-6 py-6 space-y-4">
-        {/* Grados asignados */}
         <div>
           <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Grados asignados</p>
           <div className="flex flex-wrap gap-2">
@@ -248,7 +244,6 @@ const SuccessModal = ({ data, onClose }: SuccessModalProps) => (
             ))}
           </div>
         </div>
-        {/* Credenciales */}
         <div className="bg-stone-50 rounded-xl border border-stone-200 p-4">
           <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-3">Credenciales de acceso</p>
           <div className="space-y-2">
@@ -306,7 +301,7 @@ const DocentesPage = () => {
   };
 
   const handleJornada = (v: JornadaDocente) => {
-    setForm((p) => ({ ...p, jornada: v, nombreGrado: '' })); // reset grado al cambiar jornada
+    setForm((p) => ({ ...p, jornada: v, nombreGrado: '' }));
     setErrors((p) => ({ ...p, jornada: undefined, nombreGrado: undefined }));
   };
 
@@ -343,12 +338,12 @@ const DocentesPage = () => {
     try {
       const result = await docentesApi.crear(payload);
       setSuccessData({
-        cedula:    form.cedula,
-        nombre:    form.nombre,
-        telefono:  form.telefono || null,
-        correo:    form.correo   || null,
-        jornada:   form.jornada  as JornadaDocente,
-        grados:    result.gradosAsignados,
+        cedula:          form.cedula,
+        nombre:          form.nombre,
+        telefono:        form.telefono || null,
+        correo:          form.correo   || null,
+        jornada:         form.jornada  as JornadaDocente,
+        grados:          result.gradosAsignados,
         gradosAsignados: result.gradosAsignados,
         credenciales:    result.credenciales,
       });
@@ -375,132 +370,130 @@ const DocentesPage = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
+      <div className="space-y-8">
 
-        {/* ── Columna izquierda: formulario ────────────────── */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-outline-variant shadow-sm overflow-hidden">
-            {/* Card header */}
-            <div className="px-6 py-4 border-b border-stone-100 bg-primary-fixed/10 flex items-center gap-3">
-              <div className="p-2 bg-primary-fixed rounded-lg">
-                <span className="material-symbols-outlined text-on-primary-fixed-variant text-xl">person_add</span>
+        {/* ── Formulario ───────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-outline-variant shadow-sm overflow-hidden">
+          {/* Card header */}
+          <div className="px-6 py-4 border-b border-stone-100 bg-primary-fixed/10 flex items-center gap-3">
+            <div className="p-2 bg-primary-fixed rounded-lg">
+              <span className="material-symbols-outlined text-on-primary-fixed-variant text-xl">person_add</span>
+            </div>
+            <h2 className="font-semibold text-on-surface">Registrar nuevo docente</h2>
+          </div>
+
+          <form onSubmit={handleSubmit} className="p-6 space-y-5">
+            {submitError && (
+              <div className="flex items-center gap-3 p-4 bg-error-container rounded-xl border border-error/20">
+                <span className="material-symbols-outlined text-error text-xl">error</span>
+                <p className="text-sm text-error font-medium">{submitError}</p>
               </div>
-              <h2 className="font-semibold text-on-surface">Registrar nuevo docente</h2>
+            )}
+
+            {/* Datos personales */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Cédula" id="cedula" required error={errors.cedula}>
+                <input id="cedula" name="cedula" value={form.cedula} onChange={handleChange}
+                  placeholder="Número de cédula" className={inputClass} />
+              </FormField>
+              <FormField label="Nombre completo" id="nombre" required error={errors.nombre}>
+                <input id="nombre" name="nombre" value={form.nombre} onChange={handleChange}
+                  placeholder="Nombre y apellidos" className={inputClass} />
+              </FormField>
+              <FormField label="Teléfono" id="telefono">
+                <input id="telefono" name="telefono" type="tel" value={form.telefono} onChange={handleChange}
+                  placeholder="ej. 3001234567" className={inputClass} />
+              </FormField>
+              <FormField label="Correo electrónico" id="correo">
+                <input id="correo" name="correo" type="email" value={form.correo} onChange={handleChange}
+                  placeholder="correo@escuela.edu.co" className={inputClass} />
+              </FormField>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-5">
-              {submitError && (
-                <div className="flex items-center gap-3 p-4 bg-error-container rounded-xl border border-error/20">
-                  <span className="material-symbols-outlined text-error text-xl">error</span>
-                  <p className="text-sm text-error font-medium">{submitError}</p>
-                </div>
-              )}
-
-              {/* Datos personales */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField label="Cédula" id="cedula" required error={errors.cedula}>
-                  <input id="cedula" name="cedula" value={form.cedula} onChange={handleChange}
-                    placeholder="Número de cédula" className={inputClass} />
-                </FormField>
-                <FormField label="Nombre completo" id="nombre" required error={errors.nombre}>
-                  <input id="nombre" name="nombre" value={form.nombre} onChange={handleChange}
-                    placeholder="Nombre y apellidos" className={inputClass} />
-                </FormField>
-                <FormField label="Teléfono" id="telefono">
-                  <input id="telefono" name="telefono" type="tel" value={form.telefono} onChange={handleChange}
-                    placeholder="ej. 3001234567" className={inputClass} />
-                </FormField>
-                <FormField label="Correo electrónico" id="correo">
-                  <input id="correo" name="correo" type="email" value={form.correo} onChange={handleChange}
-                    placeholder="correo@escuela.edu.co" className={inputClass} />
-                </FormField>
+            {/* Jornada */}
+            <div>
+              <p className="text-xs font-semibold tracking-wide text-on-surface-variant uppercase mb-3">
+                Jornada laboral <span className="text-error ml-1">*</span>
+              </p>
+              <div className="flex gap-3">
+                <JornadaBtn value="MAÑANA"   icon="wb_sunny"     desc="6:00 a.m. – 12:00 m."
+                  selected={form.jornada === 'MAÑANA'}   disabled={false} onSelect={handleJornada} />
+                <JornadaBtn value="TARDE"    icon="wb_twilight"  desc="12:00 m. – 6:00 p.m."
+                  selected={form.jornada === 'TARDE'}    disabled={false} onSelect={handleJornada} />
+                <JornadaBtn value="COMPLETA" icon="brightness_5" desc="6:00 a.m. – 6:00 p.m."
+                  selected={form.jornada === 'COMPLETA'} disabled={false} onSelect={handleJornada} />
               </div>
-
-              {/* Jornada */}
-              <div>
-                <p className="text-xs font-semibold tracking-wide text-on-surface-variant uppercase mb-3">
-                  Jornada laboral <span className="text-error ml-1">*</span>
+              {errors.jornada && (
+                <p className="text-xs text-error flex items-center gap-1 mt-2">
+                  <span className="material-symbols-outlined text-[14px]">error</span>{errors.jornada}
                 </p>
-                <div className="flex gap-3">
-                  <JornadaBtn value="MAÑANA"   icon="wb_sunny"    desc="6:00 a.m. – 12:00 m."
-                    selected={form.jornada === 'MAÑANA'}   disabled={false} onSelect={handleJornada} />
-                  <JornadaBtn value="TARDE"    icon="wb_twilight" desc="12:00 m. – 6:00 p.m."
-                    selected={form.jornada === 'TARDE'}    disabled={false} onSelect={handleJornada} />
-                  <JornadaBtn value="COMPLETA" icon="brightness_5" desc="6:00 a.m. – 6:00 p.m."
-                    selected={form.jornada === 'COMPLETA'} disabled={false} onSelect={handleJornada} />
-                </div>
-                {errors.jornada && (
-                  <p className="text-xs text-error flex items-center gap-1 mt-2">
-                    <span className="material-symbols-outlined text-[14px]">error</span>{errors.jornada}
-                  </p>
+              )}
+            </div>
+
+            {/* Grado — tabla de disponibilidad */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold tracking-wide text-on-surface-variant uppercase">
+                  Grado a dirigir <span className="text-error ml-1">*</span>
+                </p>
+                {!form.jornada && (
+                  <span className="text-xs text-stone-400 italic">Selecciona la jornada primero</span>
                 )}
               </div>
 
-              {/* Grado — tabla de disponibilidad */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-semibold tracking-wide text-on-surface-variant uppercase">
-                    Grado a dirigir <span className="text-error ml-1">*</span>
-                  </p>
-                  {!form.jornada && (
-                    <span className="text-xs text-stone-400 italic">Selecciona la jornada primero</span>
-                  )}
+              {loadingGrados ? (
+                <div className="flex items-center justify-center h-24 rounded-xl border border-outline-variant bg-stone-50">
+                  <span className="material-symbols-outlined text-primary animate-spin">progress_activity</span>
                 </div>
-
-                {loadingGrados ? (
-                  <div className="flex items-center justify-center h-24 rounded-xl border border-outline-variant bg-stone-50">
-                    <span className="material-symbols-outlined text-primary animate-spin">progress_activity</span>
-                  </div>
-                ) : (
-                  <DisponibilidadGrid
-                    grados={grados}
-                    gradoSeleccionado={form.nombreGrado}
-                    jornadaSeleccionada={form.jornada}
-                    onSelect={handleGrado}
-                  />
-                )}
-
-                {errors.nombreGrado && (
-                  <p className="text-xs text-error flex items-center gap-1 mt-2">
-                    <span className="material-symbols-outlined text-[14px]">error</span>{errors.nombreGrado}
-                  </p>
-                )}
-              </div>
-
-              {/* Resumen selección */}
-              {form.jornada && form.nombreGrado && (
-                <div className="flex gap-3 p-4 bg-secondary-container/20 rounded-xl border border-secondary/20">
-                  <span className="material-symbols-outlined text-secondary text-xl flex-shrink-0">info</span>
-                  <p className="text-sm text-on-surface-variant">
-                    <strong className="text-on-surface">{form.nombre || 'El docente'}</strong> será director del grado{' '}
-                    <strong className="text-secondary">{form.nombreGrado}</strong> en jornada{' '}
-                    <strong className="text-secondary">{JORNADA_LABEL[form.jornada as JornadaDocente]}</strong>.
-                    {form.jornada === 'COMPLETA' && ' Se asignará a las dos filas del grado (mañana y tarde).'}
-                  </p>
-                </div>
+              ) : (
+                <DisponibilidadGrid
+                  grados={grados}
+                  gradoSeleccionado={form.nombreGrado}
+                  jornadaSeleccionada={form.jornada}
+                  onSelect={handleGrado}
+                />
               )}
 
-              {/* Actions */}
-              <div className="flex gap-3 pt-1">
-                <button type="button"
-                  onClick={() => { setForm(EMPTY_FORM); setErrors({}); setSubmitError(''); }}
-                  className="px-5 py-2.5 border border-outline-variant bg-white text-on-surface-variant rounded-lg font-semibold hover:bg-stone-50 transition-all text-sm">
-                  Limpiar
-                </button>
-                <button type="submit" disabled={isSubmitting}
-                  className="flex-1 py-2.5 bg-orange-900 text-white rounded-lg font-semibold hover:bg-primary transition-all shadow-md disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm">
-                  {isSubmitting ? (
-                    <><span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>Guardando...</>
-                  ) : (
-                    <><span className="material-symbols-outlined text-lg">person_add</span>Registrar Docente</>
-                  )}
-                </button>
+              {errors.nombreGrado && (
+                <p className="text-xs text-error flex items-center gap-1 mt-2">
+                  <span className="material-symbols-outlined text-[14px]">error</span>{errors.nombreGrado}
+                </p>
+              )}
+            </div>
+
+            {/* Resumen selección */}
+            {form.jornada && form.nombreGrado && (
+              <div className="flex gap-3 p-4 bg-secondary-container/20 rounded-xl border border-secondary/20">
+                <span className="material-symbols-outlined text-secondary text-xl flex-shrink-0">info</span>
+                <p className="text-sm text-on-surface-variant">
+                  <strong className="text-on-surface">{form.nombre || 'El docente'}</strong> será director del grado{' '}
+                  <strong className="text-secondary">{form.nombreGrado}</strong> en jornada{' '}
+                  <strong className="text-secondary">{JORNADA_LABEL[form.jornada as JornadaDocente]}</strong>.
+                  {form.jornada === 'COMPLETA' && ' Se asignará a las dos filas del grado (mañana y tarde).'}
+                </p>
               </div>
-            </form>
-          </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-1">
+              <button type="button"
+                onClick={() => { setForm(EMPTY_FORM); setErrors({}); setSubmitError(''); }}
+                className="px-5 py-2.5 border border-outline-variant bg-white text-on-surface-variant rounded-lg font-semibold hover:bg-stone-50 transition-all text-sm">
+                Limpiar
+              </button>
+              <button type="submit" disabled={isSubmitting}
+                className="flex-1 py-2.5 bg-orange-900 text-white rounded-lg font-semibold hover:bg-primary transition-all shadow-md disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm">
+                {isSubmitting ? (
+                  <><span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>Guardando...</>
+                ) : (
+                  <><span className="material-symbols-outlined text-lg">person_add</span>Registrar Docente</>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
 
-        {/* ── Columna derecha: docentes registrados ────────── */}
+        {/* ── Docentes registrados ─────────────────────────── */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-on-surface">
@@ -521,11 +514,12 @@ const DocentesPage = () => {
               <p className="text-sm font-medium">No hay docentes registrados aún</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {docentes.map((d) => <DocenteCard key={d.cedula} docente={d} />)}
             </div>
           )}
         </div>
+
       </div>
     </>
   );

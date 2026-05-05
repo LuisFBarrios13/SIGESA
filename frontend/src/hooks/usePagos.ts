@@ -1,10 +1,10 @@
 // src/hooks/usePagos.ts
 // Single Responsibility: all pagos state + side-effects live here.
-// The page component stays purely presentational.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   pagosApi,
+  type Tarifa,
   type MetodoPago,
   type ResumenPagos,
   type MatriculaResumen,
@@ -14,8 +14,7 @@ import {
 
 export type ModalKind =
   | { type: 'pago'; cuenta: CuentaCobro }
-  | { type: 'pension'; id_matricula: number; year: number }
-  | { type: 'matricula'; id_matricula: number; year: number }
+  | { type: 'tarifa'; year: number; tarifa: Tarifa | null }
   | null;
 
 interface UsePagosReturn {
@@ -38,19 +37,23 @@ interface UsePagosReturn {
   metodos: MetodoPago[];
   metodosError: string;
 
+  // Tarifa global
+  tarifa: Tarifa | null;
+  isTarifaLoading: boolean;
+  openTarifaModal: () => void;
+
   // Modal
   modal: ModalKind;
   openPagoModal: (cuenta: CuentaCobro) => void;
-  openPensionModal: () => void;
-  openMatriculaModal: () => void;
   closeModal: () => void;
 
   // Operations
   opLoading: boolean;
   opError: string;
   registrarPago: (monto: number, id_metodo: number, fecha?: string, obs?: string) => Promise<void>;
-  generarPension: (valor: number) => Promise<void>;
-  crearMatricula: (valor: number) => Promise<void>;
+  generarPension: () => Promise<void>;
+  crearMatricula: () => Promise<void>;
+  saveTarifa: (valor_pension: number, valor_matricula: number) => Promise<void>;
 
   // Estado filter
   estadoFilter: EstadoCuenta | 'TODOS';
@@ -71,6 +74,9 @@ export const usePagos = (): UsePagosReturn => {
   const [metodos, setMetodos]                   = useState<MetodoPago[]>([]);
   const [metodosError, setMetodosError]         = useState('');
 
+  const [tarifa, setTarifa]                     = useState<Tarifa | null>(null);
+  const [isTarifaLoading, setIsTarifaLoading]   = useState(false);
+
   const [modal, setModal]                       = useState<ModalKind>(null);
   const [opLoading, setOpLoading]               = useState(false);
   const [opError, setOpError]                   = useState('');
@@ -84,11 +90,18 @@ export const usePagos = (): UsePagosReturn => {
   useEffect(() => {
     pagosApi.getMetodos()
       .then(setMetodos)
-      .catch((error) => {
-        console.error('Error cargando métodos de pago:', error);
-        setMetodosError('No se pudieron cargar los métodos de pago. Verifica tu sesión o la conexión con la API.');
-      });
+      .catch(() => setMetodosError('No se pudieron cargar los métodos de pago.'));
   }, []);
+
+  // ── Load tarifa when year changes ────────────────────────────
+
+  useEffect(() => {
+    setIsTarifaLoading(true);
+    pagosApi.getTarifa(yearFilter)
+      .then(setTarifa)
+      .catch(() => setTarifa(null))
+      .finally(() => setIsTarifaLoading(false));
+  }, [yearFilter]);
 
   // ── Debounced search ─────────────────────────────────────────
 
@@ -145,17 +158,16 @@ export const usePagos = (): UsePagosReturn => {
 
   // ── Modals ───────────────────────────────────────────────────
 
-  const openPagoModal    = useCallback((cuenta: CuentaCobro) => { setOpError(''); setModal({ type: 'pago', cuenta }); }, []);
-  const openPensionModal = useCallback(() => {
-    if (!selectedMatricula) return;
+  const openPagoModal    = useCallback((cuenta: CuentaCobro) => {
     setOpError('');
-    setModal({ type: 'pension', id_matricula: selectedMatricula.id_matricula, year: yearFilter });
-  }, [selectedMatricula, yearFilter]);
-  const openMatriculaModal = useCallback(() => {
-    if (!selectedMatricula) return;
+    setModal({ type: 'pago', cuenta });
+  }, []);
+
+  const openTarifaModal  = useCallback(() => {
     setOpError('');
-    setModal({ type: 'matricula', id_matricula: selectedMatricula.id_matricula, year: yearFilter });
-  }, [selectedMatricula, yearFilter]);
+    setModal({ type: 'tarifa', year: yearFilter, tarifa });
+  }, [yearFilter, tarifa]);
+
   const closeModal       = useCallback(() => { setModal(null); setOpError(''); }, []);
 
   // ── Operations ───────────────────────────────────────────────
@@ -182,41 +194,44 @@ export const usePagos = (): UsePagosReturn => {
     }
   }, [modal, refreshResumen, closeModal]);
 
-  const generarPension = useCallback(async (valor: number) => {
-    if (modal?.type !== 'pension') return;
+  const generarPension = useCallback(async () => {
+    if (!selectedMatricula) return;
     setOpLoading(true); setOpError('');
     try {
-      await pagosApi.generarPension({
-        id_matricula: modal.id_matricula,
-        valor_pension: valor,
-        year: modal.year,
-      });
+      await pagosApi.generarPension(selectedMatricula.id_matricula, yearFilter);
       await refreshResumen();
-      closeModal();
     } catch (e) {
       setOpError(e instanceof Error ? e.message : 'Error al generar pensiones');
     } finally {
       setOpLoading(false);
     }
-  }, [modal, refreshResumen, closeModal]);
+  }, [selectedMatricula, yearFilter, refreshResumen]);
 
-  const crearMatricula = useCallback(async (valor: number) => {
-    if (modal?.type !== 'matricula') return;
+  const crearMatricula = useCallback(async () => {
+    if (!selectedMatricula) return;
     setOpLoading(true); setOpError('');
     try {
-      await pagosApi.crearCuentaMatricula({
-        id_matricula: modal.id_matricula,
-        valor,
-        year: modal.year,
-      });
+      await pagosApi.crearCuentaMatricula(selectedMatricula.id_matricula, yearFilter);
       await refreshResumen();
-      closeModal();
     } catch (e) {
       setOpError(e instanceof Error ? e.message : 'Error al crear cuenta de matrícula');
     } finally {
       setOpLoading(false);
     }
-  }, [modal, refreshResumen, closeModal]);
+  }, [selectedMatricula, yearFilter, refreshResumen]);
+
+  const saveTarifa = useCallback(async (valor_pension: number, valor_matricula: number) => {
+    setOpLoading(true); setOpError('');
+    try {
+      const saved = await pagosApi.upsertTarifa(yearFilter, valor_pension, valor_matricula);
+      setTarifa(saved);
+      closeModal();
+    } catch (e) {
+      setOpError(e instanceof Error ? e.message : 'Error al guardar la tarifa');
+    } finally {
+      setOpLoading(false);
+    }
+  }, [yearFilter, closeModal]);
 
   // ── Derived: filtered cuentas ────────────────────────────────
 
@@ -230,11 +245,11 @@ export const usePagos = (): UsePagosReturn => {
     searchResults, isSearching,
     selectedMatricula, resumen, isLoadingResumen,
     selectMatricula, clearSelection,
-    metodos,
-    metodosError,
-    modal, openPagoModal, openPensionModal, openMatriculaModal, closeModal,
+    metodos, metodosError,
+    tarifa, isTarifaLoading, openTarifaModal,
+    modal, openPagoModal, closeModal,
     opLoading, opError,
-    registrarPago, generarPension, crearMatricula,
+    registrarPago, generarPension, crearMatricula, saveTarifa,
     estadoFilter, setEstadoFilter, cuentasFiltradas,
   };
 };
