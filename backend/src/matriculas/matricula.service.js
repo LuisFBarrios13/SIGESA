@@ -9,6 +9,7 @@ import {
   Acudiente,
   RelacionEA,
   Rol,
+  Grado,
 } from '../models/index.js';
 import { ROLES } from '../constants/roles.js';
 
@@ -154,6 +155,9 @@ export const crearMatriculaConAcudiente = async (dto) => {
  */
 export const listarMatriculas = async () =>
   Matricula.findAll({
-    include: [{ model: Estudiante, as: 'estudiante' }],
+    include: [
+      { model: Estudiante, as: 'estudiante' },
+      { model: Grado, as: 'grado' }
+    ],
     order: [['id_matricula', 'DESC']],
   });
