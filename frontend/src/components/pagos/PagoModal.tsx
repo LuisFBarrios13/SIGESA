@@ -1,6 +1,5 @@
 // src/components/pagos/PagoModal.tsx
 import { useState, type FormEvent } from 'react';
-import MoneyText from './MoneyText';
 import { NOMBRE_MES, CONCEPTO_META, METODO_ICONS, fmt } from './pagos.constants';
 import type { CuentaCobro, MetodoPago } from '../../services/pagosApi';
 

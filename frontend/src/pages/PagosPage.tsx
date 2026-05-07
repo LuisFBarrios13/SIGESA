@@ -12,7 +12,7 @@ const PagosPage = () => {
     searchQuery, setSearchQuery,
     yearFilter,  setYearFilter,
     searchResults, isSearching,
-    selectedMatricula, resumen, isLoadingResumen,
+    resumen, isLoadingResumen,
     selectMatricula, clearSelection,
     metodos, metodosError,
     tarifa, isTarifaLoading, openTarifaModal,
