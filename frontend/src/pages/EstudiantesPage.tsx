@@ -1,6 +1,11 @@
 // src/pages/EstudiantesPage.tsx
 import { useState, useEffect, useMemo } from 'react';
-import { estudiantesApi, type MatriculaListItem } from '../services/api';
+import {
+  estudiantesApi,
+  type EstudianteListItem,
+  type MatriculaListItem,
+} from '../services/api';
+
 // ── Constants ─────────────────────────────────────────────────
 
 const NOMBRES_GRADOS = [
@@ -9,9 +14,9 @@ const NOMBRES_GRADOS = [
 ] as const;
 
 const ESTADO_COLOR: Record<string, string> = {
-  ACTIVO:    'bg-emerald-100 text-emerald-800',
-  RETIRADO:  'bg-red-100 text-red-800',
-  GRADUADO:  'bg-blue-100 text-blue-800',
+  ACTIVO:   'bg-emerald-100 text-emerald-800',
+  RETIRADO: 'bg-red-100 text-red-800',
+  GRADUADO: 'bg-blue-100 text-blue-800',
 };
 
 const ESTADO_ICON: Record<string, string> = {
@@ -24,6 +29,14 @@ const JORNADA_COLOR: Record<string, string> = {
   MAÑANA: 'bg-amber-100 text-amber-800',
   TARDE:  'bg-indigo-100 text-indigo-800',
 };
+
+// ── Helpers ───────────────────────────────────────────────────
+
+/**
+ * Devuelve la matrícula más reciente (por year) de un estudiante.
+ */
+const getMatriculaActiva = (matriculas: MatriculaListItem[]): MatriculaListItem | undefined =>
+  [...matriculas].sort((a, b) => b.year - a.year)[0];
 
 // ── Sub-components ────────────────────────────────────────────
 
@@ -67,14 +80,10 @@ const FilterSelect = ({ icon, value, onChange, options, placeholder }: FilterSel
 
 // ── Student Card ──────────────────────────────────────────────
 
-interface StudentCardProps { matricula: MatriculaListItem }
-const StudentCard = ({ matricula: m }: StudentCardProps) => {
-  const initials = m.estudiante.nombre
-    .split(' ')
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+interface StudentCardProps { estudiante: EstudianteListItem }
+const StudentCard = ({ estudiante: e }: StudentCardProps) => {
+  const matricula = getMatriculaActiva(e.matriculas);
+  const initials  = e.nombre.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
   return (
     <div className="bg-white rounded-xl border border-outline-variant shadow-sm p-5
@@ -92,50 +101,58 @@ const StudentCard = ({ matricula: m }: StudentCardProps) => {
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 flex-wrap">
             <div>
-              <p className="font-bold text-on-surface text-sm truncate">{m.estudiante.nombre}</p>
+              <p className="font-bold text-on-surface text-sm truncate">{e.nombre}</p>
               <p className="text-xs text-stone-500 mt-0.5 font-mono">
-                ID: {m.estudiante.numero_identidad}
+                ID: {e.numero_identidad}
               </p>
             </div>
-            <Badge
-              label={m.estado}
-              colorClass={ESTADO_COLOR[m.estado] ?? 'bg-stone-100 text-stone-700'}
-              icon={ESTADO_ICON[m.estado]}
-            />
-          </div>
-
-          {/* Tags row */}
-          <div className="flex flex-wrap gap-2 mt-3">
-            <span className="inline-flex items-center gap-1 text-xs bg-stone-100 text-stone-700
-              px-2.5 py-1 rounded-full font-medium">
-              <span className="material-symbols-outlined text-[13px] text-secondary">school</span>
-              {m.grado?.nombre ?? '—'}
-            </span>
-            {m.grado?.jornada && (
+            {matricula && (
               <Badge
-                label={m.grado.jornada === 'MAÑANA' ? 'Mañana' : 'Tarde'}
-                colorClass={JORNADA_COLOR[m.grado.jornada] ?? ''}
+                label={matricula.estado}
+                colorClass={ESTADO_COLOR[matricula.estado] ?? 'bg-stone-100 text-stone-700'}
+                icon={ESTADO_ICON[matricula.estado]}
               />
             )}
-            <span className="inline-flex items-center gap-1 text-xs bg-stone-100 text-stone-700
-              px-2.5 py-1 rounded-full font-medium">
-              <span className="material-symbols-outlined text-[13px] text-stone-400">calendar_today</span>
-              {m.year}
-            </span>
           </div>
 
-          {/* Extra info */}
+          {/* Tags */}
+          <div className="flex flex-wrap gap-2 mt-3">
+            {matricula?.grado && (
+              <span className="inline-flex items-center gap-1 text-xs bg-stone-100 text-stone-700
+                px-2.5 py-1 rounded-full font-medium">
+                <span className="material-symbols-outlined text-[13px] text-secondary">school</span>
+                {matricula.grado.nombre}
+              </span>
+            )}
+            {matricula?.grado?.jornada && (
+              <Badge
+                label={matricula.grado.jornada === 'MAÑANA' ? 'Mañana' : 'Tarde'}
+                colorClass={JORNADA_COLOR[matricula.grado.jornada] ?? ''}
+              />
+            )}
+            {matricula && (
+              <span className="inline-flex items-center gap-1 text-xs bg-stone-100 text-stone-700
+                px-2.5 py-1 rounded-full font-medium">
+                <span className="material-symbols-outlined text-[13px] text-stone-400">calendar_today</span>
+                {matricula.year}
+              </span>
+            )}
+          </div>
+
+          {/* Extra */}
           <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t border-stone-100">
-            <p className="flex items-center gap-1 text-xs text-stone-400">
-              <span className="material-symbols-outlined text-[13px]">event</span>
-              Matrícula: {new Date(m.fecha_matricula).toLocaleDateString('es-CO', {
-                day: '2-digit', month: 'short', year: 'numeric',
-              })}
-            </p>
-            {m.estudiante.fecha_nacimiento && (
+            {e.fecha_nacimiento && (
               <p className="flex items-center gap-1 text-xs text-stone-400">
                 <span className="material-symbols-outlined text-[13px]">cake</span>
-                {new Date(m.estudiante.fecha_nacimiento + 'T00:00:00').toLocaleDateString('es-CO', {
+                {new Date(e.fecha_nacimiento + 'T00:00:00').toLocaleDateString('es-CO', {
+                  day: '2-digit', month: 'short', year: 'numeric',
+                })}
+              </p>
+            )}
+            {matricula && (
+              <p className="flex items-center gap-1 text-xs text-stone-400">
+                <span className="material-symbols-outlined text-[13px]">event</span>
+                Matrícula: {new Date(matricula.fecha_matricula).toLocaleDateString('es-CO', {
                   day: '2-digit', month: 'short', year: 'numeric',
                 })}
               </p>
@@ -149,78 +166,86 @@ const StudentCard = ({ matricula: m }: StudentCardProps) => {
 
 // ── Student Table Row ─────────────────────────────────────────
 
-interface StudentRowProps { matricula: MatriculaListItem }
-const StudentRow = ({ matricula: m }: StudentRowProps) => (
-  <tr className="hover:bg-stone-50/70 transition-colors">
-    {/* Estudiante */}
-    <td className="px-5 py-3.5">
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center flex-shrink-0">
-          <span className="text-[10px] font-black text-on-primary-fixed-variant">
-            {m.estudiante.nombre.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
-          </span>
+interface StudentRowProps { estudiante: EstudianteListItem }
+const StudentRow = ({ estudiante: e }: StudentRowProps) => {
+  const matricula = getMatriculaActiva(e.matriculas);
+
+  return (
+    <tr className="hover:bg-stone-50/70 transition-colors">
+      {/* Estudiante */}
+      <td className="px-5 py-3.5">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center flex-shrink-0">
+            <span className="text-[10px] font-black text-on-primary-fixed-variant">
+              {e.nombre.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
+            </span>
+          </div>
+          <div>
+            <p className="font-semibold text-on-surface text-sm">{e.nombre}</p>
+            <p className="text-xs text-stone-400 font-mono">{e.numero_identidad}</p>
+          </div>
         </div>
-        <div>
-          <p className="font-semibold text-on-surface text-sm">{m.estudiante.nombre}</p>
-          <p className="text-xs text-stone-400 font-mono">{m.estudiante.numero_identidad}</p>
-        </div>
-      </div>
-    </td>
-    {/* Grado */}
-    <td className="px-5 py-3.5 text-sm text-stone-600">
-      {m.grado?.nombre ?? '—'}
-    </td>
-    {/* Jornada */}
-    <td className="px-5 py-3.5">
-      {m.grado?.jornada ? (
-        <Badge
-          label={m.grado.jornada === 'MAÑANA' ? 'Mañana' : 'Tarde'}
-          colorClass={JORNADA_COLOR[m.grado.jornada] ?? ''}
-        />
-      ) : <span className="text-stone-300 text-xs">—</span>}
-    </td>
-    {/* Año */}
-    <td className="px-5 py-3.5 text-sm text-stone-600 font-mono">{m.year}</td>
-    {/* Nacimiento */}
-    <td className="px-5 py-3.5 text-xs text-stone-500">
-      {m.estudiante.fecha_nacimiento
-        ? new Date(m.estudiante.fecha_nacimiento + 'T00:00:00').toLocaleDateString('es-CO', {
-            day: '2-digit', month: 'short', year: 'numeric',
-          })
-        : '—'}
-    </td>
-    {/* Estado */}
-    <td className="px-5 py-3.5">
-      <Badge
-        label={m.estado}
-        colorClass={ESTADO_COLOR[m.estado] ?? 'bg-stone-100 text-stone-700'}
-        icon={ESTADO_ICON[m.estado]}
-      />
-    </td>
-    {/* Fecha matrícula */}
-    <td className="px-5 py-3.5 text-xs text-stone-500">
-      {new Date(m.fecha_matricula).toLocaleDateString('es-CO', {
-        day: '2-digit', month: 'short', year: 'numeric',
-      })}
-    </td>
-  </tr>
-);
+      </td>
+      {/* Grado */}
+      <td className="px-5 py-3.5 text-sm text-stone-600">
+        {matricula?.grado?.nombre ?? '—'}
+      </td>
+      {/* Jornada */}
+      <td className="px-5 py-3.5">
+        {matricula?.grado?.jornada ? (
+          <Badge
+            label={matricula.grado.jornada === 'MAÑANA' ? 'Mañana' : 'Tarde'}
+            colorClass={JORNADA_COLOR[matricula.grado.jornada] ?? ''}
+          />
+        ) : <span className="text-stone-300 text-xs">—</span>}
+      </td>
+      {/* Año */}
+      <td className="px-5 py-3.5 text-sm text-stone-600 font-mono">{matricula?.year ?? '—'}</td>
+      {/* Nacimiento */}
+      <td className="px-5 py-3.5 text-xs text-stone-500">
+        {e.fecha_nacimiento
+          ? new Date(e.fecha_nacimiento + 'T00:00:00').toLocaleDateString('es-CO', {
+              day: '2-digit', month: 'short', year: 'numeric',
+            })
+          : '—'}
+      </td>
+      {/* Estado */}
+      <td className="px-5 py-3.5">
+        {matricula ? (
+          <Badge
+            label={matricula.estado}
+            colorClass={ESTADO_COLOR[matricula.estado] ?? 'bg-stone-100 text-stone-700'}
+            icon={ESTADO_ICON[matricula.estado]}
+          />
+        ) : <span className="text-stone-300 text-xs">—</span>}
+      </td>
+      {/* Fecha matrícula */}
+      <td className="px-5 py-3.5 text-xs text-stone-500">
+        {matricula
+          ? new Date(matricula.fecha_matricula).toLocaleDateString('es-CO', {
+              day: '2-digit', month: 'short', year: 'numeric',
+            })
+          : '—'}
+      </td>
+    </tr>
+  );
+};
 
 // ── Stats bar ─────────────────────────────────────────────────
 
-interface StatsBarProps { matriculas: MatriculaListItem[]; filtered: MatriculaListItem[] }
-const StatsBar = ({ matriculas, filtered }: StatsBarProps) => {
-  const activos   = matriculas.filter((m) => m.estado === 'ACTIVO').length;
-  const retirados = matriculas.filter((m) => m.estado === 'RETIRADO').length;
-  const graduados = matriculas.filter((m) => m.estado === 'GRADUADO').length;
+interface StatsBarProps { estudiantes: EstudianteListItem[] }
+const StatsBar = ({ estudiantes }: StatsBarProps) => {
+  const activos   = estudiantes.filter((e) => getMatriculaActiva(e.matriculas)?.estado === 'ACTIVO').length;
+  const retirados = estudiantes.filter((e) => getMatriculaActiva(e.matriculas)?.estado === 'RETIRADO').length;
+  const graduados = estudiantes.filter((e) => getMatriculaActiva(e.matriculas)?.estado === 'GRADUADO').length;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
       {[
-        { label: 'Total matrículas', value: matriculas.length, icon: 'format_list_numbered', color: 'text-primary', bg: 'bg-primary-fixed' },
-        { label: 'Activos',          value: activos,           icon: 'check_circle',          color: 'text-emerald-700', bg: 'bg-emerald-100' },
-        { label: 'Retirados',        value: retirados,         icon: 'cancel',                color: 'text-red-700',     bg: 'bg-red-100'     },
-        { label: 'Graduados',        value: graduados,         icon: 'school',                color: 'text-blue-700',    bg: 'bg-blue-100'    },
+        { label: 'Total estudiantes', value: estudiantes.length, icon: 'group',         color: 'text-primary',     bg: 'bg-primary-fixed'  },
+        { label: 'Activos',           value: activos,            icon: 'check_circle',  color: 'text-emerald-700', bg: 'bg-emerald-100'    },
+        { label: 'Retirados',         value: retirados,          icon: 'cancel',        color: 'text-red-700',     bg: 'bg-red-100'        },
+        { label: 'Graduados',         value: graduados,          icon: 'school',        color: 'text-blue-700',    bg: 'bg-blue-100'       },
       ].map((s) => (
         <div key={s.label} className="bg-white rounded-xl border border-outline-variant shadow-sm p-4 flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full ${s.bg} flex items-center justify-center flex-shrink-0`}>
@@ -241,48 +266,52 @@ const StatsBar = ({ matriculas, filtered }: StatsBarProps) => {
 type ViewMode = 'cards' | 'table';
 
 const EstudiantesPage = () => {
-  const [matriculas, setMatriculas]   = useState<MatriculaListItem[]>([]);
+  const [estudiantes, setEstudiantes] = useState<EstudianteListItem[]>([]);
   const [isLoading, setIsLoading]     = useState(true);
   const [error, setError]             = useState('');
   const [viewMode, setViewMode]       = useState<ViewMode>('table');
 
   // Filters
-  const [search, setSearch]           = useState('');
-  const [filterGrado, setFilterGrado] = useState('');
-  const [filterYear, setFilterYear]   = useState('');
+  const [search, setSearch]               = useState('');
+  const [filterGrado, setFilterGrado]     = useState('');
+  const [filterYear, setFilterYear]       = useState('');
   const [filterJornada, setFilterJornada] = useState('');
   const [filterEstado, setFilterEstado]   = useState('');
 
-  const fetchMatriculas = () => {
+  const fetchEstudiantes = () => {
     setIsLoading(true);
     setError('');
-    estudiantesApi.listarMatriculas()
-      .then(setMatriculas)
+    estudiantesApi.listar()
+      .then(setEstudiantes)
       .catch(() => setError('No se pudo cargar la lista de estudiantes.'))
       .finally(() => setIsLoading(false));
   };
 
-  useEffect(() => { fetchMatriculas(); }, []);
+  useEffect(() => { fetchEstudiantes(); }, []);
 
-  // Compute available years from data
+  // Años disponibles extraídos de las matrículas
   const years = useMemo(() => {
-    const set = new Set(matriculas.map((m) => String(m.year)));
+    const set = new Set<string>();
+    estudiantes.forEach((e) => e.matriculas.forEach((m) => set.add(String(m.year))));
     return Array.from(set).sort((a, b) => Number(b) - Number(a));
-  }, [matriculas]);
+  }, [estudiantes]);
 
-  // Filtered list
+  // Lista filtrada
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return matriculas.filter((m) => {
-      if (q && !m.estudiante.nombre.toLowerCase().includes(q) &&
-          !m.estudiante.numero_identidad.toLowerCase().includes(q)) return false;
-      if (filterGrado   && m.grado?.nombre   !== filterGrado)   return false;
-      if (filterYear    && String(m.year)     !== filterYear)    return false;
-      if (filterJornada && m.grado?.jornada   !== filterJornada) return false;
-      if (filterEstado  && m.estado           !== filterEstado)  return false;
+    return estudiantes.filter((e) => {
+      if (q && !e.nombre.toLowerCase().includes(q) &&
+          !e.numero_identidad.toLowerCase().includes(q)) return false;
+
+      const m = getMatriculaActiva(e.matriculas);
+
+      if (filterGrado   && m?.grado?.nombre   !== filterGrado)   return false;
+      if (filterYear    && String(m?.year)     !== filterYear)    return false;
+      if (filterJornada && m?.grado?.jornada   !== filterJornada) return false;
+      if (filterEstado  && m?.estado           !== filterEstado)  return false;
       return true;
     });
-  }, [matriculas, search, filterGrado, filterYear, filterJornada, filterEstado]);
+  }, [estudiantes, search, filterGrado, filterYear, filterJornada, filterEstado]);
 
   const hasFilters = !!(search || filterGrado || filterYear || filterJornada || filterEstado);
 
@@ -301,11 +330,11 @@ const EstudiantesPage = () => {
         <div>
           <h1 className="text-3xl font-semibold text-primary">Estudiantes</h1>
           <p className="text-base text-stone-500 mt-1">
-            Consulta y filtra todos los estudiantes matriculados en el sistema.
+            Consulta y filtra todos los estudiantes registrados en el sistema.
           </p>
         </div>
         <button
-          onClick={fetchMatriculas}
+          onClick={fetchEstudiantes}
           className="flex items-center gap-2 px-4 py-2.5 bg-white border border-outline-variant
             text-on-surface-variant rounded-lg font-semibold hover:bg-stone-50 transition-all text-sm"
         >
@@ -315,7 +344,7 @@ const EstudiantesPage = () => {
       </div>
 
       {/* Stats */}
-      {!isLoading && !error && <StatsBar matriculas={matriculas} filtered={filtered} />}
+      {!isLoading && !error && <StatsBar estudiantes={estudiantes} />}
 
       {/* Search + Filters */}
       <div className="bg-white rounded-xl border border-outline-variant shadow-sm p-4 space-y-3">
@@ -393,7 +422,7 @@ const EstudiantesPage = () => {
             </button>
           )}
 
-          {/* Spacer + view toggle */}
+          {/* View toggle */}
           <div className="ml-auto flex items-center gap-1 bg-stone-100 rounded-lg p-1">
             <button
               onClick={() => setViewMode('table')}
@@ -420,8 +449,8 @@ const EstudiantesPage = () => {
         {!isLoading && (
           <p className="text-xs text-stone-400">
             {hasFilters
-              ? `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''} de ${matriculas.length} matrículas`
-              : `${matriculas.length} matrícula${matriculas.length !== 1 ? 's' : ''} en total`
+              ? `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''} de ${estudiantes.length} estudiantes`
+              : `${estudiantes.length} estudiante${estudiantes.length !== 1 ? 's' : ''} en total`
             }
           </p>
         )}
@@ -459,7 +488,9 @@ const EstudiantesPage = () => {
               {hasFilters ? 'Sin resultados para los filtros aplicados' : 'No hay estudiantes registrados'}
             </p>
             <p className="text-xs mt-1">
-              {hasFilters ? 'Prueba con otros filtros o limpia la búsqueda.' : 'Las matrículas aparecerán aquí una vez creadas.'}
+              {hasFilters
+                ? 'Prueba con otros filtros o limpia la búsqueda.'
+                : 'Los estudiantes aparecerán aquí una vez matriculados.'}
             </p>
           </div>
           {hasFilters && (
@@ -478,13 +509,12 @@ const EstudiantesPage = () => {
       {!isLoading && !error && filtered.length > 0 && (
         viewMode === 'cards' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((m) => (
-              <StudentCard key={m.id_matricula} matricula={m} />
+            {filtered.map((e) => (
+              <StudentCard key={e.numero_identidad} estudiante={e} />
             ))}
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden">
-            {/* Table header */}
             <div className="px-5 py-4 border-b border-stone-100 bg-stone-50/60 flex items-center gap-3">
               <div className="p-2 bg-primary-fixed rounded-lg">
                 <span className="material-symbols-outlined text-on-primary-fixed-variant text-xl">group</span>
@@ -492,7 +522,7 @@ const EstudiantesPage = () => {
               <div>
                 <h3 className="font-semibold text-on-surface">Lista de estudiantes</h3>
                 <p className="text-xs text-stone-500 mt-0.5">
-                  {filtered.length} matrícula{filtered.length !== 1 ? 's' : ''}
+                  {filtered.length} estudiante{filtered.length !== 1 ? 's' : ''}
                   {hasFilters && ' (filtrado)'}
                 </p>
               </div>
@@ -513,8 +543,8 @@ const EstudiantesPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-50">
-                  {filtered.map((m) => (
-                    <StudentRow key={m.id_matricula} matricula={m} />
+                  {filtered.map((e) => (
+                    <StudentRow key={e.numero_identidad} estudiante={e} />
                   ))}
                 </tbody>
               </table>

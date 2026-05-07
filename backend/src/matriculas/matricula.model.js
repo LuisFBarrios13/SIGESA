@@ -1,4 +1,4 @@
-// src/estudiantes/matricula.model.js
+// src/matriculas/matricula.model.js
 import { DataTypes } from 'sequelize';
 import { sequelize } from '../config/database.js';
 
@@ -30,7 +30,6 @@ export const Matricula = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
-    // Jornada en la que cursa el estudiante en esta matrícula
     jornada: {
       type: DataTypes.ENUM('MAÑANA', 'TARDE'),
       allowNull: false,

@@ -8,7 +8,7 @@ import { Acudiente }     from '../acudientes/acudiente.model.js';
 import { Docente }       from '../docentes/docente.model.js';
 import { Estudiante }    from '../estudiantes/estudiante.model.js';
 import { RelacionEA }    from '../estudiantes/relacion_ea.model.js';
-import { Matricula }     from '../estudiantes/matricula.model.js';
+import { Matricula }     from '../matriculas/matricula.model.js';  
 import { Grado }         from '../grados/grado.model.js';
 import { Periodo }       from '../periodos/periodo.model.js';
 import { ConceptoPago }  from '../pagos/concepto_pago.model.js';
