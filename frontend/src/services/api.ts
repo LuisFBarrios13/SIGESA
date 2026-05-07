@@ -11,74 +11,65 @@ interface ApiResponse<T> { success: boolean; message: string; data: T; }
 
 const buildHeaders = (): HeadersInit => {
   const token = getToken();
-  return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
 };
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res  = await fetch(`${BASE_URL}${path}`, { ...options, headers: { ...buildHeaders(), ...options.headers } });
+  const res  = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers: { ...buildHeaders(), ...options.headers },
+  });
   const body: ApiResponse<T> = await res.json();
   if (!res.ok) throw new Error(body.message ?? 'Error en la solicitud');
   return body.data;
 }
 
 export const api = {
-  get:    <T>(path: string)                => request<T>(path, { method: 'GET' }),
-  post:   <T>(path: string, body: unknown) => request<T>(path, { method: 'POST',  body: JSON.stringify(body) }),
-  patch:  <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
+  get:   <T>(path: string)                => request<T>(path, { method: 'GET' }),
+  post:  <T>(path: string, body: unknown) => request<T>(path, { method: 'POST',  body: JSON.stringify(body) }),
+  patch: <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
 };
+
+// ── Imports desde types/ ──────────────────────────────────────
+
+import type { LoginResult, Grado }                 from '../types/shared';
+import type { MatriculaPayload, MatriculaResult }  from '../types/matriculas';
+import type { DocentePayload, DocenteResult, DocenteListItem, GradoDisponibilidad } from '../types/docentes';
+import type { EstudianteListItem, EstudianteDetalle, ActualizarEstudiantePayload }  from '../types/estudiantes';
+
+// ── Re-exports ────────────────────────────────────────────────
+// Las páginas siguen importando desde este archivo sin necesidad de cambios.
+
+export type { LoginResult, JornadaEstudiante, JornadaDocente, Grado } from '../types/shared';
+export type { MatriculaPayload, MatriculaResult, MatriculaListItem }   from '../types/matriculas';
+export type { DocentePayload, GradoAsignado, DocenteResult, DocenteListItem, GradoDisponibilidad } from '../types/docentes';
+export type { GradoResumen, EstudianteListItem, EstudianteDetalle, ActualizarEstudiantePayload }    from '../types/estudiantes';
 
 // ── Auth ──────────────────────────────────────────────────────
 
-export interface LoginResult { token: string; user: import('../types/auth').AuthUser; }
 export const authApi = {
-  login:          (username: string, password: string) => api.post<LoginResult>('/auth/login', { username, password }),
-  changePassword: (newPassword: string)                => api.patch<null>('/auth/change-password', { newPassword }),
+  login:          (username: string, password: string) =>
+    api.post<LoginResult>('/auth/login', { username, password }),
+  changePassword: (newPassword: string) =>
+    api.patch<null>('/auth/change-password', { newPassword }),
 };
-
-// ── Shared types ──────────────────────────────────────────────
-
-export type JornadaEstudiante = 'MAÑANA' | 'TARDE';
-export type JornadaDocente    = 'MAÑANA' | 'TARDE' | 'COMPLETA';
 
 // ── Grados ────────────────────────────────────────────────────
 
-export interface Grado {
-  id_grado: number;
-  nombre: string;
-  jornada: JornadaEstudiante;
-  docente?: { cedula: string; nombre: string; jornada: JornadaDocente } | null;
-}
-export const gradosApi = { listar: () => api.get<Grado[]>('/grados') };
+export const gradosApi = {
+  listar: () => api.get<Grado[]>('/grados'),
+};
 
 // ── Matrículas ────────────────────────────────────────────────
 
-export interface MatriculaPayload {
-  estudiante: { numero_identidad: string; nombre: string; fecha_nacimiento: string; rh?: string; direccion?: string; observaciones?: string; };
-  matricula:  { id_grado: number; year: number; jornada: JornadaEstudiante; fecha_matricula?: string; };
-  acudiente:  { cedula: string; nombre: string; telefono?: string; correo?: string; direccion?: string; };
-  relacion?:  { parentesco?: string };
-}
-export interface MatriculaResult {
-  matricula:    Record<string, unknown>;
-  estudiante:   Record<string, unknown>;
-  acudiente:    Record<string, unknown>;
-  credenciales: { username: string; passwordTemporal: string; nota: string };
-}
 export const matriculasApi = {
   crear: (p: MatriculaPayload) => api.post<MatriculaResult>('/matriculas', p),
 };
 
 // ── Docentes ──────────────────────────────────────────────────
-
-export interface DocentePayload {
-  cedula: string; nombre: string; telefono?: string; correo?: string;
-  jornada: JornadaDocente;
-  nombreGrado: string;
-}
-export interface GradoAsignado    { id_grado: number; nombre: string; jornada: JornadaEstudiante; }
-export interface DocenteResult    { docente: Record<string, unknown>; gradosAsignados: GradoAsignado[]; credenciales: { username: string; passwordTemporal: string; nota: string }; }
-export interface DocenteListItem  { cedula: string; nombre: string; telefono: string | null; correo: string | null; jornada: JornadaDocente; grados: GradoAsignado[]; }
-export interface GradoDisponibilidad { id_grado: number; nombre: string; jornada: JornadaEstudiante; docente: { cedula: string; nombre: string; jornada: JornadaDocente } | null; }
 
 export const docentesApi = {
   crear:          (p: DocentePayload) => api.post<DocenteResult>('/docentes', p),
@@ -88,66 +79,13 @@ export const docentesApi = {
 
 // ── Estudiantes ───────────────────────────────────────────────
 
-export interface GradoResumen {
-  id_grado: number;
-  nombre: string;
-  jornada: JornadaEstudiante;
-}
-
-export interface MatriculaListItem {
-  id_matricula:   number;
-  year:           number;
-  jornada:        JornadaEstudiante;
-  fecha_matricula: string;
-  estado:         'ACTIVO' | 'RETIRADO' | 'GRADUADO';
-  grado?:         GradoResumen;
-}
-
-export interface EstudianteListItem {
-  numero_identidad: string;
-  nombre:           string;
-  fecha_nacimiento: string;
-  rh?:              string;
-  direccion?:       string;
-  observaciones?:   string;
-  matriculas:       MatriculaListItem[];
-}
-
-export interface EstudianteDetalle extends EstudianteListItem {
-  acudientes: {
-    cedula:                string;
-    nombre:                string;
-    telefono:              string | null;
-    correo:                string | null;
-    RelacionEA: {
-      parentesco:           string | null;
-      acudiente_principal:  boolean;
-    };
-  }[];
-}
-
-export interface ActualizarEstudiantePayload {
-  nombre?:           string;
-  fecha_nacimiento?: string;
-  rh?:               string;
-  direccion?:        string;
-  observaciones?:    string;
-}
-
 export const estudiantesApi = {
-  /** Lista todos los estudiantes con sus matrículas */
-  listar: () =>
+  listar:     () =>
     api.get<EstudianteListItem[]>('/estudiantes'),
-
-  /** Busca estudiantes por nombre o cédula */
-  buscar: (q: string) =>
+  buscar:     (q: string) =>
     api.get<EstudianteListItem[]>(`/estudiantes/buscar?q=${encodeURIComponent(q)}`),
-
-  /** Detalle completo de un estudiante (incluye acudientes) */
-  obtener: (id: string) =>
+  obtener:    (id: string) =>
     api.get<EstudianteDetalle>(`/estudiantes/${id}`),
-
-  /** Actualiza datos editables del estudiante */
   actualizar: (id: string, payload: ActualizarEstudiantePayload) =>
     api.patch<EstudianteListItem>(`/estudiantes/${id}`, payload),
 };
