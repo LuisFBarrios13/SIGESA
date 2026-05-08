@@ -1,7 +1,7 @@
 // src/pages/DeudoresPage.tsx
-import { useDeudores } from '../hooks/useDeudores';
-import StatsVencidos from '../components/deudores/StatsVencidos';
-import DeudorCard    from '../components/deudores/DeudorCard';
+import { useDeudores } from '../../hooks/useDeudores';
+import StatsVencidos from '../../components/deudores/StatsVencidos';
+import DeudorCard    from '../../components/deudores/DeudorCard';
 
 const yearOptions = Array.from(
   { length: 5 },

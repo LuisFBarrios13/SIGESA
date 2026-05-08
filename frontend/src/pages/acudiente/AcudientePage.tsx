@@ -3,12 +3,12 @@
 
 import { useState } from 'react';
 
-import WelcomeHeader from '../components/acudientes/WelcomeHeader';
-import GradesSummaryCard from '../components/acudientes/GradesSummaryCard';
-import FinancialStatementCard from '../components/acudientes/FinancialStatementCard';
-import AttendanceWidget from '../components/acudientes/AttendanceWidget';
-import EventsNoticesGrid from '../components/acudientes/EventsNoticesGrid';
-import FloatingActionButton from '../components/dashboard/FloatingActionButton';
+import WelcomeHeader from '../../components/acudientes/WelcomeHeader';
+import GradesSummaryCard from '../../components/acudientes/GradesSummaryCard';
+import FinancialStatementCard from '../../components/acudientes/FinancialStatementCard';
+import AttendanceWidget from '../../components/acudientes/AttendanceWidget';
+import EventsNoticesGrid from '../../components/acudientes/EventsNoticesGrid';
+import FloatingActionButton from '../../components/dashboard/FloatingActionButton';
 
 import {
   CHILDREN,
@@ -18,7 +18,7 @@ import {
   TOTAL_PENDING,
   ATTENDANCE_DATA,
   SCHOOL_EVENTS,
-} from '../constants/acudientes';
+} from '../../constants/acudientes';
 
 const AcudientesPage = () => {
   const [activeChildId, setActiveChildId] = useState<string>(CHILDREN[0].id);

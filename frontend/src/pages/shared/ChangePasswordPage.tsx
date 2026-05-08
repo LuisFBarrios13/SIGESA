@@ -1,7 +1,7 @@
 // src/pages/ChangePasswordPage.tsx
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../../hooks/useAuth';
 
 const ChangePasswordPage = () => {
   const { changePassword, logout } = useAuth();

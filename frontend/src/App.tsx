@@ -3,26 +3,45 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './hooks/useAuth';
 
-import LoginPage          from './pages/LoginPage';
-import ChangePasswordPage from './pages/ChangePasswordPage';
-import DashboardPage      from './pages/DashboardPage';
-import MatriculaPage      from './pages/MatriculaPage';
-import DocentesPage       from './pages/DocentesPage';
-import PagosPage          from './pages/PagosPage';
-import DeudoresPage       from './pages/DeudoresPage';
-import EstudiantesPage    from './pages/EstudiantesPage';
+// ── Shared ────────────────────────────────────────────────────
+import LoginPage          from './pages/shared/LoginPage';
+import ChangePasswordPage from './pages/shared/ChangePasswordPage';
+
+// ── Admin ─────────────────────────────────────────────────────
+import DashboardPage   from './pages/admin/DashboardPage';
+import MatriculaPage   from './pages/admin/MatriculaPage';
+import DocentesPage    from './pages/admin/DocentesPage';
+import PagosPage       from './pages/admin/PagosPage';
+import DeudoresPage    from './pages/admin/DeudoresPage';
+import EstudiantesPage from './pages/admin/EstudiantesPage';
+
+// ── Acudiente ─────────────────────────────────────────────────
+import AcudientePage from './pages/acudiente/AcudientePage';
 
 import Layout         from './components/layout/Layout';
 import ProtectedRoute from './components/ui/ProtectedRoute';
 
+// ── Redirección inteligente según rol ─────────────────────────
+
+const HomeRedirect = () => {
+  const { user } = useAuth();
+  const rol = user?.roles[0];
+
+  if (rol === 'DOCENTE')   return <Navigate to="/docente"   replace />;
+  if (rol === 'ACUDIENTE') return <Navigate to="/acudiente" replace />;
+  return <DashboardPage />;
+};
+
+// ── Rutas principales ─────────────────────────────────────────
+
 const AppRoutes = () => {
   const { user, isAuthenticated } = useAuth();
 
-  // Mapea AuthUser → UserProfile que espera Layout/TopBar
   const userProfile = user
     ? { name: user.username, role: user.roles[0] ?? '', avatarUrl: '' }
     : null;
 
+  // Primer login: solo permite cambiar contraseña
   if (isAuthenticated && user?.primerLogin) {
     return (
       <Routes>
@@ -34,17 +53,20 @@ const AppRoutes = () => {
 
   return (
     <Routes>
+      {/* Pública */}
       <Route
         path="/login"
         element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
       />
 
+      {/* Raíz — redirige según rol */}
       <Route path="/" element={
         <ProtectedRoute>
-          <Layout user={userProfile!}><DashboardPage /></Layout>
+          <Layout user={userProfile!}><HomeRedirect /></Layout>
         </ProtectedRoute>
       } />
 
+      {/* ── Admin ──────────────────────────────────────────── */}
       <Route path="/matricula" element={
         <ProtectedRoute roles={['ADMINISTRADOR']}>
           <Layout user={userProfile!}><MatriculaPage /></Layout>
@@ -75,6 +97,17 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
+      {/* ── Acudiente ──────────────────────────────────────── */}
+      <Route path="/acudiente" element={
+        <ProtectedRoute roles={['ACUDIENTE']}>
+          <Layout user={userProfile!}><AcudientePage /></Layout>
+        </ProtectedRoute>
+      } />
+
+      {/* ── Docente (se agregarán aquí) ─────────────────────── */}
+      {/* <Route path="/docente" element={...} /> */}
+
+      {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

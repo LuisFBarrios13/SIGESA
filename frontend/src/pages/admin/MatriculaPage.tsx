@@ -1,8 +1,8 @@
 // src/pages/MatriculaPage.tsx
 import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
-import { gradosApi, matriculasApi, type Grado, type MatriculaPayload } from '../services/api';
-import FormField, { inputClass, selectClass } from '../components/ui/FormField';
-import SectionCard from '../components/ui/SectionCard';
+import { gradosApi, matriculasApi, type Grado, type MatriculaPayload } from '../../services/api';
+import FormField, { inputClass, selectClass } from '../../components/ui/FormField';
+import SectionCard from '../../components/ui/SectionCard';
 
 // ── Types ─────────────────────────────────────────────────────
 

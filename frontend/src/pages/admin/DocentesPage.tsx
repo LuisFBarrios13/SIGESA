@@ -6,8 +6,8 @@ import {
   type DocenteListItem,
   type GradoDisponibilidad,
   type JornadaDocente,
-} from '../services/api';
-import FormField, { inputClass } from '../components/ui/FormField';
+} from '../../services/api';
+import FormField, { inputClass } from '../../components/ui/FormField';
 
 // ── Constants ─────────────────────────────────────────────────
 

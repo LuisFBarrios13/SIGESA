@@ -1,19 +1,19 @@
 // Dependency Inversion: page depends on abstractions (components + typed data),
 // not on concrete implementations or direct DOM manipulation.
 
-import PageHeader from '../components/dashboard/PageHeader';
-import MetricCardsGrid from '../components/dashboard/MetricCardsGrid';
-import FinancialChart from '../components/dashboard/FinancialChart';
-import PendingTasks from '../components/dashboard/PendingTasks';
-import ActivityTable from '../components/dashboard/ActivityTable';
-import FloatingActionButton from '../components/dashboard/FloatingActionButton';
+import PageHeader from '../../components/dashboard/PageHeader';
+import MetricCardsGrid from '../../components/dashboard/MetricCardsGrid';
+import FinancialChart from '../../components/dashboard/FinancialChart';
+import PendingTasks from '../../components/dashboard/PendingTasks';
+import ActivityTable from '../../components/dashboard/ActivityTable';
+import FloatingActionButton from '../../components/dashboard/FloatingActionButton';
 
 import {
   METRIC_CARDS,
   CHART_DATA,
   PENDING_TASKS,
   ACTIVITY_LOG,
-} from '../constants/dashboard';
+} from '../../constants/dashboard';
 
 const DashboardPage = () => (
   <>

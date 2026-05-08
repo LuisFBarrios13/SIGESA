@@ -4,7 +4,7 @@ import {
   estudiantesApi,
   type EstudianteListItem,
   type MatriculaListItem,
-} from '../services/api';
+} from '../../services/api';
 
 // ── Constants ─────────────────────────────────────────────────
 

@@ -1,11 +1,11 @@
 // src/pages/PagosPage.tsx
-import { usePagos } from '../hooks/usePagos';
+import { usePagos } from '../../hooks/usePagos';
 
-import TarifaSection  from '../components/pagos/TarifaSection';
-import SearchSection  from '../components/pagos/SearchSection';
-import PagosSection   from '../components/pagos/PagosSection';
-import PagoModal      from '../components/pagos/PagoModal';
-import TarifaModal    from '../components/pagos/TarifaModal';
+import TarifaSection  from '../../components/pagos/TarifaSection';
+import SearchSection  from '../../components/pagos/SearchSection';
+import PagosSection   from '../../components/pagos/PagosSection';
+import PagoModal      from '../../components/pagos/PagoModal';
+import TarifaModal    from '../../components/pagos/TarifaModal';
 
 const PagosPage = () => {
   const {
