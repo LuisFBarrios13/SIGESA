@@ -35,19 +35,31 @@ const ActionButtons = () => (
   </div>
 );
 
-const UserAvatar = ({ user }: { user: UserProfile }) => (
-  <div className="flex items-center gap-3 cursor-pointer">
-    <div className="text-right">
-      <p className="text-sm font-bold text-orange-900">{user.name}</p>
-      <p className="text-[10px] text-stone-400 uppercase font-bold">{user.role}</p>
+// DESPUÉS
+const UserAvatar = ({ user }: { user: UserProfile }) => {
+  const initials = user.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+
+  return (
+    <div className="flex items-center gap-3 cursor-pointer">
+      <div className="text-right">
+        <p className="text-sm font-bold text-orange-900">{user.name}</p>
+        <p className="text-[10px] text-stone-400 uppercase font-bold">{user.role}</p>
+      </div>
+      {user.avatarUrl ? (
+        <img
+          src={user.avatarUrl}
+          alt={`${user.name} profile photo`}
+          className="w-10 h-10 rounded-full border-2 border-primary/20 object-cover"
+        />
+      ) : (
+        <div className="w-10 h-10 rounded-full bg-orange-900 border-2 border-primary/20
+          flex items-center justify-center">
+          <span className="text-xs font-black text-white">{initials}</span>
+        </div>
+      )}
     </div>
-    <img
-      src={user.avatarUrl}
-      alt={`${user.name} profile photo`}
-      className="w-10 h-10 rounded-full border-2 border-primary/20 object-cover"
-    />
-  </div>
-);
+  );
+};
 
 // ── Main Component ────────────────────────────────────────────
 

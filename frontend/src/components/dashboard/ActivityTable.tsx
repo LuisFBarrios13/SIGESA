@@ -59,7 +59,7 @@ interface ActivityTableProps {
   onViewAll?: () => void;
 }
 
-const TABLE_HEADERS = ['Timestamp', 'User', 'Action', 'Status', 'Action'];
+const TABLE_HEADERS = ['Timestamp', 'User', 'Action', 'Status', 'Opciones'];
 
 const ActivityTable = ({ entries, onFilter, onViewAll }: ActivityTableProps) => (
   <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
