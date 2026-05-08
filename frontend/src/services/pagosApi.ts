@@ -8,89 +8,98 @@ import { api } from './api';
 export type EstadoCuenta = 'PENDIENTE' | 'PAGADO' | 'VENCIDO';
 
 export interface Tarifa {
-  id_tarifa: number;
-  year: number;
-  valor_pension: string;
+  id_tarifa:       number;
+  year:            number;
+  valor_pension:   string;
   valor_matricula: string;
 }
 
 export interface ConceptoPago {
   id_concepto_pago: number;
-  nombre: string;
+  nombre:           string;
 }
 
 export interface MetodoPago {
   id_metodo: number;
-  nombre: string;
+  nombre:    string;
 }
 
 export interface PagoItem {
-  id_pago: number;
-  monto_pago: string;
-  fecha_pago: string;
+  id_pago:       number;
+  monto_pago:    string;
+  fecha_pago:    string;
   observaciones: string | null;
-  metodo: MetodoPago;
+  metodo:        MetodoPago;
 }
 
+/** Cuenta de cobro sin datos de matrícula anidados (usado en ResumenPagos) */
 export interface CuentaCobro {
-  id_cuenta: number;
+  id_cuenta:    number;
   id_matricula: number;
-  mes: number;
-  year: number;
-  valor_deuda: string;
-  estado: EstadoCuenta;
-  concepto: ConceptoPago;
-  pagos: PagoItem[];
+  mes:          number;
+  year:         number;
+  valor_deuda:  string;
+  estado:       EstadoCuenta;
+  concepto:     ConceptoPago;
+  pagos:        PagoItem[];
 }
 
 export interface EstudianteResumen {
   numero_identidad: string;
-  nombre: string;
+  nombre:           string;
   fecha_nacimiento: string;
 }
 
 export interface GradoResumen {
   id_grado: number;
-  nombre: string;
-  jornada: 'MAÑANA' | 'TARDE';
+  nombre:   string;
+  jornada:  'MAÑANA' | 'TARDE';
 }
 
 export interface MatriculaResumen {
   id_matricula: number;
-  year: number;
-  jornada: 'MAÑANA' | 'TARDE';
-  estado: string;
-  estudiante: EstudianteResumen;
-  grado: GradoResumen;
+  year:         number;
+  jornada:      'MAÑANA' | 'TARDE';
+  estado:       string;
+  estudiante:   EstudianteResumen;
+  grado:        GradoResumen;
+}
+
+/**
+ * Cuenta de cobro con matrícula, estudiante y grado anidados.
+ * La devuelve GET /api/pagos (listarCuentas).
+ */
+export interface CuentaCobroDetalle extends CuentaCobro {
+  matricula: MatriculaResumen;
 }
 
 export interface ResumenPagos {
   matricula: MatriculaResumen;
-  cuentas: CuentaCobro[];
-  totales: { deuda: number; pagado: number; pendiente: number };
-  tarifa: Tarifa | null;
+  cuentas:   CuentaCobro[];
+  totales:   { deuda: number; pagado: number; pendiente: number };
+  tarifa:    Tarifa | null;
 }
 
 export interface RegistrarPagoPayload {
-  id_cuenta: number;
-  monto_pago: number;
+  id_cuenta:      number;
+  monto_pago:     number;
   id_metodo_pago: number;
-  fecha_pago?: string;
+  fecha_pago?:    string;
   observaciones?: string;
 }
 
 export interface PagoResult {
-  pago: PagoItem;
-  estado: EstadoCuenta;
-  saldoRestante: number;
+  pago:           PagoItem;
+  estado:         EstadoCuenta;
+  saldoRestante:  number;
 }
 
 // ── API calls ─────────────────────────────────────────────────
 
 export const pagosApi = {
   /** Reference data */
-  getConceptos: ()                       => api.get<ConceptoPago[]>('/pagos/conceptos'),
-  getMetodos:   ()                       => api.get<MetodoPago[]>('/pagos/metodos'),
+  getConceptos: () => api.get<ConceptoPago[]>('/pagos/conceptos'),
+  getMetodos:   () => api.get<MetodoPago[]>('/pagos/metodos'),
 
   /** Tarifas globales */
   getTarifa: (year: number) =>
@@ -101,12 +110,14 @@ export const pagosApi = {
 
   /** Matrícula search + detail */
   buscarMatriculas: (q: string, year?: number) =>
-    api.get<MatriculaResumen[]>(`/pagos/matriculas/buscar?q=${encodeURIComponent(q)}${year ? `&year=${year}` : ''}`),
+    api.get<MatriculaResumen[]>(
+      `/pagos/matriculas/buscar?q=${encodeURIComponent(q)}${year ? `&year=${year}` : ''}`,
+    ),
 
   getResumen: (id_matricula: number) =>
     api.get<ResumenPagos>(`/pagos/matriculas/${id_matricula}`),
 
-  /** Account generation — now use global tarifa, no valor needed */
+  /** Account generation */
   generarPension: (id_matricula: number, year: number) =>
     api.post<{ creadas: CuentaCobro[]; total: number; valor_pension: string }>(
       '/pagos/cuentas/pension',
@@ -120,12 +131,15 @@ export const pagosApi = {
   registrarPago: (p: RegistrarPagoPayload) =>
     api.post<PagoResult>('/pagos', p),
 
-  /** Admin list */
+  /**
+   * Lista todas las cuentas con matrícula, estudiante y grado anidados.
+   * Devuelve CuentaCobroDetalle[] (incluye .matricula).
+   */
   listarCuentas: (params: { year?: number; estado?: string; search?: string } = {}) => {
     const qs = new URLSearchParams();
     if (params.year)   qs.set('year',   String(params.year));
     if (params.estado) qs.set('estado', params.estado);
     if (params.search) qs.set('search', params.search);
-    return api.get<CuentaCobro[]>(`/pagos?${qs.toString()}`);
+    return api.get<CuentaCobroDetalle[]>(`/pagos?${qs.toString()}`);
   },
 };

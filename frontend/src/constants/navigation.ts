@@ -6,6 +6,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'enrollment', label: 'Nueva Matrícula',   icon: 'how_to_reg',  href: '/matricula',  isActive: false },
   { id: 'docentes',   label: 'Docentes',          icon: 'person_book', href: '/docentes',   isActive: false },
   { id: 'pagos',      label: 'Pagos',             icon: 'payments',    href: '/pagos',      isActive: false },
+  { id: 'deudores',   label: 'Deudores',          icon: 'warning',     href: '/deudores',   isActive: false },
   { id: 'grades',     label: 'Notas Académicas',  icon: 'grade',       href: '/notas',      isActive: false },
   { id: 'students',   label: 'Estudiantes',       icon: 'group',       href: '/estudiantes', isActive: false },
   { id: 'reports',    label: 'Reportes',          icon: 'analytics',   href: '#',           isActive: false },
