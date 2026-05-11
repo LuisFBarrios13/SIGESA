@@ -1,0 +1,89 @@
+// src/services/docenteApi.ts
+import { api } from './api';
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+export interface GradoDocente {
+  id_grado: number;
+  nombre:   string;
+  jornada:  'MAÑANA' | 'TARDE';
+}
+
+export interface DocentePerfil {
+  cedula:   string;
+  nombre:   string;
+  telefono: string | null;
+  correo:   string | null;
+  jornada:  'MAÑANA' | 'TARDE' | 'COMPLETA';
+  grados:   GradoDocente[];
+}
+
+export interface EstudianteResumen {
+  numero_identidad: string;
+  nombre:           string;
+  fecha_nacimiento: string;
+  rh?:              string;
+  direccion?:       string;
+  observaciones?:   string;
+}
+
+export interface MatriculaDocente {
+  id_matricula: number;
+  year:         number;
+  jornada:      'MAÑANA' | 'TARDE';
+  estado:       string;
+  estudiante:   EstudianteResumen;
+  grado:        GradoDocente;
+}
+
+export interface Materia {
+  id_materia: number;
+  nombre:     string;
+  area?:      string;
+}
+
+/** Nota de una materia para un estudiante en un periodo */
+export interface NotaEstudianteItem {
+  id_materia:         number;
+  nombre:             string;
+  area:               string;
+  intensidad_horaria: number;
+  nota:               number | null;
+  observacion:        string | null;
+}
+
+export interface GuardarNotaEstudiantePayload {
+  id_matricula:   number;
+  numero_periodo: number;
+  year:           number;
+  materias: {
+    id_materia:  number;
+    nota:        number | '';
+    observacion?: string;
+  }[];
+}
+
+// ── API calls ──────────────────────────────────────────────────────────────────
+
+export const docenteApi = {
+  getPerfil: () =>
+    api.get<DocentePerfil>('/docente/perfil'),
+
+  getEstudiantes: (year?: number) =>
+    api.get<MatriculaDocente[]>(
+      `/docente/estudiantes${year ? `?year=${year}` : ''}`,
+    ),
+
+  getMaterias: () =>
+    api.get<Materia[]>('/materias'),
+
+  /** Notas de un estudiante en todas las materias para un periodo */
+  getNotasEstudiante: (id_matricula: number, numero_periodo: number, year: number) =>
+    api.get<NotaEstudianteItem[]>(
+      `/notas/estudiante/${id_matricula}?numero_periodo=${numero_periodo}&year=${year}`,
+    ),
+
+  /** Guarda todas las materias de un estudiante de una vez */
+  guardarNotasEstudiante: (payload: GuardarNotaEstudiantePayload) =>
+    api.post('/notas/estudiante-bulk', payload),
+};
