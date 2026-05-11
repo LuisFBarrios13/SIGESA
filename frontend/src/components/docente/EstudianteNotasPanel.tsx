@@ -1,6 +1,4 @@
 // src/components/docente/EstudianteNotasPanel.tsx
-// Panel derecho: muestra todas las materias del estudiante seleccionado,
-// agrupadas por área, con inputs de nota y observación.
 
 import type { MateriaEdit } from '../../hooks/useNotasDocente';
 
@@ -15,7 +13,7 @@ const agruparPorArea = (materias: MateriaEdit[]) => {
   return Array.from(map.entries()).map(([area, items]) => ({ area, items }));
 };
 
-// ── Status indicator ──────────────────────────────────────────────────────────
+// ── Status dot ────────────────────────────────────────────────────────────────
 
 const StatusDot = ({ m }: { m: MateriaEdit }) => {
   if (m.error)       return <span className="w-2 h-2 rounded-full bg-error flex-shrink-0" title="Error" />;
@@ -24,15 +22,91 @@ const StatusDot = ({ m }: { m: MateriaEdit }) => {
   return               <span className="w-2 h-2 rounded-full bg-stone-200 flex-shrink-0" title="Sin nota" />;
 };
 
+// ── Puesto del periodo ─────────────────────────────────────────────────────────
+
+interface PuestoBarProps {
+  puesto:      number | null;
+  savedPuesto: number | null;
+  onPuesto:    (val: number | null) => void;
+}
+
+const PuestoBar = ({ puesto, savedPuesto, onPuesto }: PuestoBarProps) => {
+  const isDirty = puesto !== savedPuesto;
+  const emoji   = puesto === 1 ? '🥇' : puesto === 2 ? '🥈' : puesto === 3 ? '🥉' : null;
+
+  return (
+    <div className={`px-4 py-3 border-b flex items-center gap-3 transition-colors
+      ${isDirty ? 'bg-orange-50 border-orange-200' : 'bg-stone-50/60 border-stone-100'}`}>
+      <span className="material-symbols-outlined text-primary text-lg flex-shrink-0">
+        military_tech
+      </span>
+      <span className="text-xs font-bold text-stone-500 uppercase tracking-wider flex-shrink-0">
+        Puesto en el periodo
+      </span>
+      <input
+        type="number"
+        min={1}
+        step={1}
+        value={puesto ?? ''}
+        onChange={(e) => {
+          const raw = e.target.value;
+          if (raw === '') { onPuesto(null); return; }
+          const n = parseInt(raw, 10);
+          if (!isNaN(n) && n >= 1) onPuesto(n);
+        }}
+        placeholder="—"
+        className={`w-20 text-center text-sm py-1.5 px-2 rounded-lg border transition-all outline-none
+          ${isDirty
+            ? 'border-orange-300 bg-orange-50 focus:ring-2 focus:ring-orange-200'
+            : 'border-outline-variant bg-white focus:ring-2 focus:ring-primary/20'
+          }`}
+      />
+      {emoji && puesto !== null && (
+        <span className="text-sm">{emoji} Puesto {puesto}</span>
+      )}
+      {isDirty && (
+        <span className="ml-auto text-[10px] text-orange-600 font-semibold">Sin guardar</span>
+      )}
+    </div>
+  );
+};
+
 // ── Fila de materia ────────────────────────────────────────────────────────────
 
 interface MateriaRowProps {
-  m:         MateriaEdit;
-  onNota:    (id: number, val: number | '') => void;
-  onObs:     (id: number, val: string) => void;
+  m:        MateriaEdit;
+  onNota:   (id: number, val: number | '') => void;
+  onFallas: (id: number, val: number) => void;
+  onIH:     (id: number, val: number) => void;
+  onObs:    (id: number, val: string) => void;
 }
 
-const MateriaRow = ({ m, onNota, onObs }: MateriaRowProps) => {
+/** Input numérico reutilizable para fallas e I.H. (enteros ≥ 0) */
+const IntInput = ({
+  value, onChange, width = 'w-14', title,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  width?: string;
+  title?: string;
+}) => (
+  <input
+    type="number"
+    min={0}
+    step={1}
+    value={value}
+    title={title}
+    onChange={(e) => {
+      const n = parseInt(e.target.value, 10);
+      onChange(isNaN(n) ? 0 : Math.max(0, n));
+    }}
+    className={`${width} text-center text-sm py-1.5 px-1 rounded-lg border
+      border-outline-variant bg-white focus:ring-2 focus:ring-primary/20
+      focus:outline-none transition-all flex-shrink-0`}
+  />
+);
+
+const MateriaRow = ({ m, onNota, onFallas, onIH, onObs }: MateriaRowProps) => {
   const handleNota = (raw: string) => {
     if (raw === '') { onNota(m.id_materia, ''); return; }
     const n = parseFloat(raw);
@@ -40,16 +114,33 @@ const MateriaRow = ({ m, onNota, onObs }: MateriaRowProps) => {
   };
 
   return (
-    <div className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors
+    <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors
       ${m.dirty ? 'bg-orange-50/50' : 'hover:bg-stone-50'}`}>
 
-      {/* Status dot */}
       <StatusDot m={m} />
 
-      {/* Nombre materia */}
-      <span className="text-sm font-medium text-on-surface flex-1 truncate">{m.nombre}</span>
+      {/* Nombre */}
+      <span className="text-sm font-medium text-on-surface flex-1 truncate min-w-0">
+        {m.nombre}
+      </span>
 
-      {/* Input nota */}
+      {/* I.H. — editable */}
+      <IntInput
+        value={m.intensidad_horaria}
+        onChange={(v) => onIH(m.id_materia, v)}
+        width="w-14"
+        title="Intensidad horaria semanal"
+      />
+
+      {/* Fallas — editable */}
+      <IntInput
+        value={m.fallas}
+        onChange={(v) => onFallas(m.id_materia, v)}
+        width="w-14"
+        title="Fallas (inasistencias)"
+      />
+
+      {/* Nota */}
       <div className="flex flex-col items-end flex-shrink-0">
         <input
           type="number"
@@ -67,18 +158,16 @@ const MateriaRow = ({ m, onNota, onObs }: MateriaRowProps) => {
                 : 'border-outline-variant bg-white focus:ring-2 focus:ring-primary/20'
             }`}
         />
-        {m.error && (
-          <span className="text-[10px] text-error mt-0.5">{m.error}</span>
-        )}
+        {m.error && <span className="text-[10px] text-error mt-0.5">{m.error}</span>}
       </div>
 
-      {/* Input observación */}
+      {/* Observación */}
       <input
         type="text"
         value={m.observacion ?? ''}
         onChange={(e) => onObs(m.id_materia, e.target.value)}
         placeholder="Observación…"
-        className="w-40 text-xs py-1.5 px-2.5 rounded-lg border border-outline-variant bg-white
+        className="w-36 text-xs py-1.5 px-2.5 rounded-lg border border-outline-variant bg-white
           focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all
           placeholder:text-stone-300 flex-shrink-0"
       />
@@ -93,16 +182,25 @@ interface EstudianteNotasPanelProps {
   isLoading:   boolean;
   error:       string;
   onNota:      (id_materia: number, val: number | '') => void;
+  onFallas:    (id_materia: number, val: number) => void;
+  onIH:        (id_materia: number, val: number) => void;
   onObs:       (id_materia: number, val: string) => void;
+  puesto:      number | null;
+  savedPuesto: number | null;
+  onPuesto:    (val: number | null) => void;
 }
 
 const EstudianteNotasPanel = ({
-  materias, isLoading, error, onNota, onObs,
+  materias, isLoading, error,
+  onNota, onFallas, onIH, onObs,
+  puesto, savedPuesto, onPuesto,
 }: EstudianteNotasPanelProps) => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16 gap-3 text-stone-400">
-        <span className="material-symbols-outlined animate-spin text-primary text-3xl">progress_activity</span>
+        <span className="material-symbols-outlined animate-spin text-primary text-3xl">
+          progress_activity
+        </span>
         <span className="text-sm">Cargando materias…</span>
       </div>
     );
@@ -119,12 +217,16 @@ const EstudianteNotasPanel = ({
 
   if (!materias.length) return null;
 
-  const grupos = agruparPorArea(materias);
+  const grupos      = agruparPorArea(materias);
   const completadas = materias.filter((m) => m.nota !== '').length;
 
   return (
     <div className="flex flex-col">
-      {/* Mini progress */}
+
+      {/* Puesto — único por periodo */}
+      <PuestoBar puesto={puesto} savedPuesto={savedPuesto} onPuesto={onPuesto} />
+
+      {/* Progreso notas */}
       <div className="px-4 py-2 border-b border-stone-100 flex items-center gap-3 bg-stone-50/50">
         <div className="flex-1 h-1.5 bg-stone-200 rounded-full overflow-hidden">
           <div
@@ -133,31 +235,49 @@ const EstudianteNotasPanel = ({
           />
         </div>
         <span className="text-xs text-stone-500 flex-shrink-0">
-          {completadas} / {materias.length} materias
+          {completadas} / {materias.length} notas
         </span>
       </div>
 
       {/* Header columnas */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-stone-100">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-stone-100 bg-stone-50/30">
         <span className="w-2 flex-shrink-0" />
-        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider flex-1">Materia</span>
-        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-20 text-center flex-shrink-0">Nota (0–10)</span>
-        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-40 flex-shrink-0">Observación</span>
+        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider flex-1">
+          Materia
+        </span>
+        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-14 text-center flex-shrink-0"
+              title="Intensidad Horaria">
+          I.H.
+        </span>
+        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-14 text-center flex-shrink-0">
+          Fallas
+        </span>
+        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-20 text-center flex-shrink-0">
+          Nota (0–10)
+        </span>
+        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-36 flex-shrink-0">
+          Observación
+        </span>
       </div>
 
-      {/* Grupos por área */}
-      <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 320px)' }}>
+      {/* Áreas y materias */}
+      <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 400px)' }}>
         {grupos.map(({ area, items }) => (
           <div key={area}>
-            {/* Encabezado área */}
             <div className="px-4 py-1.5 bg-stone-50 border-y border-stone-100">
               <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
                 {area}
               </span>
             </div>
-            {/* Filas de materias */}
             {items.map((m) => (
-              <MateriaRow key={m.id_materia} m={m} onNota={onNota} onObs={onObs} />
+              <MateriaRow
+                key={m.id_materia}
+                m={m}
+                onNota={onNota}
+                onFallas={onFallas}
+                onIH={onIH}
+                onObs={onObs}
+              />
             ))}
           </div>
         ))}

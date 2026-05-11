@@ -1,10 +1,11 @@
 // src/pages/docente/NotasPage.tsx
-// Nuevo diseño: lista de estudiantes a la izquierda, materias a la derecha.
-// El docente selecciona el estudiante y rellena todas sus notas de una vez.
+// Diseño: lista de estudiantes a la izquierda, panel de notas a la derecha.
+// El docente selecciona un estudiante y rellena: nota, fallas e I.H. por materia,
+// más el puesto del periodo.
 
-import { useNavigate }           from 'react-router-dom';
-import { useNotasDocente }       from '../../hooks/useNotasDocente';
-import EstudianteNotasPanel      from '../../components/docente/EstudianteNotasPanel';
+import { useNavigate }          from 'react-router-dom';
+import { useNotasDocente }      from '../../hooks/useNotasDocente';
+import EstudianteNotasPanel     from '../../components/docente/EstudianteNotasPanel';
 
 const PERIODOS = [1, 2, 3, 4] as const;
 const yearOptions = Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - 1 + i);
@@ -18,13 +19,14 @@ const NotasPage = () => {
   const navigate = useNavigate();
 
   const {
-    isSetupLoading, setupError,
+    isSetupLoading, setupError, perfil,
     periodo, setPeriodo,
     year, setYear,
-    search, setSearch, filtered, isLoadingStudents,
+    search, setSearch, gradoFilter, setGradoFilter, filtered, isLoadingStudents,
     selected, selectStudent, clearSelected,
     materias, isLoadingNotas, notasError,
-    updateNota, updateObs,
+    updateNota, updateFallas, updateIH, updateObs,
+    puesto, savedPuesto, updatePuesto,
     isSaving, saveError, saveSuccess, hasDirty, handleSave,
   } = useNotasDocente();
 
@@ -56,23 +58,22 @@ const NotasPage = () => {
 
   return (
     <>
-      {/* ── Encabezado de página ────────────────────────────────────────── */}
+      {/* ── Encabezado ─────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-semibold text-primary">Registro de Notas</h1>
           <p className="text-base text-stone-500 mt-1">
-            Selecciona un estudiante para ingresar sus notas del periodo
+            Selecciona un estudiante · ingresa notas, fallas y puesto del periodo
           </p>
         </div>
 
-        {/* Controles de periodo y año */}
+        {/* Periodo + Año */}
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Pills de periodo */}
           <div className="flex items-center gap-1 bg-stone-100 rounded-xl p-1">
             {PERIODOS.map((p) => (
               <button
                 key={p}
-                onClick={() => { setPeriodo(p); if (selected) clearSelected(); }}
+                onClick={() => setPeriodo(p)}
                 className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all
                   ${periodo === p
                     ? 'bg-primary text-white shadow-sm'
@@ -84,7 +85,6 @@ const NotasPage = () => {
             ))}
           </div>
 
-          {/* Año */}
           <select
             value={year}
             onChange={(e) => { setYear(Number(e.target.value)); clearSelected(); }}
@@ -96,7 +96,7 @@ const NotasPage = () => {
         </div>
       </div>
 
-      {/* ── Layout principal: lista | panel ────────────────────────────── */}
+      {/* ── Layout: lista | panel ───────────────────────────────────────────── */}
       <div className="flex gap-5" style={{ minHeight: 'calc(100vh - 220px)' }}>
 
         {/* ── Columna izquierda: lista de estudiantes ── */}
@@ -105,9 +105,7 @@ const NotasPage = () => {
           {/* Buscador */}
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined
-              text-stone-400 text-xl pointer-events-none">
-              search
-            </span>
+              text-stone-400 text-xl pointer-events-none">search</span>
             <input
               type="text"
               value={search}
@@ -127,11 +125,47 @@ const NotasPage = () => {
             )}
           </div>
 
+          {/* Filtro por grado — solo si el docente tiene más de un grado */}
+          {(perfil?.grados.length ?? 0) > 1 && (
+            <div className="flex gap-1 bg-stone-100 rounded-xl p-1">
+              <button
+                onClick={() => setGradoFilter('TODOS')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all
+                  ${gradoFilter === 'TODOS'
+                    ? 'bg-white text-primary shadow-sm'
+                    : 'text-stone-500 hover:text-on-surface'
+                  }`}
+              >
+                Todos
+              </button>
+              {perfil!.grados.map((g) => (
+                <button
+                  key={g.id_grado}
+                  onClick={() => setGradoFilter(g.id_grado)}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all truncate px-1
+                    ${gradoFilter === g.id_grado
+                      ? 'bg-white text-primary shadow-sm'
+                      : 'text-stone-500 hover:text-on-surface'
+                    }`}
+                  title={`${g.nombre} — ${g.jornada}`}
+                >
+                  {g.nombre}{' '}
+                  <span className={`inline-block text-[9px] font-black px-1 rounded
+                    ${gradoFilter === g.id_grado ? 'bg-primary/10' : 'bg-stone-200'}`}>
+                    {g.jornada === 'MAÑANA' ? 'M' : 'T'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Lista */}
           <div className="bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden flex-1">
             <div className="px-4 py-3 border-b border-stone-100 bg-stone-50/60">
               <p className="text-xs font-bold text-stone-500 uppercase tracking-wide">
-                {isLoadingStudents ? 'Cargando…' : `${filtered.length} estudiante${filtered.length !== 1 ? 's' : ''}`}
+                {isLoadingStudents
+                  ? 'Cargando…'
+                  : `${filtered.length} estudiante${filtered.length !== 1 ? 's' : ''}`}
               </p>
             </div>
 
@@ -147,10 +181,13 @@ const NotasPage = () => {
                 <p className="text-xs">Sin resultados</p>
               </div>
             ) : (
-              <ul className="divide-y divide-stone-50 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 290px)' }}>
+              <ul
+                className="divide-y divide-stone-50 overflow-y-auto"
+                style={{ maxHeight: 'calc(100vh - 290px)' }}
+              >
                 {filtered.map((m) => {
                   const isSelected = selected?.id_matricula === m.id_matricula;
-                  const initials = m.estudiante.nombre
+                  const initials   = m.estudiante.nombre
                     .split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
                   return (
@@ -164,14 +201,14 @@ const NotasPage = () => {
                             : 'hover:bg-stone-50 border-l-4 border-transparent'
                           }`}
                       >
-                        {/* Avatar */}
                         <div className={`w-9 h-9 rounded-full flex items-center justify-center
                           flex-shrink-0 text-xs font-black transition-colors
-                          ${isSelected ? 'bg-primary text-white' : 'bg-primary-fixed text-on-primary-fixed-variant'}`}>
+                          ${isSelected
+                            ? 'bg-primary text-white'
+                            : 'bg-primary-fixed text-on-primary-fixed-variant'
+                          }`}>
                           {initials}
                         </div>
-
-                        {/* Info */}
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm font-semibold truncate transition-colors
                             ${isSelected ? 'text-primary' : 'text-on-surface group-hover:text-primary'}`}>
@@ -181,9 +218,9 @@ const NotasPage = () => {
                             <span className="text-[10px] text-stone-400 font-mono truncate">
                               {m.estudiante.numero_identidad}
                             </span>
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded flex-shrink-0
                               ${JORNADA_COLORS[m.jornada] ?? 'bg-stone-100 text-stone-600'}`}>
-                              {m.jornada === 'MAÑANA' ? '☀️' : '🌙'}
+                              {m.jornada === 'MAÑANA' ? 'M' : 'T'}
                             </span>
                           </div>
                         </div>
@@ -199,7 +236,6 @@ const NotasPage = () => {
         {/* ── Columna derecha: panel de notas ── */}
         <div className="flex-1 min-w-0">
           {!selected ? (
-            /* Estado vacío */
             <div className="bg-white rounded-xl border border-outline-variant shadow-sm
               h-full flex flex-col items-center justify-center gap-4 text-stone-400 py-20">
               <span className="material-symbols-outlined text-6xl">touch_app</span>
@@ -208,7 +244,7 @@ const NotasPage = () => {
                   Selecciona un estudiante
                 </p>
                 <p className="text-xs mt-1">
-                  Haz clic en un nombre de la lista para ver sus materias
+                  Haz clic en un nombre para ver sus materias
                 </p>
               </div>
             </div>
@@ -219,11 +255,11 @@ const NotasPage = () => {
               <div className="px-5 py-4 border-b border-stone-100 bg-stone-50/60">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-3">
-                    {/* Avatar grande */}
                     <div className="w-12 h-12 rounded-full bg-primary flex items-center
                       justify-center flex-shrink-0">
                       <span className="text-sm font-black text-white">
-                        {selected.estudiante.nombre.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
+                        {selected.estudiante.nombre
+                          .split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
                       </span>
                     </div>
                     <div>
@@ -240,7 +276,6 @@ const NotasPage = () => {
 
                   {/* Acciones */}
                   <div className="flex items-center gap-2 flex-wrap">
-                    {/* Boletín */}
                     <button
                       onClick={handleBoletin}
                       className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold
@@ -251,7 +286,6 @@ const NotasPage = () => {
                       Boletín PDF
                     </button>
 
-                    {/* Guardar */}
                     <button
                       onClick={handleSave}
                       disabled={!hasDirty || isSaving}
@@ -260,9 +294,15 @@ const NotasPage = () => {
                         disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isSaving ? (
-                        <><span className="material-symbols-outlined text-base animate-spin">progress_activity</span>Guardando…</>
+                        <>
+                          <span className="material-symbols-outlined text-base animate-spin">
+                            progress_activity
+                          </span>
+                          Guardando…
+                        </>
                       ) : (
-                        <><span className="material-symbols-outlined text-base">save</span>
+                        <>
+                          <span className="material-symbols-outlined text-base">save</span>
                           Guardar{dirtyCount > 0 ? ` (${dirtyCount})` : ''}
                         </>
                       )}
@@ -276,7 +316,7 @@ const NotasPage = () => {
                     rounded-lg border border-secondary/30">
                     <span className="material-symbols-outlined text-secondary text-lg">check_circle</span>
                     <p className="text-xs text-secondary font-semibold">
-                      Notas guardadas correctamente
+                      Notas, fallas y puesto guardados correctamente
                     </p>
                   </div>
                 )}
@@ -291,7 +331,7 @@ const NotasPage = () => {
                   <div className="flex items-center gap-2 mt-3">
                     <span className="w-2 h-2 rounded-full bg-orange-400" />
                     <p className="text-xs text-orange-700 font-medium">
-                      {dirtyCount} cambio{dirtyCount !== 1 ? 's' : ''} sin guardar
+                      Cambios sin guardar
                     </p>
                   </div>
                 )}
@@ -303,7 +343,12 @@ const NotasPage = () => {
                 isLoading={isLoadingNotas}
                 error={notasError}
                 onNota={updateNota}
+                onFallas={updateFallas}
+                onIH={updateIH}
                 onObs={updateObs}
+                puesto={puesto}
+                savedPuesto={savedPuesto}
+                onPuesto={updatePuesto}
               />
             </div>
           )}

@@ -141,7 +141,7 @@ const DeudorCard = ({ deudor, rank }: DeudorCardProps) => {
             </span>
             <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium
               bg-stone-100 text-stone-600">
-              {deudor.grado.jornada === 'MAÑANA' ? '☀️ Mañana' : '🌙 Tarde'}
+              {deudor.grado.jornada === 'MAÑANA' ? 'Mañana' : 'Tarde'}
             </span>
             <span className="text-stone-300">·</span>
             <span className="text-xs text-stone-400">{deudor.year}</span>

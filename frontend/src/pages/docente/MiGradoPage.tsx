@@ -3,9 +3,9 @@ import { useMiGrado } from '../../hooks/useMiGrado';
 import EstudianteGradoCard from '../../components/docente/EstudianteGradoCard';
 
 const JORNADA_LABEL: Record<string, string> = {
-  MAÑANA:   '☀️ Mañana',
-  TARDE:    '🌙 Tarde',
-  COMPLETA: '☀️🌙 Completa',
+  MAÑANA:   'Mañana',
+  TARDE:    'Tarde',
+  COMPLETA: 'Completa',
 };
 
 const yearOptions = Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - 1 + i);

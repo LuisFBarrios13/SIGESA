@@ -47,10 +47,13 @@ export const guardarBulk = async (req, res, next) => {
   }
 };
 
-/** GET /api/notas/estudiante/:id_matricula?numero_periodo=&year= */
+/**
+ * GET /api/notas/estudiante/:id_matricula?numero_periodo=&year=
+ * Devuelve { puesto, materias[] } — cada materia incluye nota, fallas, intensidad_horaria.
+ */
 export const getNotasDeEstudiante = async (req, res, next) => {
   try {
-    const id_matricula  = Number(req.params.id_matricula);
+    const id_matricula   = Number(req.params.id_matricula);
     const numero_periodo = Number(req.query.numero_periodo ?? 1);
     const year           = Number(req.query.year ?? new Date().getFullYear());
 
@@ -66,10 +69,15 @@ export const getNotasDeEstudiante = async (req, res, next) => {
   }
 };
 
-/** POST /api/notas/estudiante-bulk — múltiples materias, un estudiante */
+/**
+ * POST /api/notas/estudiante-bulk — múltiples materias, un estudiante.
+ * Body: { id_matricula, numero_periodo, year, materias[], puesto? }
+ *   Cada item de materias: { id_materia, nota?, fallas?, observacion? }
+ *   puesto: número entero ≥ 1 | null (para borrarlo)
+ */
 export const guardarNotasDeEstudiante = async (req, res, next) => {
   try {
-    const { id_matricula, numero_periodo, year, materias } = req.body;
+    const { id_matricula, numero_periodo, year, materias, puesto } = req.body;
 
     if (!id_matricula || !numero_periodo || !year || !Array.isArray(materias)) {
       return errorResponse(
@@ -84,6 +92,7 @@ export const guardarNotasDeEstudiante = async (req, res, next) => {
       numero_periodo: Number(numero_periodo),
       year:           Number(year),
       materias,
+      puesto,           // undefined → no se toca; null → se borra; número → se guarda
     });
 
     return successResponse(res, data, `${data.length} nota(s) guardada(s)`);

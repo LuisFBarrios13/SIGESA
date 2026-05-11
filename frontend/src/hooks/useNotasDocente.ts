@@ -1,6 +1,4 @@
 // src/hooks/useNotasDocente.ts
-// Rediseñado: flujo por estudiante en lugar de por materia.
-// El docente selecciona un estudiante y ve TODAS sus materias a la vez.
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -13,42 +11,79 @@ import {
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface MateriaEdit extends NotaEstudianteItem {
-  nota:      number | '';
-  savedNota: number | '';
-  dirty:     boolean;
-  error:     string;
+  nota:                  number | '';
+  savedNota:             number | '';
+  fallas:                number;
+  savedFallas:           number;
+  intensidad_horaria:    number;
+  savedIH:               number;
+  savedObservacion:      string | null;
+  dirty:                 boolean;
+  error:                 string;
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+const isDirty = (m: MateriaEdit): boolean =>
+  m.nota !== m.savedNota ||
+  m.fallas !== m.savedFallas ||
+  m.intensidad_horaria !== m.savedIH ||
+  (m.observacion ?? null) !== (m.savedObservacion ?? null);
+
+const buildMaterias = (items: NotaEstudianteItem[]): MateriaEdit[] =>
+  items.map((m) => {
+    const nota   = m.nota ?? '';
+    const fallas = m.fallas ?? 0;
+    const ih     = m.intensidad_horaria ?? 0;
+    return {
+      ...m,
+      nota,
+      savedNota:        nota,
+      fallas,
+      savedFallas:      fallas,
+      intensidad_horaria: ih,
+      savedIH:          ih,
+      savedObservacion: m.observacion,
+      dirty:            false,
+      error:            '',
+    };
+  });
+
+// ── Hook ───────────────────────────────────────────────────────────────────────
+
 interface UseNotasDocenteReturn {
-  // Setup
   perfil:         DocentePerfil | null;
   isSetupLoading: boolean;
   setupError:     string;
 
-  // Filters
   periodo:    number;
   setPeriodo: (p: number) => void;
   year:       number;
   setYear:    (y: number) => void;
 
-  // Students
-  estudiantes:      MatriculaDocente[];
-  search:           string;
-  setSearch:        (s: string) => void;
-  filtered:         MatriculaDocente[];
+  estudiantes:       MatriculaDocente[];
+  search:            string;
+  setSearch:         (s: string) => void;
+  gradoFilter:       number | 'TODOS';
+  setGradoFilter:    (g: number | 'TODOS') => void;
+  filtered:          MatriculaDocente[];
   isLoadingStudents: boolean;
 
-  // Selected student + their notas
-  selected:      MatriculaDocente | null;
-  selectStudent: (m: MatriculaDocente) => Promise<void>;
-  clearSelected: () => void;
-  materias:      MateriaEdit[];
+  selected:       MatriculaDocente | null;
+  selectStudent:  (m: MatriculaDocente) => Promise<void>;
+  clearSelected:  () => void;
+  materias:       MateriaEdit[];
   isLoadingNotas: boolean;
-  notasError:    string;
-  updateNota:    (id_materia: number, val: number | '') => void;
-  updateObs:     (id_materia: number, val: string) => void;
+  notasError:     string;
+  updateNota:     (id_materia: number, val: number | '') => void;
+  updateFallas:   (id_materia: number, val: number) => void;
+  updateIH:       (id_materia: number, val: number) => void;
+  updateObs:      (id_materia: number, val: string) => void;
 
-  // Save
+  puesto:       number | null;
+  savedPuesto:  number | null;
+  updatePuesto: (val: number | null) => void;
+
   isSaving:    boolean;
   saveError:   string;
   saveSuccess: boolean;
@@ -56,42 +91,27 @@ interface UseNotasDocenteReturn {
   handleSave:  () => Promise<void>;
 }
 
-// ── Hook ───────────────────────────────────────────────────────────────────────
-
-const buildMaterias = (items: NotaEstudianteItem[]): MateriaEdit[] =>
-  items.map((m) => {
-    const val = m.nota ?? '';
-    return {
-      ...m,
-      nota:      val,
-      savedNota: val,
-      dirty:     false,
-      error:     '',
-    };
-  });
-
 export const useNotasDocente = (): UseNotasDocenteReturn => {
-  // Setup
   const [perfil,         setPerfil]         = useState<DocentePerfil | null>(null);
   const [isSetupLoading, setIsSetupLoading] = useState(true);
   const [setupError,     setSetupError]     = useState('');
 
-  // Filters
   const [periodo, setPeriodo] = useState(1);
   const [year,    setYear]    = useState(new Date().getFullYear());
 
-  // Students
   const [estudiantes,       setEstudiantes]       = useState<MatriculaDocente[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [search,            setSearch]            = useState('');
+  const [gradoFilter,       setGradoFilter]       = useState<number | 'TODOS'>('TODOS');
 
-  // Selected student
   const [selected,       setSelected]       = useState<MatriculaDocente | null>(null);
   const [materias,       setMaterias]       = useState<MateriaEdit[]>([]);
   const [isLoadingNotas, setIsLoadingNotas] = useState(false);
   const [notasError,     setNotasError]     = useState('');
 
-  // Save
+  const [puesto,      setPuesto]      = useState<number | null>(null);
+  const [savedPuesto, setSavedPuesto] = useState<number | null>(null);
+
   const [isSaving,    setIsSaving]    = useState(false);
   const [saveError,   setSaveError]   = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -105,19 +125,19 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
       .finally(() => setIsSetupLoading(false));
   }, []);
 
-  // ── Load students when year/perfil changes ────────────────────────────────
   useEffect(() => {
     if (!perfil) return;
     setIsLoadingStudents(true);
     setSelected(null);
     setMaterias([]);
+    setPuesto(null);
+    setSavedPuesto(null);
     docenteApi.getEstudiantes(year)
       .then(setEstudiantes)
       .catch(() => {})
       .finally(() => setIsLoadingStudents(false));
   }, [perfil, year]);
 
-  // ── Reload notas when period changes (student already selected) ───────────
   useEffect(() => {
     if (!selected) return;
     loadNotas(selected, periodo, year);
@@ -126,18 +146,22 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodo]);
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Load notas ────────────────────────────────────────────────────────────
   const loadNotas = useCallback(
     async (matricula: MatriculaDocente, per: number, yr: number) => {
       setIsLoadingNotas(true);
       setNotasError('');
       setSaveSuccess(false);
       try {
-        const items = await docenteApi.getNotasEstudiante(matricula.id_matricula, per, yr);
-        setMaterias(buildMaterias(items));
+        const result = await docenteApi.getNotasEstudiante(matricula.id_matricula, per, yr);
+        setMaterias(buildMaterias(result.materias));
+        setPuesto(result.puesto);
+        setSavedPuesto(result.puesto);
       } catch {
         setNotasError('No se pudieron cargar las notas. Verifica tu conexión.');
         setMaterias([]);
+        setPuesto(null);
+        setSavedPuesto(null);
       } finally {
         setIsLoadingNotas(false);
       }
@@ -159,22 +183,45 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
   const clearSelected = useCallback(() => {
     setSelected(null);
     setMaterias([]);
+    setPuesto(null);
+    setSavedPuesto(null);
     setSaveError('');
     setSaveSuccess(false);
   }, []);
 
   // ── Edit handlers ─────────────────────────────────────────────────────────
+
   const updateNota = useCallback((id_materia: number, val: number | '') => {
     setMaterias((prev) =>
       prev.map((m) => {
         if (m.id_materia !== id_materia) return m;
         const isValid = val === '' || (typeof val === 'number' && val >= 0 && val <= 10);
-        return {
-          ...m,
-          nota:  val,
-          dirty: val !== m.savedNota,
-          error: isValid ? '' : 'Debe ser entre 0 y 10',
-        };
+        const updated = { ...m, nota: val, error: isValid ? '' : 'Debe ser entre 0 y 10' };
+        return { ...updated, dirty: isDirty(updated) };
+      }),
+    );
+    setSaveSuccess(false);
+  }, []);
+
+  const updateFallas = useCallback((id_materia: number, val: number) => {
+    const fallas = Math.max(0, Math.floor(val) || 0);
+    setMaterias((prev) =>
+      prev.map((m) => {
+        if (m.id_materia !== id_materia) return m;
+        const updated = { ...m, fallas };
+        return { ...updated, dirty: isDirty(updated) };
+      }),
+    );
+    setSaveSuccess(false);
+  }, []);
+
+  const updateIH = useCallback((id_materia: number, val: number) => {
+    const ih = Math.max(0, Math.floor(val) || 0);
+    setMaterias((prev) =>
+      prev.map((m) => {
+        if (m.id_materia !== id_materia) return m;
+        const updated = { ...m, intensidad_horaria: ih };
+        return { ...updated, dirty: isDirty(updated) };
       }),
     );
     setSaveSuccess(false);
@@ -182,10 +229,17 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
 
   const updateObs = useCallback((id_materia: number, val: string) => {
     setMaterias((prev) =>
-      prev.map((m) =>
-        m.id_materia === id_materia ? { ...m, observacion: val, dirty: true } : m,
-      ),
+      prev.map((m) => {
+        if (m.id_materia !== id_materia) return m;
+        const updated = { ...m, observacion: val };
+        return { ...updated, dirty: isDirty(updated) };
+      }),
     );
+    setSaveSuccess(false);
+  }, []);
+
+  const updatePuesto = useCallback((val: number | null) => {
+    setPuesto(val);
     setSaveSuccess(false);
   }, []);
 
@@ -197,8 +251,10 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
       return;
     }
 
-    const dirtyItems = materias.filter((m) => m.dirty && m.nota !== '');
-    if (!dirtyItems.length) return;
+    const dirtyItems  = materias.filter((m) => m.dirty);
+    const puestoDirty = puesto !== savedPuesto;
+
+    if (!dirtyItems.length && !puestoDirty) return;
 
     setIsSaving(true);
     setSaveError('');
@@ -210,44 +266,59 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
         numero_periodo: periodo,
         year,
         materias: dirtyItems.map((m) => ({
-          id_materia:  m.id_materia,
-          nota:        m.nota,
-          observacion: m.observacion || undefined,
+          id_materia:         m.id_materia,
+          nota:               m.nota,
+          fallas:             m.fallas,
+          intensidad_horaria: m.intensidad_horaria,
+          observacion:        m.observacion || undefined,
         })),
+        puesto: puestoDirty ? puesto : undefined,
       });
 
       setMaterias((prev) =>
-        prev.map((m) => ({ ...m, savedNota: m.nota, dirty: false })),
+        prev.map((m) => ({
+          ...m,
+          savedNota:        m.nota,
+          savedFallas:      m.fallas,
+          savedIH:          m.intensidad_horaria,
+          savedObservacion: m.observacion ?? null,
+          dirty:            false,
+        })),
       );
+      setSavedPuesto(puesto);
       setSaveSuccess(true);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Error al guardar las notas.');
     } finally {
       setIsSaving(false);
     }
-  }, [selected, materias, periodo, year]);
+  }, [selected, materias, periodo, year, puesto, savedPuesto]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return estudiantes;
-    return estudiantes.filter(
-      (m) =>
+    return estudiantes.filter((m) => {
+      const matchGrado  = gradoFilter === 'TODOS' || m.grado.id_grado === gradoFilter;
+      const matchSearch = !q ||
         m.estudiante.nombre.toLowerCase().includes(q) ||
-        m.estudiante.numero_identidad.includes(q),
-    );
-  }, [estudiantes, search]);
+        m.estudiante.numero_identidad.includes(q);
+      return matchGrado && matchSearch;
+    });
+  }, [estudiantes, search, gradoFilter]);
 
-  const hasDirty = useMemo(() => materias.some((m) => m.dirty), [materias]);
+  const hasDirty = useMemo(
+    () => materias.some((m) => m.dirty) || puesto !== savedPuesto,
+    [materias, puesto, savedPuesto],
+  );
 
   return {
     perfil, isSetupLoading, setupError,
-    periodo, setPeriodo,
-    year, setYear,
-    estudiantes, search, setSearch, filtered, isLoadingStudents,
+    periodo, setPeriodo, year, setYear,
+    estudiantes, search, setSearch, gradoFilter, setGradoFilter, filtered, isLoadingStudents,
     selected, selectStudent, clearSelected,
     materias, isLoadingNotas, notasError,
-    updateNota, updateObs,
+    updateNota, updateFallas, updateIH, updateObs,
+    puesto, savedPuesto, updatePuesto,
     isSaving, saveError, saveSuccess, hasDirty, handleSave,
   };
 };

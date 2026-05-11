@@ -1,130 +1,167 @@
 // src/components/boletin/Boletin.tsx
-// Conversión TypeScript del template HTML del colegio.
-// Este componente es el único que se imprime — no contiene lógica de negocio.
+// Layout exacto según modelo institucional — papel oficio 8.5" × 13"
 
 import type { BoletinData, AreaBoletin, MateriaBoletin } from '../../types/boletin';
 
 // ── Utilidades ─────────────────────────────────────────────────────────────────
 
-/** Formatea un número de nota con 1 decimal, o muestra '—' si es nulo. */
 const fmtNota = (n: number | null | undefined): string =>
   n != null ? n.toFixed(1) : '—';
 
-/** Formatea el promedio general con 1 decimal. */
-const fmtPromedio = (n: number): string => n.toFixed(1);
+const getDesempeño = (nota: number | null | undefined): string => {
+  if (nota == null) return '';
+  if (nota >= 4.6) return 'SUPERIOR';
+  if (nota >= 4.0) return 'ALTO';
+  if (nota >= 3.0) return 'BÁSICO';
+  return 'BAJO';
+};
 
-// ── Sub-componentes ────────────────────────────────────────────────────────────
+// ── Encabezado ─────────────────────────────────────────────────────────────────
 
-/** Encabezado institucional */
 const BoletinHeader = ({ year }: { year: number }) => (
-  <header className="flex flex-col items-center mb-4 text-center border-b-2 border-green-900 pb-4">
-    <div className="flex items-center justify-center gap-6 w-full mb-2">
-      {/* Logo placeholder — reemplazar src con la imagen real del colegio */}
-      <div className="h-24 w-24 flex items-center justify-center border-2 border-green-900 rounded-full flex-shrink-0">
-        <span className="text-[8px] text-green-900 font-bold text-center leading-tight">
-          COLEGIO<br/>PEDAGÓGICO<br/>SAN AGUSTÍN
-        </span>
-      </div>
-      <div className="flex-1">
-        <h1 className="text-2xl font-bold uppercase tracking-tight">
+  <header style={{ borderBottom: '2px solid #14532d', paddingBottom: 8, marginBottom: 8 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      {/* Logo */}
+      <img
+        src="/Escudo.png"
+        alt="Escudo Colegio Pedagógico San Agustín"
+        style={{ width: 88, height: 88, borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }}
+      />
+
+      {/* Info escuela */}
+      <div style={{ flex: 1, textAlign: 'center' }}>
+        <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.3px' }}>
           Colegio Pedagógico San Agustín
-        </h1>
-        <div className="text-[10px] font-semibold mt-1 space-y-0.5">
-          <p>Resolución No 1033 del 09 de agosto del 2010</p>
-          <p>Resolución 2044 del 25 de noviembre del 2020</p>
-          <p>DANE 350001007450</p>
-          <p className="italic mt-1">"Educamos con amor para un futuro mejor"</p>
+        </div>
+        <div style={{ fontSize: 8, marginTop: 2, lineHeight: 1.5 }}>
+          <div>Resolución No 1033 del 09 de agosto del 2010</div>
+          <div>Resolución 2044 del 25 de noviembre del 2020</div>
+          <div>DANE 350001007450</div>
+          <div style={{ fontStyle: 'italic', marginTop: 2 }}>
+            "Educamos con amor para un futuro mejor"
+          </div>
         </div>
       </div>
     </div>
-    <h2 className="text-lg font-bold mt-2 uppercase border-y border-black w-full py-1">
-      Informe de Valoración Académica {year}
-    </h2>
+
+    {/* Título */}
+    <div style={{
+      marginTop: 8,
+      borderTop: '1.5px solid black',
+      borderBottom: '1.5px solid black',
+      textAlign: 'center',
+      fontWeight: 900,
+      fontSize: 12,
+      padding: '4px 0',
+      letterSpacing: '0.5px',
+    }}>
+      INFORME DE VALORACION ACADEMICA {year}
+    </div>
   </header>
 );
 
-/** Tabla de información del estudiante */
+// ── Tabla info estudiante ──────────────────────────────────────────────────────
+
+const cell = (label: string, value: React.ReactNode, style?: React.CSSProperties) => (
+  <>
+    <td style={{ background: '#e5e7eb', fontWeight: 700, fontSize: 8, padding: '2px 4px', border: '1px solid black', whiteSpace: 'nowrap' }}>
+      {label}
+    </td>
+    <td style={{ fontSize: 9, padding: '2px 6px', border: '1px solid black', ...style }}>
+      {value}
+    </td>
+  </>
+);
+
 const EstudianteInfo = ({ data }: { data: BoletinData }) => (
-  <section className="mb-6">
-    <table className="w-full border-collapse boletin-table">
+  <section style={{ marginBottom: 8 }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
       <tbody>
         <tr>
-          <td className="bg-gray-100 font-bold px-2 py-1 w-24">Estudiante:</td>
-          <td className="px-2 py-1 font-semibold uppercase">
-            {data.estudiante.nombre}
-          </td>
-          <td className="bg-gray-100 font-bold px-2 py-1 w-20">Grado:</td>
-          <td className="px-2 py-1 font-bold text-center w-32 uppercase">
-            {data.grado.nombre}
-          </td>
+          {cell('Estudiante:', <strong style={{ fontSize: 9 }}>{data.estudiante.nombre.toUpperCase()}</strong>)}
+          {cell('Grado:', <strong style={{ fontSize: 9 }}>{data.grado.nombre.toUpperCase()}</strong>, { textAlign: 'center' })}
         </tr>
         <tr>
-          <td className="bg-gray-100 font-bold px-2 py-1">Año:</td>
-          <td className="px-2 py-1 text-center font-bold">{data.matricula.year}</td>
-          <td className="bg-gray-100 font-bold px-2 py-1">Jornada:</td>
-          <td className="px-2 py-1 text-center font-bold">
-            {data.grado.jornada === 'MAÑANA' ? 'Mañana' : 'Tarde'}
-          </td>
-          <td className="bg-gray-100 font-bold px-2 py-1 w-20">Periodo:</td>
-          <td className="px-2 py-1 text-center font-bold w-12 border-l border-black">
-            {data.periodo}
-          </td>
+          {cell('Año:', <strong>{data.matricula.year}</strong>)}
+          {cell('Jornada:', <strong>{data.grado.jornada === 'MAÑANA' ? 'Mañana' : 'Tarde'}</strong>)}
+          {cell('Periodo:', <strong>{data.periodo}</strong>, { textAlign: 'center', width: 40 })}
         </tr>
         <tr>
-          <td className="bg-gray-100 font-bold px-2 py-1">Directora:</td>
-          <td className="px-2 py-1 font-semibold">{data.directora}</td>
-          <td className="bg-gray-100 font-bold px-2 py-1">Puesto:</td>
-          <td className="px-2 py-1 text-center font-bold">{data.puesto}</td>
-          <td className="bg-gray-100 font-bold px-2 py-1">Prom Gral:</td>
-          <td className="px-2 py-1 text-center font-bold">
-            {fmtPromedio(data.promedio_general)}
-          </td>
+          {cell('Directora de grado:', <strong>{data.directora}</strong>)}
+          {cell('Puesto:', <strong>{data.puesto ?? '—'}</strong>, { textAlign: 'center', width: 50 })}
+          {cell('Prom Gral:', <strong>{data.promedio_general?.toFixed(1) ?? '—'}</strong>, { textAlign: 'center', width: 50 })}
         </tr>
       </tbody>
     </table>
   </section>
 );
 
-/** Fila de períodos P1–P4 para una materia */
-const PeriodosRow = ({ notas }: { notas: MateriaBoletin['notas_periodos'] }) => (
-  <tr className="text-[9px]">
-    <td className="px-2 italic">DESEMPEÑO:</td>
-    <td colSpan={2} />
-    {([1, 2, 3, 4] as const).map((p) => (
-      <td key={p} className="text-center border-l border-black p-0">
-        <div className="border-b border-black py-0.5">P{p}</div>
-        <div className="font-bold py-0.5">{fmtNota(notas[p])}</div>
-      </td>
-    ))}
-  </tr>
-);
+// ── Tabla de notas ─────────────────────────────────────────────────────────────
 
-/** Fila de una materia (dos filas: datos + periodos) */
+const thStyle: React.CSSProperties = {
+  background: '#f3f4f6',
+  fontWeight: 900,
+  fontSize: 8,
+  textAlign: 'center',
+  padding: '3px 2px',
+  border: '1px solid black',
+  textTransform: 'uppercase',
+  letterSpacing: '0.3px',
+};
+
+const areaThStyle: React.CSSProperties = {
+  background: '#d1fae5',
+  fontWeight: 800,
+  fontSize: 8,
+  padding: '2px 4px',
+  border: '1px solid black',
+  textTransform: 'uppercase',
+  letterSpacing: '0.3px',
+};
+
+const tdStyle: React.CSSProperties = {
+  border: '1px solid black',
+  padding: '2px 4px',
+  fontSize: 8,
+};
+
 const MateriaRows = ({ materia }: { materia: MateriaBoletin }) => {
-  const desempeñoTexto = materia.nota_periodo_actual != null
-    ? `${fmtNota(materia.nota_periodo_actual)} ${materia.desempeño ?? ''}`
+  const nivel   = materia.desempeño ?? getDesempeño(materia.nota_periodo_actual);
+  const notaTxt = materia.nota_periodo_actual != null
+    ? `${fmtNota(materia.nota_periodo_actual)}  ${nivel}`
     : '—';
 
   return (
     <>
+      {/* Fila principal */}
       <tr>
-        <td className="px-2 py-1 font-bold">{materia.nombre}</td>
-        <td className="text-center font-bold">{materia.intensidad_horaria}</td>
-        <td className="text-center font-bold">{materia.fallas}</td>
-        <td className="text-center font-bold" colSpan={4}>{desempeñoTexto}</td>
+        <td style={{ ...tdStyle, fontWeight: 700 }}>{materia.nombre}</td>
+        <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 700 }}>{materia.intensidad_horaria}</td>
+        <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 700 }}>{materia.fallas ?? 0}</td>
+        <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 700 }} colSpan={4}>
+          {notaTxt}
+        </td>
       </tr>
-      <PeriodosRow notas={materia.notas_periodos} />
+
+      {/* Fila de desempeño por periodos */}
+      <tr>
+        <td style={{ ...tdStyle, fontStyle: 'italic', fontSize: 7 }}>DESEMPEÑO:</td>
+        <td style={{ ...tdStyle }} colSpan={2} />
+        {([1, 2, 3, 4] as const).map((p) => (
+          <td key={p} style={{ ...tdStyle, textAlign: 'center', padding: 0, fontSize: 7 }}>
+            <div style={{ borderBottom: '1px solid black', padding: '1px 0', fontWeight: 600 }}>P{p}</div>
+            <div style={{ padding: '1px 0', fontWeight: 700 }}>{fmtNota(materia.notas_periodos[p])}</div>
+          </td>
+        ))}
+      </tr>
     </>
   );
 };
 
-/** Sección de un área académica con sus materias */
 const AreaSection = ({ area }: { area: AreaBoletin }) => (
   <>
-    <tr className="bg-gray-50 font-bold">
-      <td className="px-2 py-0.5" colSpan={7}>
-        ÁREA: {area.nombre}
-      </td>
+    <tr>
+      <td style={areaThStyle} colSpan={7}>ÁREA: {area.nombre}</td>
     </tr>
     {area.materias.map((m) => (
       <MateriaRows key={m.id_materia} materia={m} />
@@ -132,16 +169,17 @@ const AreaSection = ({ area }: { area: AreaBoletin }) => (
   </>
 );
 
-/** Tabla de notas académicas completa */
 const TablaNotas = ({ areas }: { areas: AreaBoletin[] }) => (
   <section>
-    <table className="w-full border-collapse boletin-table">
-      <thead className="bg-gray-100 uppercase font-bold text-center">
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <thead>
         <tr>
-          <th className="py-1 px-2 text-left">Área - Asignaturas</th>
-          <th className="w-12">I.H.</th>
-          <th className="w-16">Fallas</th>
-          <th className="w-48" colSpan={4}>Desempeño</th>
+          <th style={{ ...thStyle, textAlign: 'left', padding: '3px 4px', width: '46%' }}>
+            ÁREA - ASIGNATURAS
+          </th>
+          <th style={{ ...thStyle, width: '6%' }}>I.H.</th>
+          <th style={{ ...thStyle, width: '8%' }}>FALLAS</th>
+          <th style={{ ...thStyle }} colSpan={4}>DESEMPEÑO</th>
         </tr>
       </thead>
       <tbody>
@@ -153,91 +191,79 @@ const TablaNotas = ({ areas }: { areas: AreaBoletin[] }) => (
   </section>
 );
 
-/** Sección de observaciones */
+// ── Observaciones ──────────────────────────────────────────────────────────────
+
 const Observaciones = ({ texto }: { texto: string }) => (
-  <section className="mt-8">
-    <h3 className="font-bold uppercase text-[10px] mb-2">Observaciones:</h3>
+  <section style={{ marginTop: 16 }}>
+    <div style={{ fontSize: 8, fontWeight: 700, marginBottom: 4 }}>OBSERVACIONES:</div>
     {texto ? (
-      <p className="text-[10px] border-b border-black pb-1">{texto}</p>
+      <p style={{ fontSize: 8, borderBottom: '1px solid black', paddingBottom: 2 }}>{texto}</p>
     ) : (
       <>
-        <div className="border-b border-black w-full h-4" />
-        <div className="border-b border-black w-full h-4 mt-2" />
-        <div className="border-b border-black w-full h-4 mt-2" />
+        {[0, 1, 2].map((i) => (
+          <div key={i} style={{ borderBottom: '1px solid black', height: 16, marginBottom: 6 }} />
+        ))}
       </>
     )}
   </section>
 );
 
-/** Pie de página con firma y fecha de generación */
+// ── Pie de página ──────────────────────────────────────────────────────────────
+
 const BoletinFooter = ({ directora, generadoEn }: { directora: string; generadoEn: string }) => (
-  <footer className="mt-16 flex flex-col items-start gap-12">
+  <footer style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 4 }}>
     <div>
-      <div className="w-64 border-t border-black pt-1">
-        <p className="font-bold uppercase text-[10px]">Directora de Grupo</p>
+      <div style={{ width: 180, borderTop: '1px solid black', paddingTop: 2 }}>
+        <div style={{ fontSize: 8, fontWeight: 700 }}>Directora de Grupo</div>
         {directora !== '—' && (
-          <p className="text-[9px] text-gray-600 mt-0.5">{directora}</p>
+          <div style={{ fontSize: 7, color: '#374151', marginTop: 1 }}>{directora}</div>
         )}
       </div>
     </div>
-    <div className="w-full flex justify-end text-[9px] font-bold text-gray-700 italic">
+    <div style={{ textAlign: 'right', fontSize: 7, fontStyle: 'italic', color: '#4b5563', marginTop: 8 }}>
       Generado el {generadoEn}
     </div>
   </footer>
 );
 
-// ── Componente principal ───────────────────────────────────────────────────────
+// ── Componente raíz ────────────────────────────────────────────────────────────
 
-interface BoletinProps {
-  data: BoletinData;
-}
-
-/**
- * Componente raíz del boletín.
- * Renderiza el informe completo listo para impresión.
- * No tiene lógica de carga ni estado — recibe `data` del hook.
- */
-const Boletin = ({ data }: BoletinProps) => (
-  <>
-    {/* Estilos de impresión — se inyectan en el <head> del documento */}
-    <style>{`
-      .boletin-table th,
-      .boletin-table td {
-        border: 1px solid black;
-      }
-      @media print {
-        body { background-color: white !important; }
-        .no-print { display: none !important; }
-        .boletin-page {
-          box-shadow: none !important;
-          margin: 0 !important;
-          padding: 1.5rem !important;
-          max-width: 100% !important;
+export default function Boletin({ data }: { data: BoletinData }) {
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap');
+        @page {
+          size: 8.5in 13in;
+          margin: 0.45in 0.5in;
         }
-      }
-    `}</style>
+        @media print {
+          body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .no-print { display: none !important; }
+          .boletin-page { box-shadow: none !important; margin: 0 !important; padding: 0 !important; max-width: 100% !important; min-height: auto !important; }
+        }
+      `}</style>
 
-    <main
-      className="boletin-page"
-      style={{
-        maxWidth:        900,
-        margin:          '2rem auto',
-        backgroundColor: 'white',
-        padding:         '2.5rem',
-        boxShadow:       '0 10px 25px -5px rgba(0,0,0,.1)',
-        fontSize:        11,
-        lineHeight:      1.25,
-        color:           '#111827',
-        fontFamily:      'Inter, sans-serif',
-      }}
-    >
-      <BoletinHeader year={data.matricula.year} />
-      <EstudianteInfo data={data} />
-      <TablaNotas areas={data.areas} />
-      <Observaciones texto={data.observaciones} />
-      <BoletinFooter directora={data.directora} generadoEn={data.generado_en} />
-    </main>
-  </>
-);
-
-export default Boletin;
+      <main
+        className="boletin-page"
+        style={{
+          maxWidth:        816,
+          minHeight:       1056,
+          margin:          '2rem auto',
+          backgroundColor: 'white',
+          padding:         '36px 44px',
+          boxShadow:       '0 4px 24px rgba(0,0,0,.15)',
+          fontFamily:      '"Roboto", "Arial", sans-serif',
+          color:           '#000',
+          lineHeight:      1.3,
+        }}
+      >
+        <BoletinHeader year={data.matricula.year} />
+        <EstudianteInfo data={data} />
+        <TablaNotas areas={data.areas} />
+        <Observaciones texto={data.observaciones} />
+        <BoletinFooter directora={data.directora} generadoEn={data.generado_en} />
+      </main>
+    </>
+  );
+}

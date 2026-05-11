@@ -47,9 +47,18 @@ export interface NotaEstudianteItem {
   id_materia:         number;
   nombre:             string;
   area:               string;
+  /** Valor editable por periodo. Viene de la nota si fue modificado, sino del catálogo. */
   intensidad_horaria: number;
   nota:               number | null;
+  /** Inasistencias en el periodo. Default 0. */
+  fallas:             number;
   observacion:        string | null;
+}
+
+/** Respuesta de GET /notas/estudiante/:id */
+export interface NotasEstudianteResponse {
+  puesto:   number | null;
+  materias: NotaEstudianteItem[];
 }
 
 export interface GuardarNotaEstudiantePayload {
@@ -57,10 +66,15 @@ export interface GuardarNotaEstudiantePayload {
   numero_periodo: number;
   year:           number;
   materias: {
-    id_materia:  number;
-    nota:        number | '';
-    observacion?: string;
+    id_materia:          number;
+    nota:                number | '';
+    fallas:              number;
+    /** null = heredar del catálogo de materias */
+    intensidad_horaria:  number | null;
+    observacion?:        string;
   }[];
+  /** undefined = no tocar | null = borrar | number = guardar */
+  puesto?: number | null;
 }
 
 // ── API calls ──────────────────────────────────────────────────────────────────
@@ -77,13 +91,11 @@ export const docenteApi = {
   getMaterias: () =>
     api.get<Materia[]>('/materias'),
 
-  /** Notas de un estudiante en todas las materias para un periodo */
   getNotasEstudiante: (id_matricula: number, numero_periodo: number, year: number) =>
-    api.get<NotaEstudianteItem[]>(
+    api.get<NotasEstudianteResponse>(
       `/notas/estudiante/${id_matricula}?numero_periodo=${numero_periodo}&year=${year}`,
     ),
 
-  /** Guarda todas las materias de un estudiante de una vez */
   guardarNotasEstudiante: (payload: GuardarNotaEstudiantePayload) =>
     api.post('/notas/estudiante-bulk', payload),
 };

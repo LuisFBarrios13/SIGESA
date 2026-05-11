@@ -14,8 +14,8 @@ const JORNADA_COLORS: Record<string, string> = {
 };
 
 const JORNADA_LABEL: Record<string, string> = {
-  MAÑANA: '☀️ Mañana',
-  TARDE:  '🌙 Tarde',
+  MAÑANA: 'Mañana',
+  TARDE:  'Tarde',
 };
 
 const EstudianteGradoCard = ({ matricula, index }: EstudianteGradoCardProps) => {

@@ -1,196 +1,138 @@
 // src/boletin/boletin.service.js
-// Single Responsibility: build the complete data structure for an academic report card.
-
-import { Matricula, Estudiante, Grado, Docente, Nota, Materia, Periodo } from '../models/index.js';
 import { Op } from 'sequelize';
+import {
+  Matricula, Estudiante, Grado, Docente,
+  Materia, Nota, Periodo, ResumenPeriodo,
+} from '../models/index.js';
 
-// ── Constants ──────────────────────────────────────────────────────────────────
-
-const DESEMPEÑO_LABELS = [
-  { min: 4.6, label: 'SUPERIOR' },
-  { min: 4.0, label: 'ALTO' },
-  { min: 3.0, label: 'BÁSICO' },
-  { min: 0,   label: 'BAJO' },
-];
-
-/**
- * Returns the qualitative performance label for a numeric grade.
- * Follows the Colombian national evaluation system.
- */
-const getDesempeño = (nota) => {
-  if (nota == null) return null;
-  const n = parseFloat(nota);
-  return DESEMPEÑO_LABELS.find((d) => n >= d.min)?.label ?? 'BAJO';
+// ── Nivel de desempeño ─────────────────────────────────────────────────────────
+const nivelDesempeño = (nota) => {
+  if (nota == null) return '';
+  if (nota >= 4.6) return 'SUPERIOR';
+  if (nota >= 4.0) return 'ALTO';
+  if (nota >= 3.0) return 'BÁSICO';
+  return 'BAJO';
 };
 
-/**
- * Calculates the average of an array of numbers.
- * Returns null for empty arrays.
- */
-const promedio = (values) => {
-  const valid = values.filter((v) => v != null);
-  if (!valid.length) return null;
-  const avg = valid.reduce((s, v) => s + v, 0) / valid.length;
-  return Math.round(avg * 100) / 100;
-};
+// ── Servicio principal ─────────────────────────────────────────────────────────
+export const getBoletinData = async (id_matricula, numero_periodo, year) => {
 
-/**
- * Groups an array of materias by their `area` field.
- * Preserves insertion order of areas.
- */
-const groupByArea = (materias) => {
-  const map = new Map();
-  for (const m of materias) {
-    if (!map.has(m.area)) map.set(m.area, []);
-    map.get(m.area).push(m);
-  }
-  return Array.from(map.entries()).map(([nombre, items]) => ({ nombre, materias: items }));
-};
-
-// ── Service ────────────────────────────────────────────────────────────────────
-
-/**
- * Returns the full data required to render an academic report card.
- *
- * @param {number} id_matricula
- * @param {number} periodo       - 1 to 4
- * @param {number} year
- */
-export const getBoletinData = async (id_matricula, periodo, year) => {
-  // 1 ── Matricula + student + grade + teacher (director de grado)
-  const matricula = await Matricula.findByPk(id_matricula, {
+  // 1. Matrícula con estudiante + grado + docente (nombre viene de Docente, no de Usuario)
+  const matricula = await Matricula.findOne({
+    where: { id_matricula },
     include: [
       { model: Estudiante, as: 'estudiante' },
       {
-        model: Grado, as: 'grado',
-        include: [{ model: Docente, as: 'docente', attributes: ['nombre', 'cedula'] }],
+        model: Grado,
+        as:    'grado',
+        include: [{ model: Docente, as: 'docente' }],
       },
     ],
   });
 
-  if (!matricula) throw { status: 404, message: 'Matrícula no encontrada' };
+  if (!matricula) throw { status: 404, message: 'Matrícula no encontrada.' };
 
-  // 2 ── All periods for this year
-  const periodos = await Periodo.findAll({ where: { year } });
-  const periodoIds = periodos.map((p) => p.id_periodo);
-
-  // 3 ── All subjects ordered by area → nombre
+  // 2. Catálogo de materias ordenado por área y nombre
   const materias = await Materia.findAll({
     order: [['area', 'ASC'], ['nombre', 'ASC']],
   });
 
-  // 4 ── All notes for this matricula across all subjects and periods
-  const notas = periodoIds.length
+  // 3. Todos los periodos del año (para mostrar P1-P4 en el boletín)
+  const todosLosPeriodos = await Periodo.findAll({ where: { year } });
+  const periodoMap = new Map(todosLosPeriodos.map((p) => [p.numero_periodo, p]));
+
+  // 4. Todas las notas del estudiante para el año en un solo query
+  const periodoIds = todosLosPeriodos.map((p) => p.id_periodo);
+  const todasLasNotas = periodoIds.length
     ? await Nota.findAll({
-        where: {
-          id_matricula,
-          id_periodo: { [Op.in]: periodoIds },
-        },
+        where: { id_matricula, id_periodo: { [Op.in]: periodoIds } },
       })
     : [];
 
-  // Helper: find nota value for a given materia + periodo number
-  const findNota = (id_materia, numeroPeriodo) => {
-    const per = periodos.find((p) => p.numero_periodo === numeroPeriodo);
-    if (!per) return null;
-    const n = notas.find((n) => n.id_materia === id_materia && n.id_periodo === per.id_periodo);
-    return n ? parseFloat(n.nota) : null;
-  };
+  // 5. Periodo actual y puesto
+  const periodoActual = periodoMap.get(numero_periodo) ?? null;
 
-  // 5 ── Build per-subject rows
-  const materiaRows = materias.map((m) => {
-    const notasPeriodo = {
-      1: findNota(m.id_materia, 1),
-      2: findNota(m.id_materia, 2),
-      3: findNota(m.id_materia, 3),
-      4: findNota(m.id_materia, 4),
-    };
+  const resumen = periodoActual
+    ? await ResumenPeriodo.findOne({
+        where: { id_matricula, id_periodo: periodoActual.id_periodo },
+      })
+    : null;
 
-    // Nota for the requested period specifically
-    const notaPeriodoActual = notasPeriodo[periodo];
+  // 6. Construir áreas con materias completas
+  const areaMap = new Map();
 
-    // Running average up to the current period
-    const valoresHastaAhora = [1, 2, 3, 4]
-      .filter((p) => p <= periodo)
-      .map((p) => notasPeriodo[p]);
-    const promedioMateria = promedio(valoresHastaAhora);
+  for (const materia of materias) {
+    // Notas de todos los periodos { 1: 4.5, 2: 3.0, … }
+    const notas_periodos = {};
+    for (const [numPer, per] of periodoMap.entries()) {
+      const n = todasLasNotas.find(
+        (n) => n.id_materia === materia.id_materia && n.id_periodo === per.id_periodo,
+      );
+      if (n) notas_periodos[numPer] = parseFloat(n.nota);
+    }
 
-    return {
-      id_materia:          m.id_materia,
-      nombre:              m.nombre.toUpperCase(),
-      area:                m.area,
-      intensidad_horaria:  m.intensidad_horaria,
-      fallas:              0, // extendable when attendance module exists
-      notas_periodos:      notasPeriodo,
-      nota_periodo_actual: notaPeriodoActual,
-      promedio:            promedioMateria,
-      desempeño:           getDesempeño(notaPeriodoActual),
-    };
-  });
+    // Nota del periodo seleccionado
+    const notaActual = periodoActual
+      ? todasLasNotas.find(
+          (n) => n.id_materia === materia.id_materia && n.id_periodo === periodoActual.id_periodo,
+        )
+      : null;
 
-  // 6 ── General average for the current period
-  const notasPeriodoActual = materiaRows
+    const nota_periodo_actual = notaActual ? parseFloat(notaActual.nota) : null;
+
+    // I.H.: valor editado en la nota del periodo; si no, del catálogo
+    const intensidad_horaria = notaActual?.intensidad_horaria ?? materia.intensidad_horaria;
+
+    // Fallas del periodo actual, default 0
+    const fallas = notaActual?.fallas ?? 0;
+
+    if (!areaMap.has(materia.area)) areaMap.set(materia.area, []);
+    areaMap.get(materia.area).push({
+      id_materia:         materia.id_materia,
+      nombre:             materia.nombre,
+      intensidad_horaria,
+      fallas,
+      nota_periodo_actual,
+      desempeño:          nivelDesempeño(nota_periodo_actual),
+      notas_periodos,
+    });
+  }
+
+  const areas = Array.from(areaMap.entries()).map(([nombre, mats]) => ({
+    nombre,
+    materias: mats,
+  }));
+
+  // 7. Promedio general del periodo actual
+  const notasValidas = areas
+    .flatMap((a) => a.materias)
     .map((m) => m.nota_periodo_actual)
     .filter((n) => n != null);
-  const promedioGeneral = promedio(notasPeriodoActual) ?? 0;
 
-  // 7 ── Class ranking (puesto) — sorts all students by their period average
-  const compañerosMatriculas = await Matricula.findAll({
-    where: { id_grado: matricula.id_grado, year, estado: 'ACTIVO' },
-    attributes: ['id_matricula'],
+  const promedio_general = notasValidas.length
+    ? notasValidas.reduce((s, n) => s + n, 0) / notasValidas.length
+    : 0;
+
+  // 8. Nombre directora de grupo — viene directamente del modelo Docente
+  const directora = matricula.grado?.docente?.nombre ?? '—';
+
+  // 9. Timestamp de generación
+  const generado_en = new Date().toLocaleString('es-CO', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
   });
 
-  const compañeroIds = compañerosMatriculas.map((m) => m.id_matricula);
-
-  const notasCompañeros = periodoIds.length
-    ? await Nota.findAll({
-        where: {
-          id_matricula: { [Op.in]: compañeroIds },
-          id_periodo:   { [Op.in]: periodoIds.filter((id) => {
-            const p = periodos.find((p) => p.id_periodo === id);
-            return p && p.numero_periodo <= periodo;
-          }) },
-        },
-        attributes: ['id_matricula', 'nota'],
-      })
-    : [];
-
-  const promediosPorEstudiante = compañeroIds.map((idMat) => {
-    const sus = notasCompañeros.filter((n) => n.id_matricula === idMat);
-    return {
-      id_matricula: idMat,
-      avg: promedio(sus.map((n) => parseFloat(n.nota))) ?? 0,
-    };
-  });
-
-  promediosPorEstudiante.sort((a, b) => b.avg - a.avg);
-  const puesto = promediosPorEstudiante.findIndex((e) => e.id_matricula === id_matricula) + 1;
-
-  // 8 ── Build final response
   return {
-    estudiante: {
-      nombre:           matricula.estudiante.nombre,
-      numero_identidad: matricula.estudiante.numero_identidad,
-    },
-    grado: {
-      nombre:  matricula.grado.nombre,
-      jornada: matricula.jornada,
-    },
-    matricula: {
-      id_matricula: matricula.id_matricula,
-      year:         matricula.year,
-    },
-    directora:        matricula.grado?.docente?.nombre ?? '—',
-    periodo,
-    puesto:           puesto || 1,
-    total_estudiantes: compañeroIds.length,
-    promedio_general:  promedioGeneral,
-    areas:             groupByArea(materiaRows),
-    observaciones:     '',
-    generado_en:       new Date().toLocaleString('es-CO', {
-      timeZone:    'America/Bogota',
-      year:        'numeric', month: '2-digit', day: '2-digit',
-      hour:        '2-digit', minute: '2-digit', second: '2-digit',
-    }),
+    estudiante:       { nombre: matricula.estudiante.nombre },
+    grado:            { nombre: matricula.grado.nombre, jornada: matricula.grado.jornada },
+    matricula:        { year: matricula.year },
+    periodo:          numero_periodo,
+    directora,
+    puesto:           resumen?.puesto ?? null,
+    promedio_general,
+    areas,
+    observaciones:    '',
+    generado_en,
   };
 };
