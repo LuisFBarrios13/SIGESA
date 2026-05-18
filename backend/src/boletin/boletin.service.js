@@ -34,7 +34,7 @@ export const getBoletinData = async (id_matricula, numero_periodo, year) => {
 
   // 2. Catálogo de materias ordenado por área y nombre
   const materias = await Materia.findAll({
-    order: [['area', 'ASC'], ['nombre', 'ASC']],
+    order: [['orden', 'ASC'], ['nombre', 'ASC']],
   });
 
   // 3. Todos los periodos del año (para mostrar P1-P4 en el boletín)
@@ -132,7 +132,7 @@ export const getBoletinData = async (id_matricula, numero_periodo, year) => {
     puesto:           resumen?.puesto ?? null,
     promedio_general,
     areas,
-    observaciones:    '',
+    observaciones:    resumen?.observaciones ?? '',
     generado_en,
   };
 };

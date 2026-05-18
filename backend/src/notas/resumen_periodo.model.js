@@ -1,7 +1,4 @@
 // src/notas/resumen_periodo.model.js
-// Almacena el puesto (ranking) del estudiante por periodo.
-// Una fila por (id_matricula, id_periodo).
-
 import { DataTypes } from 'sequelize';
 import { sequelize } from '../config/database.js';
 
@@ -25,17 +22,21 @@ export const ResumenPeriodo = sequelize.define(
     },
     puesto: {
       type: DataTypes.INTEGER,
-      allowNull: true,        // null = sin registrar aún
+      allowNull: true,
       validate: {
         min: { args: [1], msg: 'El puesto mínimo es 1' },
       },
+    },
+    // Observaciones generales del estudiante en el periodo
+    observaciones: {
+      type: DataTypes.TEXT,
+      allowNull: true,
     },
   },
   {
     tableName: 'resumenes_periodo',
     timestamps: false,
     indexes: [
-      // Garantiza unicidad por matrícula + periodo
       { unique: true, fields: ['id_matricula', 'id_periodo'] },
     ],
   }

@@ -17,17 +17,22 @@ export const Materia = sequelize.define(
         notEmpty: { msg: 'El nombre de la materia no puede estar vacío' },
       },
     },
-    // Área académica para agrupar en el boletín
     area: {
       type: DataTypes.STRING(150),
       allowNull: false,
       defaultValue: 'GENERAL',
     },
-    // Intensidad horaria semanal
     intensidad_horaria: {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 1,
+    },
+    // Controla el orden de aparición en boletín y registro de notas.
+    // Usar múltiplos de 10 para poder insertar materias entre existentes.
+    orden: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     },
   },
   {

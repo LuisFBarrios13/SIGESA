@@ -78,7 +78,6 @@ interface MateriaRowProps {
   onNota:   (id: number, val: number | '') => void;
   onFallas: (id: number, val: number) => void;
   onIH:     (id: number, val: number) => void;
-  onObs:    (id: number, val: string) => void;
 }
 
 /** Input numérico reutilizable para fallas e I.H. (enteros ≥ 0) */
@@ -106,7 +105,7 @@ const IntInput = ({
   />
 );
 
-const MateriaRow = ({ m, onNota, onFallas, onIH, onObs }: MateriaRowProps) => {
+const MateriaRow = ({ m, onNota, onFallas, onIH }: MateriaRowProps) => {
   const handleNota = (raw: string) => {
     if (raw === '') { onNota(m.id_materia, ''); return; }
     const n = parseFloat(raw);
@@ -160,17 +159,6 @@ const MateriaRow = ({ m, onNota, onFallas, onIH, onObs }: MateriaRowProps) => {
         />
         {m.error && <span className="text-[10px] text-error mt-0.5">{m.error}</span>}
       </div>
-
-      {/* Observación */}
-      <input
-        type="text"
-        value={m.observacion ?? ''}
-        onChange={(e) => onObs(m.id_materia, e.target.value)}
-        placeholder="Observación…"
-        className="w-36 text-xs py-1.5 px-2.5 rounded-lg border border-outline-variant bg-white
-          focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all
-          placeholder:text-stone-300 flex-shrink-0"
-      />
     </div>
   );
 };
@@ -184,16 +172,18 @@ interface EstudianteNotasPanelProps {
   onNota:      (id_materia: number, val: number | '') => void;
   onFallas:    (id_materia: number, val: number) => void;
   onIH:        (id_materia: number, val: number) => void;
-  onObs:       (id_materia: number, val: string) => void;
   puesto:      number | null;
   savedPuesto: number | null;
   onPuesto:    (val: number | null) => void;
+  observaciones:       string;
+  onObservaciones:     (val: string) => void;
 }
 
 const EstudianteNotasPanel = ({
   materias, isLoading, error,
-  onNota, onFallas, onIH, onObs,
+  onNota, onFallas, onIH,
   puesto, savedPuesto, onPuesto,
+  observaciones, onObservaciones,
 }: EstudianteNotasPanelProps) => {
   if (isLoading) {
     return (
@@ -242,45 +232,40 @@ const EstudianteNotasPanel = ({
       {/* Header columnas */}
       <div className="flex items-center gap-2 px-4 py-2 border-b border-stone-100 bg-stone-50/30">
         <span className="w-2 flex-shrink-0" />
-        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider flex-1">
-          Materia
-        </span>
-        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-14 text-center flex-shrink-0"
-              title="Intensidad Horaria">
-          I.H.
-        </span>
-        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-14 text-center flex-shrink-0">
-          Fallas
-        </span>
-        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-20 text-center flex-shrink-0">
-          Nota (0–10)
-        </span>
-        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-36 flex-shrink-0">
-          Observación
-        </span>
+        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider flex-1">Materia</span>
+        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-14 text-center flex-shrink-0" title="Intensidad Horaria">I.H.</span>
+        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-14 text-center flex-shrink-0">Fallas</span>
+        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-20 text-center flex-shrink-0">Nota (0–10)</span>
       </div>
 
       {/* Áreas y materias */}
-      <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 400px)' }}>
+      <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 460px)' }}>
         {grupos.map(({ area, items }) => (
           <div key={area}>
             <div className="px-4 py-1.5 bg-stone-50 border-y border-stone-100">
-              <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
-                {area}
-              </span>
+              <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">{area}</span>
             </div>
             {items.map((m) => (
-              <MateriaRow
-                key={m.id_materia}
-                m={m}
-                onNota={onNota}
-                onFallas={onFallas}
-                onIH={onIH}
-                onObs={onObs}
-              />
+              <MateriaRow key={m.id_materia} m={m} onNota={onNota} onFallas={onFallas} onIH={onIH} />
             ))}
           </div>
         ))}
+      </div>
+
+      {/* Observaciones generales del periodo */}
+      <div className="px-4 py-3 border-t border-stone-200 bg-stone-50/40">
+        <label className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block mb-1.5">
+          Observaciones del periodo
+        </label>
+        <textarea
+          value={observaciones}
+          onChange={(e) => onObservaciones(e.target.value)}
+          placeholder="Observaciones generales del estudiante en este periodo…"
+          rows={3}
+          className="w-full text-sm py-2 px-3 rounded-lg border border-outline-variant bg-white
+            focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all resize-none
+            placeholder:text-stone-300"
+        />
       </div>
     </div>
   );

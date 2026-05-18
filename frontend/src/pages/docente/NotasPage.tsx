@@ -27,6 +27,7 @@ const NotasPage = () => {
     materias, isLoadingNotas, notasError,
     updateNota, updateFallas, updateIH, updateObs,
     puesto, savedPuesto, updatePuesto,
+    observaciones, updateObservaciones,
     isSaving, saveError, saveSuccess, hasDirty, handleSave,
   } = useNotasDocente();
 
@@ -345,10 +346,11 @@ const NotasPage = () => {
                 onNota={updateNota}
                 onFallas={updateFallas}
                 onIH={updateIH}
-                onObs={updateObs}
                 puesto={puesto}
                 savedPuesto={savedPuesto}
                 onPuesto={updatePuesto}
+                observaciones={observaciones}
+                onObservaciones={updateObservaciones}
               />
             </div>
           )}

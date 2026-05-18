@@ -111,7 +111,9 @@ export const guardarNotasBulk = async (id_usuario, { notas: items, id_materia, n
  * intensidad_horaria: usa el valor guardado en la nota si existe, sino el del catálogo de materias.
  */
 export const getNotasEstudiante = async (id_matricula, numero_periodo, year) => {
-  const materias = await Materia.findAll({ order: [['area', 'ASC'], ['nombre', 'ASC']] });
+  const materias = await Materia.findAll({
+    order: [['orden', 'ASC'], ['nombre', 'ASC']],
+  });
   const periodo  = await Periodo.findOne({ where: { numero_periodo, year } });
 
   const [notas, resumen] = await Promise.all([
@@ -138,14 +140,15 @@ export const getNotasEstudiante = async (id_matricula, numero_periodo, year) => 
   });
 
   return {
-    puesto:   resumen?.puesto ?? null,
-    materias: materiasData,
+    puesto:        resumen?.puesto ?? null,
+    observaciones: resumen?.observaciones ?? '',
+    materias:      materiasData,
   };
 };
 
 export const guardarNotasEstudiante = async (
   id_usuario,
-  { id_matricula, numero_periodo, year, materias: items, puesto },
+  { id_matricula, numero_periodo, year, materias: items, puesto, observaciones },
 ) => {
   await verifyDocenteOwnsMatriculas(id_usuario, [id_matricula]);
 
@@ -190,17 +193,28 @@ export const guardarNotasEstudiante = async (
       }
     }
 
-    // ── Persistir puesto ──────────────────────────────────────────────────────
-    if (puesto !== undefined) {
+    // ── Persistir puesto y observaciones ─────────────────────────────────────
+    if (puesto !== undefined || observaciones !== undefined) {
       const puestoVal = puesto !== null && puesto !== '' ? parseInt(puesto, 10) : null;
-      const clean     = puestoVal !== null && !isNaN(puestoVal) && puestoVal >= 1 ? puestoVal : null;
+      const cleanPuesto = puestoVal !== null && !isNaN(puestoVal) && puestoVal >= 1 ? puestoVal : null;
+      const cleanObs    = observaciones !== undefined ? (observaciones || null) : undefined;
 
       const [resumen, created] = await ResumenPeriodo.findOrCreate({
         where:    { id_matricula, id_periodo: periodo.id_periodo },
-        defaults: { puesto: clean },
+        defaults: {
+          puesto:       cleanPuesto,
+          observaciones: cleanObs ?? null,
+        },
         transaction: t,
       });
-      if (!created) await resumen.update({ puesto: clean }, { transaction: t });
+      if (!created) {
+        const updateData = {};
+        if (puesto !== undefined)       updateData.puesto       = cleanPuesto;
+        if (observaciones !== undefined) updateData.observaciones = cleanObs;
+        if (Object.keys(updateData).length) {
+          await resumen.update(updateData, { transaction: t });
+        }
+      }
     }
 
     return results;

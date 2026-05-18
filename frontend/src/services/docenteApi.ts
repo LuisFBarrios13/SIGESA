@@ -57,8 +57,9 @@ export interface NotaEstudianteItem {
 
 /** Respuesta de GET /notas/estudiante/:id */
 export interface NotasEstudianteResponse {
-  puesto:   number | null;
-  materias: NotaEstudianteItem[];
+  puesto:        number | null;
+  observaciones: string;
+  materias:      NotaEstudianteItem[];
 }
 
 export interface GuardarNotaEstudiantePayload {
@@ -69,12 +70,10 @@ export interface GuardarNotaEstudiantePayload {
     id_materia:          number;
     nota:                number | '';
     fallas:              number;
-    /** null = heredar del catálogo de materias */
     intensidad_horaria:  number | null;
-    observacion?:        string;
   }[];
-  /** undefined = no tocar | null = borrar | number = guardar */
-  puesto?: number | null;
+  puesto?:        number | null;
+  observaciones?: string;
 }
 
 // ── API calls ──────────────────────────────────────────────────────────────────

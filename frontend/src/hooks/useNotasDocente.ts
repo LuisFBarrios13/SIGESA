@@ -84,6 +84,9 @@ interface UseNotasDocenteReturn {
   savedPuesto:  number | null;
   updatePuesto: (val: number | null) => void;
 
+  observaciones:       string;
+  updateObservaciones: (val: string) => void;
+
   isSaving:    boolean;
   saveError:   string;
   saveSuccess: boolean;
@@ -111,6 +114,9 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
 
   const [puesto,      setPuesto]      = useState<number | null>(null);
   const [savedPuesto, setSavedPuesto] = useState<number | null>(null);
+
+  const [observaciones,      setObservaciones]      = useState('');
+  const [savedObservaciones, setSavedObservaciones] = useState('');
 
   const [isSaving,    setIsSaving]    = useState(false);
   const [saveError,   setSaveError]   = useState('');
@@ -157,6 +163,8 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
         setMaterias(buildMaterias(result.materias));
         setPuesto(result.puesto);
         setSavedPuesto(result.puesto);
+        setObservaciones(result.observaciones ?? '');
+        setSavedObservaciones(result.observaciones ?? '');
       } catch {
         setNotasError('No se pudieron cargar las notas. Verifica tu conexión.');
         setMaterias([]);
@@ -185,6 +193,8 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
     setMaterias([]);
     setPuesto(null);
     setSavedPuesto(null);
+    setObservaciones('');
+    setSavedObservaciones('');
     setSaveError('');
     setSaveSuccess(false);
   }, []);
@@ -243,6 +253,11 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
     setSaveSuccess(false);
   }, []);
 
+  const updateObservaciones = useCallback((val: string) => {
+    setObservaciones(val);
+    setSaveSuccess(false);
+  }, []);
+
   // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
     if (!selected) return;
@@ -251,10 +266,11 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
       return;
     }
 
-    const dirtyItems  = materias.filter((m) => m.dirty);
-    const puestoDirty = puesto !== savedPuesto;
+    const dirtyItems         = materias.filter((m) => m.dirty);
+    const puestoDirty        = puesto !== savedPuesto;
+    const observacionesDirty = observaciones !== savedObservaciones;
 
-    if (!dirtyItems.length && !puestoDirty) return;
+    if (!dirtyItems.length && !puestoDirty && !observacionesDirty) return;
 
     setIsSaving(true);
     setSaveError('');
@@ -270,9 +286,9 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
           nota:               m.nota,
           fallas:             m.fallas,
           intensidad_horaria: m.intensidad_horaria,
-          observacion:        m.observacion || undefined,
         })),
-        puesto: puestoDirty ? puesto : undefined,
+        puesto:        puestoDirty        ? puesto        : undefined,
+        observaciones: observacionesDirty ? observaciones : undefined,
       });
 
       setMaterias((prev) =>
@@ -286,6 +302,7 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
         })),
       );
       setSavedPuesto(puesto);
+      setSavedObservaciones(observaciones);
       setSaveSuccess(true);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Error al guardar las notas.');
@@ -307,8 +324,8 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
   }, [estudiantes, search, gradoFilter]);
 
   const hasDirty = useMemo(
-    () => materias.some((m) => m.dirty) || puesto !== savedPuesto,
-    [materias, puesto, savedPuesto],
+    () => materias.some((m) => m.dirty) || puesto !== savedPuesto || observaciones !== savedObservaciones,
+    [materias, puesto, savedPuesto, observaciones, savedObservaciones],
   );
 
   return {
@@ -319,6 +336,7 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
     materias, isLoadingNotas, notasError,
     updateNota, updateFallas, updateIH, updateObs,
     puesto, savedPuesto, updatePuesto,
+    observaciones, updateObservaciones,
     isSaving, saveError, saveSuccess, hasDirty, handleSave,
   };
 };
