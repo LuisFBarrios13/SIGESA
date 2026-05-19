@@ -13,6 +13,7 @@ import estudianteRoutes from '../estudiantes/estudiante.routes.js';
 import notaRoutes       from '../notas/nota.routes.js';
 import materiaRoutes    from '../materias/materia.routes.js';
 import boletinRoutes    from '../boletin/boletin.routes.js';
+import acudienteRoutes  from '../acudientes/acudiente.routes.js';
 
 const app = express();
 
@@ -34,6 +35,7 @@ app.use('/api/estudiantes', estudianteRoutes);
 app.use('/api/notas',       notaRoutes);
 app.use('/api/materias',    materiaRoutes);
 app.use('/api/boletin',     boletinRoutes);
+app.use('/api/acudientes',  acudienteRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Ruta ${req.originalUrl} no encontrada` });

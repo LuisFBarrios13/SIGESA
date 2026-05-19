@@ -1,9 +1,8 @@
-// src/types/auth.ts
-
 export interface AuthUser {
-  id: number;
-  username: string;
-  roles: string[];
+  id:          number;
+  username:    string;
+  nombre:      string;
+  roles:       string[];
   primerLogin: boolean;
 }
 
@@ -13,8 +12,8 @@ export interface LoginPayload {
 }
 
 export interface AuthState {
-  user: AuthUser | null;
-  token: string | null;
+  user:            AuthUser | null;
+  token:           string | null;
   isAuthenticated: boolean;
-  isLoading: boolean;
+  isLoading:       boolean;
 }

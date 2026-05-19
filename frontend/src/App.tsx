@@ -5,6 +5,7 @@ import { useAuth } from './hooks/useAuth';
 
 import LoginPage          from './pages/shared/LoginPage';
 import ChangePasswordPage from './pages/shared/ChangePasswordPage';
+import CapacitacionesPage from './pages/shared/CapacitacionesPage';
 
 import DashboardPage   from './pages/admin/DashboardPage';
 import MatriculaPage   from './pages/admin/MatriculaPage';
@@ -34,7 +35,7 @@ const AppRoutes = () => {
   const { user, isAuthenticated } = useAuth();
 
   const userProfile = user
-    ? { name: user.username, role: user.roles[0] ?? '', avatarUrl: '' }
+    ? { name: user.nombre ?? user.username, role: user.roles[0] ?? '', avatarUrl: '' }
     : null;
 
   if (isAuthenticated && user?.primerLogin) {
@@ -50,6 +51,7 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
 
+      {/* ── Inicio ── */}
       <Route path="/" element={
         <ProtectedRoute>
           <Layout user={userProfile!}><HomeRedirect /></Layout>
@@ -90,7 +92,7 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
-      {/* ── Docente con Layout ── */}
+      {/* ── Docente ── */}
       <Route path="/docente" element={
         <ProtectedRoute roles={['DOCENTE']}>
           <Layout user={userProfile!}><MiGradoPage /></Layout>
@@ -106,6 +108,13 @@ const AppRoutes = () => {
       <Route path="/docente/boletin" element={
         <ProtectedRoute roles={['DOCENTE', 'ADMINISTRADOR']}>
           <BoletinPage />
+        </ProtectedRoute>
+      } />
+
+      {/* ── Capacitaciones — todos los roles ── */}
+      <Route path="/capacitaciones" element={
+        <ProtectedRoute>
+          <Layout user={userProfile!}><CapacitacionesPage /></Layout>
         </ProtectedRoute>
       } />
 

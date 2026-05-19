@@ -17,6 +17,10 @@ export const Usuario = sequelize.define(
         name: 'unique_username',
         msg: 'Este nombre de usuario ya está en uso',
       },
+    nombre: {
+      type: DataTypes.STRING(150),
+      allowNull: true,
+      },
       validate: {
         notEmpty: { msg: 'El username no puede estar vacío' },
       },

@@ -9,17 +9,18 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'pagos',      label: 'Pagos',             icon: 'payments',    href: '/pagos',       isActive: false },
   { id: 'deudores',   label: 'Deudores',          icon: 'warning',     href: '/deudores',    isActive: false },
   { id: 'students',   label: 'Estudiantes',       icon: 'group',       href: '/estudiantes', isActive: false },
+  { id: 'capacitaciones',  label: 'Capacitaciones',    icon: 'play_lesson',        href: '/capacitaciones',  isActive: false },
 ];
 
 // ── DOCENTE ───────────────────────────────────────────────────
 export const NAV_ITEMS_DOCENTE: NavItem[] = [
   { id: 'mi-grado', label: 'Mi Grado',          icon: 'class', href: '/docente',       isActive: false },
   { id: 'notas',    label: 'Registro de Notas', icon: 'grade', href: '/docente/notas', isActive: false },
+  { id: 'capacitaciones',  label: 'Capacitaciones',    icon: 'play_lesson',        href: '/capacitaciones',  isActive: false },
 ];
 
 // ── ACUDIENTE ─────────────────────────────────────────────────
 export const NAV_ITEMS_ACUDIENTE: NavItem[] = [
-  { id: 'inicio', label: 'Inicio',    icon: 'home',     href: '/acudiente',       isActive: false },
   { id: 'pagos',  label: 'Mis Pagos', icon: 'payments', href: '/acudiente/pagos', isActive: false },
 ];
 
@@ -27,4 +28,5 @@ export const NAV_ITEMS_ACUDIENTE: NavItem[] = [
 export const NAV_FOOTER_ITEMS: NavItem[] = [
   { id: 'help',   label: 'Ayuda',         icon: 'help',   href: '#'       },
   { id: 'logout', label: 'Cerrar Sesión', icon: 'logout', href: '/logout' },
+  { id: 'capacitaciones',  label: 'Capacitaciones',    icon: 'play_lesson',        href: '/capacitaciones',  isActive: false },
 ];
