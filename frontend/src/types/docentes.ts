@@ -1,6 +1,4 @@
-// src/types/docentes.ts
-// Tipos del dominio de docentes (API).
-// Nota: src/types/docente.ts contiene tipos del panel de notas (UI), estos son distintos.
+// src/types/docentes.ts  — reemplaza el existente, añade ActualizarDocentePayload
 
 import type { JornadaEstudiante, JornadaDocente } from './shared';
 
@@ -47,4 +45,15 @@ export interface GradoDisponibilidad {
     nombre:  string;
     jornada: JornadaDocente;
   } | null;
+}
+
+/**
+ * Campos editables de un docente.
+ * La cédula y la jornada NO son modificables desde la UI
+ * (la jornada está vinculada a los grados asignados).
+ */
+export interface ActualizarDocentePayload {
+  nombre?:   string;
+  telefono?: string;
+  correo?:   string;
 }

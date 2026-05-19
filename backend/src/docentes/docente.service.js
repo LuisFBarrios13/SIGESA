@@ -1,4 +1,4 @@
-// src/docentes/docente.service.js
+// src/docentes/docente.service.js  (agrega al archivo existente)
 import bcrypt from 'bcryptjs';
 import { sequelize } from '../config/database.js';
 import { Docente, Usuario, UsuarioRol, Rol, Grado } from '../models/index.js';
@@ -6,17 +6,7 @@ import { ROLES } from '../constants/roles.js';
 
 const SALT_ROUNDS = 10;
 
-/**
- * Reglas de negocio para asignación de jornada/grado:
- *
- * La tabla `grados` tiene filas separadas por nombre + jornada:
- *   { nombre: 'Primero', jornada: 'MAÑANA', id_grado: 1 }
- *   { nombre: 'Primero', jornada: 'TARDE',  id_grado: 2 }
- *
- * Docente COMPLETA → se asigna a AMBAS filas del grado.
- * Docente MAÑANA   → solo a la fila MAÑANA, pero falla si TARDE ya tiene
- *                    un docente COMPLETA (y viceversa).
- */
+// ── Lógica existente (sin cambios) ───────────────────────────────────────────
 
 const resolverGradosAfectados = async (nombreGrado, jornadaDocente, t) => {
   if (jornadaDocente === 'COMPLETA') {
@@ -138,3 +128,39 @@ export const listarDisponibilidadGrados = async () =>
     include: [{ model: Docente, as: 'docente', attributes: ['cedula', 'nombre', 'jornada'] }],
     order: [['nombre', 'ASC'], ['jornada', 'ASC']],
   });
+
+// ── NUEVO: actualizar datos personales del docente ────────────────────────────
+
+/**
+ * Campos editables: nombre, telefono, correo.
+ * La cédula (PK), la jornada y los grados asignados NO se modifican aquí,
+ * ya que cambiar la jornada puede crear conflictos con los grados existentes.
+ */
+const CAMPOS_PERMITIDOS = ['nombre', 'telefono', 'correo'];
+
+export const actualizarDocente = async (cedula, dto) => {
+  const docente = await Docente.findByPk(cedula, {
+    include: [{ model: Grado, as: 'grados', attributes: ['id_grado', 'nombre', 'jornada'] }],
+  });
+
+  if (!docente) throw { status: 404, message: 'Docente no encontrado' };
+
+  const actualizaciones = {};
+  for (const campo of CAMPOS_PERMITIDOS) {
+    if (dto[campo] !== undefined) {
+      actualizaciones[campo] =
+        campo === 'nombre'
+          ? dto[campo].trim()
+          : dto[campo]?.trim() || null;
+    }
+  }
+
+  if (!actualizaciones.nombre?.length) {
+    throw { status: 400, message: 'El nombre del docente no puede estar vacío' };
+  }
+
+  await docente.update(actualizaciones);
+  return docente.reload({
+    include: [{ model: Grado, as: 'grados', attributes: ['id_grado', 'nombre', 'jornada'] }],
+  });
+};

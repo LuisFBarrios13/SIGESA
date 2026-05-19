@@ -1,4 +1,4 @@
-// src/pages/DocentesPage.tsx
+// src/pages/admin/DocentesPage.tsx
 import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
 import {
   docentesApi,
@@ -7,6 +7,8 @@ import {
   type GradoDisponibilidad,
   type JornadaDocente,
 } from '../../services/api';
+import { useEditarDocente }   from '../../hooks/useEditarDocente';
+import EditarDocenteModal     from '../../components/docente/EditarDocenteModal';
 import FormField, { inputClass } from '../../components/ui/FormField';
 
 // ── Constants ─────────────────────────────────────────────────
@@ -33,12 +35,8 @@ const JORNADA_COLOR: Record<JornadaDocente, string> = {
 // ── Empty form ────────────────────────────────────────────────
 
 interface FormState {
-  cedula: string;
-  nombre: string;
-  telefono: string;
-  correo: string;
-  jornada: JornadaDocente | '';
-  nombreGrado: NombreGrado | '';
+  cedula: string; nombre: string; telefono: string;
+  correo: string; jornada: JornadaDocente | ''; nombreGrado: NombreGrado | '';
 }
 
 const EMPTY_FORM: FormState = {
@@ -47,27 +45,18 @@ const EMPTY_FORM: FormState = {
 
 // ── Sub-components ────────────────────────────────────────────
 
-/** Badge de jornada */
 const JornadaBadge = ({ jornada }: { jornada: JornadaDocente }) => (
   <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${JORNADA_COLOR[jornada]}`}>
     {JORNADA_LABEL[jornada]}
   </span>
 );
 
-/** Botón selector de jornada */
 interface JornadaBtnProps {
-  value: JornadaDocente;
-  icon: string;
-  desc: string;
-  selected: boolean;
-  disabled: boolean;
-  onSelect: (v: JornadaDocente) => void;
+  value: JornadaDocente; icon: string; desc: string;
+  selected: boolean; disabled: boolean; onSelect: (v: JornadaDocente) => void;
 }
 const JornadaBtn = ({ value, icon, desc, selected, disabled, onSelect }: JornadaBtnProps) => (
-  <button
-    type="button"
-    disabled={disabled}
-    onClick={() => !disabled && onSelect(value)}
+  <button type="button" disabled={disabled} onClick={() => !disabled && onSelect(value)}
     className={`flex-1 flex flex-col items-center gap-2 px-4 py-4 rounded-xl border-2 transition-all
       ${disabled  ? 'opacity-35 cursor-not-allowed border-stone-200 bg-stone-50'
       : selected  ? 'border-primary bg-primary-fixed/20 shadow-sm'
@@ -91,7 +80,6 @@ const JornadaBtn = ({ value, icon, desc, selected, disabled, onSelect }: Jornada
   </button>
 );
 
-/** Grid de disponibilidad de grados */
 interface DisponibilidadGridProps {
   grados: GradoDisponibilidad[];
   gradoSeleccionado: NombreGrado | '';
@@ -110,9 +98,7 @@ const DisponibilidadGrid = ({
   const estaDisponible = (nombre: NombreGrado): boolean => {
     if (!jornadaSeleccionada) return true;
     const item = porNombre.find((g) => g.nombre === nombre)!;
-    if (jornadaSeleccionada === 'COMPLETA') {
-      return !item.manana?.docente && !item.tarde?.docente;
-    }
+    if (jornadaSeleccionada === 'COMPLETA') return !item.manana?.docente && !item.tarde?.docente;
     const fila = jornadaSeleccionada === 'MAÑANA' ? item.manana : item.tarde;
     const filaOpuesta = jornadaSeleccionada === 'MAÑANA' ? item.tarde : item.manana;
     if (fila?.docente) return false;
@@ -153,23 +139,17 @@ const DisponibilidadGrid = ({
               );
 
             return (
-              <tr
-                key={nombre}
-                className={`transition-colors ${selected ? 'bg-primary-fixed/10' : disponible ? 'hover:bg-stone-50' : 'opacity-50'}`}
-              >
+              <tr key={nombre}
+                className={`transition-colors ${selected ? 'bg-primary-fixed/10' : disponible ? 'hover:bg-stone-50' : 'opacity-50'}`}>
                 <td className="px-4 py-3 font-semibold text-on-surface">{nombre}</td>
                 <td className="px-4 py-3 text-center"><CeldaDocente g={manana} /></td>
                 <td className="px-4 py-3 text-center"><CeldaDocente g={tarde} /></td>
                 <td className="px-4 py-3 text-center">
-                  <button
-                    type="button"
-                    disabled={!disponible}
-                    onClick={() => disponible && onSelect(nombre)}
+                  <button type="button" disabled={!disponible} onClick={() => disponible && onSelect(nombre)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all
                       ${selected    ? 'bg-primary text-white shadow'
                       : disponible ? 'bg-white border border-primary text-primary hover:bg-primary-fixed/20'
-                      :              'bg-stone-100 text-stone-400 cursor-not-allowed'}`}
-                  >
+                      :              'bg-stone-100 text-stone-400 cursor-not-allowed'}`}>
                     {selected ? '✓ Elegido' : disponible ? 'Elegir' : 'Ocupado'}
                   </button>
                 </td>
@@ -182,9 +162,28 @@ const DisponibilidadGrid = ({
   );
 };
 
-/** Card de docente registrado */
-const DocenteCard = ({ docente }: { docente: DocenteListItem }) => (
-  <div className="bg-white rounded-xl border border-outline-variant shadow-sm p-5 flex flex-col gap-3">
+// ── DocenteCard — ahora con botón editar ──────────────────────
+
+interface DocenteCardProps {
+  docente:   DocenteListItem;
+  onEditar:  (d: DocenteListItem) => void;
+}
+
+const DocenteCard = ({ docente, onEditar }: DocenteCardProps) => (
+  <div className="bg-white rounded-xl border border-outline-variant shadow-sm p-5
+    flex flex-col gap-3 group hover:border-primary/30 hover:shadow-md transition-all relative">
+
+    {/* Botón editar — visible en hover */}
+    <button
+      onClick={() => onEditar(docente)}
+      title="Editar docente"
+      className="absolute top-4 right-4 p-1.5 rounded-lg text-stone-300
+        hover:text-primary hover:bg-primary-fixed/30 transition-all
+        opacity-0 group-hover:opacity-100"
+    >
+      <span className="material-symbols-outlined text-lg">edit</span>
+    </button>
+
     <div className="flex items-start justify-between gap-3">
       <div className="flex items-center gap-3">
         <div className="w-11 h-11 rounded-full bg-primary-fixed flex items-center justify-center flex-shrink-0">
@@ -201,7 +200,8 @@ const DocenteCard = ({ docente }: { docente: DocenteListItem }) => (
     {docente.grados.length > 0 && (
       <div className="flex flex-wrap gap-2 pt-1 border-t border-stone-100">
         {docente.grados.map((g) => (
-          <span key={g.id_grado} className="flex items-center gap-1 text-xs bg-stone-100 text-stone-700 px-2.5 py-1 rounded-full font-medium">
+          <span key={g.id_grado}
+            className="flex items-center gap-1 text-xs bg-stone-100 text-stone-700 px-2.5 py-1 rounded-full font-medium">
             <span className="material-symbols-outlined text-[14px] text-secondary">school</span>
             {g.nombre} – {g.jornada === 'MAÑANA' ? 'M' : 'T'}
           </span>
@@ -209,16 +209,20 @@ const DocenteCard = ({ docente }: { docente: DocenteListItem }) => (
       </div>
     )}
 
-    <div className="text-xs text-stone-400 flex gap-4 pt-1 border-t border-stone-100">
+    <div className="text-xs text-stone-400 flex gap-4 pt-1 border-t border-stone-100 flex-wrap">
       {docente.telefono && <span>📞 {docente.telefono}</span>}
       {docente.correo   && <span className="truncate">✉ {docente.correo}</span>}
     </div>
   </div>
 );
 
-/** Modal de éxito */
+// ── Success Modal (sin cambios) ───────────────────────────────
+
 interface SuccessModalProps {
-  data: DocenteListItem & { credenciales: { username: string; passwordTemporal: string; nota: string }; gradosAsignados: { nombre: string; jornada: string }[] };
+  data: DocenteListItem & {
+    credenciales: { username: string; passwordTemporal: string; nota: string };
+    gradosAsignados: { nombre: string; jornada: string }[];
+  };
   onClose: () => void;
 }
 const SuccessModal = ({ data, onClose }: SuccessModalProps) => (
@@ -238,14 +242,15 @@ const SuccessModal = ({ data, onClose }: SuccessModalProps) => (
           <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Grados asignados</p>
           <div className="flex flex-wrap gap-2">
             {data.gradosAsignados.map((g) => (
-              <span key={`${g.nombre}-${g.jornada}`} className="text-xs bg-secondary-container/20 text-secondary px-3 py-1 rounded-full font-medium">
+              <span key={`${g.nombre}-${g.jornada}`}
+                className="text-xs bg-secondary-container/20 text-secondary px-3 py-1 rounded-full font-medium">
                 {g.nombre} – Jornada {g.jornada === 'MAÑANA' ? 'Mañana' : 'Tarde'}
               </span>
             ))}
           </div>
         </div>
         <div className="bg-stone-50 rounded-xl border border-stone-200 p-4">
-          <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-3">Credenciales de acceso</p>
+          <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-3">Credenciales</p>
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-sm text-stone-500">Usuario</span>
@@ -261,10 +266,8 @@ const SuccessModal = ({ data, onClose }: SuccessModalProps) => (
           <span className="material-symbols-outlined text-orange-700 text-xl flex-shrink-0">warning</span>
           <p className="text-xs text-orange-800">{data.credenciales.nota}</p>
         </div>
-        <button
-          onClick={onClose}
-          className="w-full py-3 bg-orange-900 text-white rounded-lg font-semibold hover:bg-primary transition-all shadow-md"
-        >
+        <button onClick={onClose}
+          className="w-full py-3 bg-orange-900 text-white rounded-lg font-semibold hover:bg-primary transition-all shadow-md">
           Registrar otro docente
         </button>
       </div>
@@ -283,6 +286,16 @@ const DocentesPage = () => {
   const [isSubmitting, setIsSubmitting]   = useState(false);
   const [submitError, setSubmitError]     = useState('');
   const [successData, setSuccessData]     = useState<Parameters<typeof SuccessModal>[0]['data'] | null>(null);
+
+  // Hook de edición
+  const {
+    editando,
+    isLoading: editLoading,
+    error:     editError,
+    abrirEdicion,
+    cerrarEdicion,
+    confirmarEdicion,
+  } = useEditarDocente();
 
   const cargarDatos = () => {
     setLoadingGrados(true);
@@ -356,25 +369,41 @@ const DocentesPage = () => {
     }
   };
 
+  // Actualiza en memoria tras editar exitosamente
+  const handleEditSuccess = (actualizado: DocenteListItem) => {
+    setDocentes((prev) =>
+      prev.map((d) => d.cedula === actualizado.cedula ? actualizado : d),
+    );
+  };
+
   return (
     <>
+      {/* Modales */}
       {successData && (
         <SuccessModal data={successData} onClose={() => setSuccessData(null)} />
+      )}
+      {editando && (
+        <EditarDocenteModal
+          docente={editando}
+          isLoading={editLoading}
+          error={editError}
+          onClose={cerrarEdicion}
+          onConfirm={(payload) => confirmarEdicion(payload, handleEditSuccess)}
+        />
       )}
 
       {/* Header */}
       <div>
         <h1 className="text-3xl font-semibold text-primary">Gestión de Docentes</h1>
         <p className="text-base text-stone-500 mt-1">
-          Registra docentes, asigna jornada y grado a cargo. Cada grado admite un director por jornada.
+          Registra docentes, asigna jornada y grado a cargo. Pasa el cursor sobre una tarjeta para editar.
         </p>
       </div>
 
       <div className="space-y-8">
 
-        {/* ── Formulario ───────────────────────────────────── */}
+        {/* ── Formulario de registro ───────────────────────── */}
         <div className="bg-white rounded-2xl border border-outline-variant shadow-sm overflow-hidden">
-          {/* Card header */}
           <div className="px-6 py-4 border-b border-stone-100 bg-primary-fixed/10 flex items-center gap-3">
             <div className="p-2 bg-primary-fixed rounded-lg">
               <span className="material-symbols-outlined text-on-primary-fixed-variant text-xl">person_add</span>
@@ -390,7 +419,6 @@ const DocentesPage = () => {
               </div>
             )}
 
-            {/* Datos personales */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField label="Cédula" id="cedula" required error={errors.cedula}>
                 <input id="cedula" name="cedula" value={form.cedula} onChange={handleChange}
@@ -430,7 +458,7 @@ const DocentesPage = () => {
               )}
             </div>
 
-            {/* Grado — tabla de disponibilidad */}
+            {/* Grado */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-semibold tracking-wide text-on-surface-variant uppercase">
@@ -440,7 +468,6 @@ const DocentesPage = () => {
                   <span className="text-xs text-stone-400 italic">Selecciona la jornada primero</span>
                 )}
               </div>
-
               {loadingGrados ? (
                 <div className="flex items-center justify-center h-24 rounded-xl border border-outline-variant bg-stone-50">
                   <span className="material-symbols-outlined text-primary animate-spin">progress_activity</span>
@@ -453,7 +480,6 @@ const DocentesPage = () => {
                   onSelect={handleGrado}
                 />
               )}
-
               {errors.nombreGrado && (
                 <p className="text-xs text-error flex items-center gap-1 mt-2">
                   <span className="material-symbols-outlined text-[14px]">error</span>{errors.nombreGrado}
@@ -461,7 +487,6 @@ const DocentesPage = () => {
               )}
             </div>
 
-            {/* Resumen selección */}
             {form.jornada && form.nombreGrado && (
               <div className="flex gap-3 p-4 bg-secondary-container/20 rounded-xl border border-secondary/20">
                 <span className="material-symbols-outlined text-secondary text-xl flex-shrink-0">info</span>
@@ -474,15 +499,17 @@ const DocentesPage = () => {
               </div>
             )}
 
-            {/* Actions */}
             <div className="flex gap-3 pt-1">
               <button type="button"
                 onClick={() => { setForm(EMPTY_FORM); setErrors({}); setSubmitError(''); }}
-                className="px-5 py-2.5 border border-outline-variant bg-white text-on-surface-variant rounded-lg font-semibold hover:bg-stone-50 transition-all text-sm">
+                className="px-5 py-2.5 border border-outline-variant bg-white text-on-surface-variant
+                  rounded-lg font-semibold hover:bg-stone-50 transition-all text-sm">
                 Limpiar
               </button>
               <button type="submit" disabled={isSubmitting}
-                className="flex-1 py-2.5 bg-orange-900 text-white rounded-lg font-semibold hover:bg-primary transition-all shadow-md disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm">
+                className="flex-1 py-2.5 bg-orange-900 text-white rounded-lg font-semibold hover:bg-primary
+                  transition-all shadow-md disabled:opacity-60 disabled:cursor-not-allowed
+                  flex items-center justify-center gap-2 text-sm">
                 {isSubmitting ? (
                   <><span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>Guardando...</>
                 ) : (
@@ -493,33 +520,37 @@ const DocentesPage = () => {
           </form>
         </div>
 
-        {/* ── Docentes registrados ─────────────────────────── */}
+        {/* ── Lista de docentes ────────────────────────────── */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-on-surface">
               Docentes registrados
-              <span className="ml-2 px-2 py-0.5 bg-secondary-container/30 text-secondary text-sm rounded-full font-bold">
+              <span className="ml-2 px-2 py-0.5 bg-secondary-container/30 text-secondary
+                text-sm rounded-full font-bold">
                 {docentes.length}
               </span>
             </h2>
             <button onClick={cargarDatos}
-              className="p-2 text-stone-400 hover:text-primary hover:bg-stone-50 rounded-lg transition-colors">
+              className="p-2 text-stone-400 hover:text-primary hover:bg-stone-50
+                rounded-lg transition-colors">
               <span className="material-symbols-outlined">refresh</span>
             </button>
           </div>
 
           {docentes.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-outline-variant shadow-sm p-12 flex flex-col items-center gap-3 text-stone-400">
+            <div className="bg-white rounded-2xl border border-outline-variant shadow-sm
+              p-12 flex flex-col items-center gap-3 text-stone-400">
               <span className="material-symbols-outlined text-5xl">person_off</span>
               <p className="text-sm font-medium">No hay docentes registrados aún</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {docentes.map((d) => <DocenteCard key={d.cedula} docente={d} />)}
+              {docentes.map((d) => (
+                <DocenteCard key={d.cedula} docente={d} onEditar={abrirEdicion} />
+              ))}
             </div>
           )}
         </div>
-
       </div>
     </>
   );

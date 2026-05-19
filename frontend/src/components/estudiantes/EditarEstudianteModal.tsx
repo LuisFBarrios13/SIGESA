@@ -1,20 +1,21 @@
-// src/components/estudiantes/EditarAcudienteModal.tsx
-// Single Responsibility: formulario de edición de datos de un acudiente.
-// Open/Closed: campos declarados en CAMPOS_CONFIG — extensible sin tocar la lógica.
+// src/components/estudiantes/EditarEstudianteModal.tsx
+// Single Responsibility: formulario de edición de datos de un estudiante.
+// Open/Closed: los campos editables se declaran en CAMPOS_CONFIG — agregar
+// un campo nuevo no requiere tocar la lógica del formulario.
 
 import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
-import type { AcudienteDetalle, ActualizarAcudientePayload } from '../../types/acudientes-admin';
+import type { EstudianteListItem, ActualizarEstudiantePayload } from '../../types/estudiantes';
 
-// ── Configuración de campos ───────────────────────────────────
+// ── Campos editables ──────────────────────────────────────────
 
 interface CampoConfig {
-  key:         keyof ActualizarAcudientePayload;
+  key:         keyof ActualizarEstudiantePayload;
   label:       string;
   placeholder: string;
-  type:        'text' | 'email' | 'tel';
+  type:        'text' | 'date' | 'select' | 'textarea';
+  options?:    string[];
   required?:   boolean;
-  colSpan?:    boolean;
-  icon:        string;
+  colSpan?:    boolean;   // ocupa las 2 columnas
 }
 
 const CAMPOS_CONFIG: CampoConfig[] = [
@@ -25,21 +26,20 @@ const CAMPOS_CONFIG: CampoConfig[] = [
     type:        'text',
     required:    true,
     colSpan:     true,
-    icon:        'person',
   },
   {
-    key:         'telefono',
-    label:       'Teléfono personal',
-    placeholder: 'ej. 3001234567',
-    type:        'tel',
-    icon:        'phone',
+    key:         'fecha_nacimiento',
+    label:       'Fecha de nacimiento',
+    placeholder: '',
+    type:        'date',
+    required:    true,
   },
   {
-    key:         'correo',
-    label:       'Correo electrónico',
-    placeholder: 'correo@ejemplo.com',
-    type:        'email',
-    icon:        'mail',
+    key:         'rh',
+    label:       'Tipo de sangre (RH)',
+    placeholder: 'Seleccionar',
+    type:        'select',
+    options:     ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
   },
   {
     key:         'direccion',
@@ -47,59 +47,47 @@ const CAMPOS_CONFIG: CampoConfig[] = [
     placeholder: 'Calle, barrio, ciudad…',
     type:        'text',
     colSpan:     true,
-    icon:        'home',
   },
   {
-    key:         'telefono_trabajo',
-    label:       'Teléfono del trabajo',
-    placeholder: 'ej. 6012345678',
-    type:        'tel',
-    icon:        'work',
-  },
-  {
-    key:         'direccion_trabajo',
-    label:       'Dirección del trabajo',
-    placeholder: 'Empresa, dirección…',
-    type:        'text',
-    icon:        'corporate_fare',
+    key:         'observaciones',
+    label:       'Observaciones',
+    placeholder: 'Condiciones médicas, necesidades especiales…',
+    type:        'textarea',
+    colSpan:     true,
   },
 ];
 
 // ── Tipos locales ─────────────────────────────────────────────
 
-type FormState  = ActualizarAcudientePayload;
-type FormErrors = Partial<Record<keyof ActualizarAcudientePayload, string>>;
+type FormState = ActualizarEstudiantePayload;
+type FormErrors = Partial<Record<keyof ActualizarEstudiantePayload, string>>;
 
-export interface EditarAcudienteModalProps {
-  acudiente:  AcudienteDetalle;
-  /** Nombre del estudiante vinculado (para el encabezado) */
-  nombreEstudiante: string;
-  onConfirm:  (payload: ActualizarAcudientePayload) => Promise<void>;
+interface EditarEstudianteModalProps {
+  estudiante: EstudianteListItem;
+  onConfirm:  (payload: ActualizarEstudiantePayload) => Promise<void>;
   onClose:    () => void;
   isLoading:  boolean;
   error:      string;
 }
 
-// ── Helpers de estilos ────────────────────────────────────────
+// ── Clases de input reutilizables ─────────────────────────────
 
 const inputBase =
-  'w-full pl-9 pr-3 py-2.5 rounded-lg border bg-white text-sm text-on-surface transition-all ' +
+  'w-full px-3 py-2.5 rounded-lg border bg-white text-sm text-on-surface transition-all ' +
   'focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary ' +
   'placeholder:text-stone-300';
 
 const inputNormal  = `${inputBase} border-outline-variant`;
-const inputInvalid =
-  `${inputBase} border-error bg-error-container/10 focus:ring-error/30 focus:border-error`;
+const inputInvalid = `${inputBase} border-error bg-error-container/10 focus:ring-error/30 focus:border-error`;
 
-// ── Valor inicial del formulario ──────────────────────────────
+// ── Helper: valor inicial del formulario ──────────────────────
 
-const buildInitialState = (a: AcudienteDetalle): FormState => ({
-  nombre:            a.nombre,
-  telefono:          a.telefono          ?? '',
-  correo:            a.correo            ?? '',
-  direccion:         a.direccion         ?? '',
-  telefono_trabajo:  a.telefono_trabajo  ?? '',
-  direccion_trabajo: a.direccion_trabajo ?? '',
+const buildInitialState = (e: EstudianteListItem): FormState => ({
+  nombre:           e.nombre,
+  fecha_nacimiento: e.fecha_nacimiento,
+  rh:               e.rh               ?? '',
+  direccion:        e.direccion         ?? '',
+  observaciones:    e.observaciones     ?? '',
 });
 
 // ── Sub-componente: campo individual ──────────────────────────
@@ -108,11 +96,11 @@ interface FieldProps {
   config:   CampoConfig;
   value:    string;
   error?:   string;
-  onChange: (key: keyof ActualizarAcudientePayload, value: string) => void;
+  onChange: (key: keyof ActualizarEstudiantePayload, value: string) => void;
 }
 
 const Field = ({ config, value, error, onChange }: FieldProps) => {
-  const { key, label, placeholder, type, required, icon } = config;
+  const { key, label, placeholder, type, options, required } = config;
   const cls = error ? inputInvalid : inputNormal;
 
   return (
@@ -121,10 +109,31 @@ const Field = ({ config, value, error, onChange }: FieldProps) => {
         {label}
         {required && <span className="text-error ml-1">*</span>}
       </label>
-      <div className="relative">
-        <span className="absolute inset-y-0 left-3 flex items-center text-stone-400 pointer-events-none">
-          <span className="material-symbols-outlined text-[18px]">{icon}</span>
-        </span>
+
+      {type === 'select' && (
+        <select
+          value={value}
+          onChange={(e: ChangeEvent<HTMLSelectElement>) => onChange(key, e.target.value)}
+          className={cls}
+        >
+          <option value="">Seleccionar</option>
+          {options?.map((o) => (
+            <option key={o} value={o}>{o}</option>
+          ))}
+        </select>
+      )}
+
+      {type === 'textarea' && (
+        <textarea
+          value={value}
+          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onChange(key, e.target.value)}
+          placeholder={placeholder}
+          rows={3}
+          className={`${cls} resize-none`}
+        />
+      )}
+
+      {(type === 'text' || type === 'date') && (
         <input
           type={type}
           value={value}
@@ -132,7 +141,8 @@ const Field = ({ config, value, error, onChange }: FieldProps) => {
           placeholder={placeholder}
           className={cls}
         />
-      </div>
+      )}
+
       {error && (
         <p className="text-xs text-error font-medium flex items-center gap-1">
           <span className="material-symbols-outlined text-[14px]">error</span>
@@ -145,35 +155,33 @@ const Field = ({ config, value, error, onChange }: FieldProps) => {
 
 // ── Modal principal ───────────────────────────────────────────
 
-const EditarAcudienteModal = ({
-  acudiente,
-  nombreEstudiante,
+const EditarEstudianteModal = ({
+  estudiante,
   onConfirm,
   onClose,
   isLoading,
   error,
-}: EditarAcudienteModalProps) => {
-  const [form,   setForm]   = useState<FormState>(() => buildInitialState(acudiente));
+}: EditarEstudianteModalProps) => {
+  const [form,   setForm]   = useState<FormState>(() => buildInitialState(estudiante));
   const [errors, setErrors] = useState<FormErrors>({});
 
+  // Sincroniza si el prop cambia (p.ej. el padre abre el modal con otro estudiante)
   useEffect(() => {
-    setForm(buildInitialState(acudiente));
+    setForm(buildInitialState(estudiante));
     setErrors({});
-  }, [acudiente]);
+  }, [estudiante]);
 
   // ── Handlers ─────────────────────────────────────────────────
 
-  const handleChange = (key: keyof ActualizarAcudientePayload, value: string) => {
+  const handleChange = (key: keyof ActualizarEstudiantePayload, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: undefined }));
   };
 
   const validate = (): boolean => {
     const next: FormErrors = {};
-    if (!form.nombre?.trim()) next.nombre = 'El nombre es requerido';
-    if (form.correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) {
-      next.correo = 'Ingresa un correo válido';
-    }
+    if (!form.nombre?.trim())           next.nombre           = 'El nombre es requerido';
+    if (!form.fecha_nacimiento)          next.fecha_nacimiento  = 'La fecha de nacimiento es requerida';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -182,59 +190,51 @@ const EditarAcudienteModal = ({
     e.preventDefault();
     if (!validate()) return;
 
-    // Solo envía los campos con valor; los opcionales vacíos se omiten
-    const payload: ActualizarAcudientePayload = {
-      nombre: form.nombre?.trim(),
-      ...(form.telefono          ? { telefono:          form.telefono.trim()          } : {}),
-      ...(form.correo            ? { correo:            form.correo.trim()            } : {}),
-      ...(form.direccion         ? { direccion:         form.direccion.trim()         } : {}),
-      ...(form.telefono_trabajo  ? { telefono_trabajo:  form.telefono_trabajo.trim()  } : {}),
-      ...(form.direccion_trabajo ? { direccion_trabajo: form.direccion_trabajo.trim() } : {}),
+    // Solo envía campos con valor (omite cadenas vacías para campos opcionales)
+    const payload: ActualizarEstudiantePayload = {
+      nombre:           form.nombre?.trim(),
+      fecha_nacimiento: form.fecha_nacimiento,
+      ...(form.rh            ? { rh:            form.rh }            : {}),
+      ...(form.direccion     ? { direccion:      form.direccion }     : {}),
+      ...(form.observaciones ? { observaciones:  form.observaciones } : {}),
     };
 
     await onConfirm(payload);
   };
 
-  // Iniciales del acudiente para el avatar
-  const initials = acudiente.nombre
+  // ── Iniciales para el avatar ──────────────────────────────────
+
+  const initials = estudiante.nombre
     .split(' ')
     .map((w) => w[0])
     .slice(0, 2)
     .join('')
     .toUpperCase();
 
+  // ── Render ────────────────────────────────────────────────────
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6"
       role="dialog"
       aria-modal="true"
-      aria-label={`Editar acudiente ${acudiente.nombre}`}
+      aria-label={`Editar datos de ${estudiante.nombre}`}
     >
-      <div className="bg-white rounded-2xl shadow-2xl border border-outline-variant w-full max-w-xl
-        overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-2xl shadow-2xl border border-outline-variant w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
 
         {/* ── Header ─────────────────────────────────────────── */}
         <div className="bg-orange-900 px-6 py-5 flex items-center gap-4 flex-shrink-0">
-          {/* Avatar acudiente */}
-          <div className="relative flex-shrink-0">
-            <div className="w-12 h-12 rounded-full bg-orange-800 flex items-center justify-center">
-              <span className="text-sm font-black text-white">{initials}</span>
-            </div>
-            {/* Badge de rol */}
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-secondary
-              flex items-center justify-center border-2 border-orange-900">
-              <span className="material-symbols-outlined text-white text-[11px]">family_restroom</span>
-            </div>
+          <div className="w-12 h-12 rounded-full bg-orange-800 flex items-center justify-center flex-shrink-0">
+            <span className="text-sm font-black text-white">{initials}</span>
           </div>
-
           <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-bold text-white truncate">Editar acudiente</h3>
+            <h3 className="text-lg font-bold text-white truncate">
+              Editar estudiante
+            </h3>
             <p className="text-xs text-orange-200/70 truncate">
-              CC {acudiente.cedula} · Acudiente de{' '}
-              <span className="font-semibold text-orange-100">{nombreEstudiante}</span>
+              CC {estudiante.numero_identidad} — los cambios se guardan inmediatamente
             </p>
           </div>
-
           <button
             type="button"
             onClick={onClose}
@@ -248,9 +248,11 @@ const EditarAcudienteModal = ({
         </div>
 
         {/* ── Formulario ─────────────────────────────────────── */}
-        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6 space-y-5">
-
-          {/* Error de la API */}
+        <form
+          onSubmit={handleSubmit}
+          className="overflow-y-auto flex-1 p-6 space-y-5"
+        >
+          {/* Banner de error de la API */}
           {error && (
             <div className="flex items-start gap-3 p-4 bg-error-container rounded-xl border border-error/20">
               <span className="material-symbols-outlined text-error text-xl flex-shrink-0">error</span>
@@ -258,61 +260,33 @@ const EditarAcudienteModal = ({
             </div>
           )}
 
-          {/* Sección: datos personales */}
-          <div>
-            <p className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3
-              flex items-center gap-2">
-              <span className="material-symbols-outlined text-[14px]">person</span>
-              Datos personales
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {CAMPOS_CONFIG.filter((c) => ['nombre', 'telefono', 'correo', 'direccion'].includes(c.key)).map((cfg) => (
-                <Field
-                  key={cfg.key}
-                  config={cfg}
-                  value={(form[cfg.key] as string) ?? ''}
-                  error={errors[cfg.key]}
-                  onChange={handleChange}
-                />
-              ))}
-            </div>
+          {/* Campos (grid 2 columnas) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {CAMPOS_CONFIG.map((cfg) => (
+              <Field
+                key={cfg.key}
+                config={cfg}
+                value={(form[cfg.key] as string) ?? ''}
+                error={errors[cfg.key]}
+                onChange={handleChange}
+              />
+            ))}
           </div>
 
-          {/* Separador */}
-          <div className="border-t border-stone-100" />
-
-          {/* Sección: datos laborales */}
-          <div>
-            <p className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3
-              flex items-center gap-2">
-              <span className="material-symbols-outlined text-[14px]">work</span>
-              Datos laborales <span className="font-normal normal-case tracking-normal">(opcionales)</span>
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {CAMPOS_CONFIG.filter((c) => ['telefono_trabajo', 'direccion_trabajo'].includes(c.key)).map((cfg) => (
-                <Field
-                  key={cfg.key}
-                  config={cfg}
-                  value={(form[cfg.key] as string) ?? ''}
-                  error={errors[cfg.key]}
-                  onChange={handleChange}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Nota informativa sobre la cédula */}
+          {/* Nota informativa sobre el ID */}
           <div className="flex items-start gap-3 p-4 bg-stone-50 rounded-xl border border-stone-200">
-            <span className="material-symbols-outlined text-stone-400 text-lg flex-shrink-0 mt-0.5">info</span>
+            <span className="material-symbols-outlined text-stone-400 text-lg flex-shrink-0 mt-0.5">
+              info
+            </span>
             <p className="text-xs text-stone-500">
-              La cédula{' '}
-              <strong className="text-on-surface font-mono">{acudiente.cedula}</strong>
-              {' '}es el identificador del acudiente y no puede modificarse.
+              El número de identidad{' '}
+              <strong className="text-on-surface font-mono">{estudiante.numero_identidad}</strong>
+              {' '}no puede modificarse. Si necesitas corregirlo, comunícate con el administrador del sistema.
             </p>
           </div>
         </form>
 
-        {/* ── Footer con acciones ─────────────────────────────── */}
+        {/* ── Acciones (footer fijo) ──────────────────────────── */}
         <div className="px-6 py-4 border-t border-stone-100 flex gap-3 flex-shrink-0 bg-stone-50/60">
           <button
             type="button"
@@ -324,7 +298,8 @@ const EditarAcudienteModal = ({
             Cancelar
           </button>
           <button
-            type="button"
+            type="submit"
+            form=""          // referencia el <form> de arriba via onSubmit prop
             onClick={handleSubmit}
             disabled={isLoading}
             className="flex-1 py-2.5 bg-orange-900 text-white rounded-lg font-semibold text-sm
@@ -349,4 +324,4 @@ const EditarAcudienteModal = ({
   );
 };
 
-export default EditarAcudienteModal;
+export default EditarEstudianteModal;

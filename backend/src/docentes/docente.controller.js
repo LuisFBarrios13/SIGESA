@@ -3,6 +3,7 @@ import {
   registrarDocente,
   listarDocentes,
   listarDisponibilidadGrados,
+  actualizarDocente,
 } from './docente.service.js';
 import { successResponse, errorResponse } from '../utils/responseHandler.js';
 
@@ -11,18 +12,18 @@ export const crear = async (req, res, next) => {
   try {
     const { cedula, nombre, telefono, correo, jornada, nombreGrado } = req.body;
 
-    if (!cedula?.trim())     return errorResponse(res, 'La cédula es requerida', 400);
-    if (!nombre?.trim())     return errorResponse(res, 'El nombre es requerido', 400);
-    if (!jornada)            return errorResponse(res, 'La jornada es requerida', 400);
+    if (!cedula?.trim())      return errorResponse(res, 'La cédula es requerida', 400);
+    if (!nombre?.trim())      return errorResponse(res, 'El nombre es requerido', 400);
+    if (!jornada)             return errorResponse(res, 'La jornada es requerida', 400);
     if (!['MAÑANA', 'TARDE', 'COMPLETA'].includes(jornada))
       return errorResponse(res, 'La jornada debe ser MAÑANA, TARDE o COMPLETA', 400);
     if (!nombreGrado?.trim()) return errorResponse(res, 'El nombre del grado es requerido', 400);
 
     const result = await registrarDocente({
-      cedula: cedula.trim(),
-      nombre: nombre.trim(),
-      telefono: telefono?.trim() || undefined,
-      correo: correo?.trim() || undefined,
+      cedula:      cedula.trim(),
+      nombre:      nombre.trim(),
+      telefono:    telefono?.trim() || undefined,
+      correo:      correo?.trim()   || undefined,
       jornada,
       nombreGrado: nombreGrado.trim(),
     });
@@ -43,12 +44,24 @@ export const listar = async (req, res, next) => {
   }
 };
 
-/** GET /api/docentes/disponibilidad — grados con estado de ocupación */
+/** GET /api/docentes/disponibilidad */
 export const disponibilidad = async (req, res, next) => {
   try {
     const grados = await listarDisponibilidadGrados();
     return successResponse(res, grados);
   } catch (err) {
+    next(err);
+  }
+};
+
+/** PATCH /api/docentes/:cedula */
+export const actualizar = async (req, res, next) => {
+  try {
+    const { cedula } = req.params;
+    const data = await actualizarDocente(cedula, req.body);
+    return successResponse(res, data, 'Docente actualizado correctamente');
+  } catch (err) {
+    if (err.status) return errorResponse(res, err.message, err.status);
     next(err);
   }
 };
