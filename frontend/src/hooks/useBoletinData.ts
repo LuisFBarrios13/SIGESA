@@ -1,8 +1,9 @@
 // src/hooks/useBoletinData.ts
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { boletinApi }                        from '../services/boletinApi';
 import type { BoletinData }                  from '../types/boletin';
-import { useLatestRequest }                  from './useLatestRequest';
+import { queryKeys }                         from '../lib/queryKeys';
 
 interface UseBoletinDataReturn {
   data:      BoletinData | null;
@@ -16,33 +17,21 @@ interface UseBoletinDataReturn {
 }
 
 export const useBoletinData = (id_matricula: number): UseBoletinDataReturn => {
-  const [data,      setData]      = useState<BoletinData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error,     setError]     = useState('');
-  const [periodo,   setPeriodo]   = useState(1);
-  const [year,      setYear]      = useState(new Date().getFullYear());
+  const [periodo, setPeriodo] = useState(1);
+  const [year,    setYear]    = useState(new Date().getFullYear());
 
-  const startRequest = useLatestRequest();
+  const { data, isPending, error, refetch } = useQuery({
+    queryKey: queryKeys.boletin.detalle(id_matricula, periodo, year),
+    queryFn:  () => boletinApi.get(id_matricula, periodo, year),
+    // Sin matrícula válida no se consulta (la página muestra su propio mensaje).
+    enabled:  !!id_matricula,
+  });
 
-  const fetchData = useCallback(async () => {
-    if (!id_matricula) return;
-    const isLatest = startRequest();
-    setIsLoading(true);
-    setError('');
-    try {
-      const result = await boletinApi.get(id_matricula, periodo, year);
-      if (!isLatest()) return;
-      setData(result);
-    } catch (err) {
-      if (!isLatest()) return;
-      setError(err instanceof Error ? err.message : 'No se pudo cargar el boletín.');
-      setData(null);
-    } finally {
-      if (isLatest()) setIsLoading(false);
-    }
-  }, [id_matricula, periodo, year, startRequest]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  return { data, isLoading, error, periodo, year, setPeriodo, setYear, refresh: fetchData };
+  return {
+    data:      data ?? null,
+    isLoading: isPending,
+    error:     error ? (error instanceof Error ? error.message : 'No se pudo cargar el boletín.') : '',
+    periodo, year, setPeriodo, setYear,
+    refresh:   () => { void refetch(); },
+  };
 };

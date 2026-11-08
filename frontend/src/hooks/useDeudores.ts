@@ -7,11 +7,7 @@ import { pagosApi } from '../services/pagosApi';
 import type { CuentaCobroDetalle } from '../services/pagosApi';
 import type { DeudorAgrupado } from '../types/deudores';
 
-/** Claves de caché de deudores. Úsalas también para invalidar tras un pago. */
-export const deudoresKeys = {
-  all:    ['deudores'] as const,
-  byYear: (year: number) => ['deudores', year] as const,
-};
+import { queryKeys } from '../lib/queryKeys';
 
 const agruparPorEstudiante = (cuentas: CuentaCobroDetalle[]): DeudorAgrupado[] => {
   const map = new Map<string, DeudorAgrupado>();
@@ -64,7 +60,7 @@ export const useDeudores = (): UseDeudoresReturn => {
   // Cada año tiene su propia entrada en la caché: volver a un año ya visto
   // muestra los datos al instante.
   const { data: deudores = SIN_DEUDORES, isPending, isError, refetch } = useQuery({
-    queryKey: deudoresKeys.byYear(yearFilter),
+    queryKey: queryKeys.deudores.byYear(yearFilter),
     queryFn:  async () => {
       const cuentas = await pagosApi.listarCuentas({ estado: 'VENCIDO', year: yearFilter });
       return agruparPorEstudiante(cuentas);

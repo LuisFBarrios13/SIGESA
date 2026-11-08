@@ -1,5 +1,6 @@
 // src/contexts/AuthContext.tsx
 import { useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { authApi, saveToken, getToken, removeToken } from '../services/api';
 import type { AuthUser } from '../types/auth';
 import { AuthContext } from './auth-context';
@@ -43,9 +44,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<AuthUser | null>(session.user);
   const [token, setToken] = useState<string | null>(session.token);
   const isLoading = false;
+  const queryClient = useQueryClient();
 
   const login = async (username: string, password: string): Promise<void> => {
     const result = await authApi.login(username, password);
+    // Por si quedó caché de una sesión anterior (p. ej. token vencido sin logout).
+    queryClient.clear();
     saveToken(result.token);
     localStorage.setItem('sigesa_user', JSON.stringify(result.user));
     setToken(result.token);
@@ -53,6 +57,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const logout = (): void => {
+    // Borrar la caché: si otra persona inicia sesión en este navegador
+    // no debe ver datos del usuario anterior.
+    queryClient.clear();
     removeToken();
     localStorage.removeItem('sigesa_user');
     setToken(null);

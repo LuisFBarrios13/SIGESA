@@ -1,9 +1,10 @@
 // src/hooks/useMiGrado.ts
 // Single Responsibility: state + side-effects for the Mi Grado page.
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { docenteApi, type DocentePerfil, type MatriculaDocente } from '../services/docenteApi';
-import { useLatestRequest } from './useLatestRequest';
+import { queryKeys } from '../lib/queryKeys';
 
 interface UseMiGradoReturn {
   perfil:        DocentePerfil | null;
@@ -20,38 +21,27 @@ interface UseMiGradoReturn {
   refresh:       () => void;
 }
 
+// Constante fuera del hook: un [] nuevo en cada render invalidaría el useMemo.
+const SIN_ESTUDIANTES: MatriculaDocente[] = [];
+
 export const useMiGrado = (): UseMiGradoReturn => {
-  const [perfil,       setPerfil]       = useState<DocentePerfil | null>(null);
-  const [estudiantes,  setEstudiantes]  = useState<MatriculaDocente[]>([]);
-  const [isLoading,    setIsLoading]    = useState(true);
-  const [error,        setError]        = useState('');
-  const [year,         setYear]         = useState(new Date().getFullYear());
-  const [search,       setSearch]       = useState('');
-  const [gradoFilter,  setGradoFilter]  = useState<number | 'TODOS'>('TODOS');
+  const [year,        setYear]        = useState(new Date().getFullYear());
+  const [search,      setSearch]      = useState('');
+  const [gradoFilter, setGradoFilter] = useState<number | 'TODOS'>('TODOS');
 
-  const startRequest = useLatestRequest();
+  // El perfil no depende del año: se pide una vez y se reutiliza.
+  const perfilQuery = useQuery({
+    queryKey: queryKeys.miGrado.perfil,
+    queryFn:  docenteApi.getPerfil,
+  });
 
-  const fetchData = useCallback(async () => {
-    const isLatest = startRequest();
-    setIsLoading(true);
-    setError('');
-    try {
-      const [perfilData, estudiantesData] = await Promise.all([
-        docenteApi.getPerfil(),
-        docenteApi.getEstudiantes(year),
-      ]);
-      if (!isLatest()) return;
-      setPerfil(perfilData);
-      setEstudiantes(estudiantesData);
-    } catch {
-      if (!isLatest()) return;
-      setError('No se pudo cargar la información del grado. Verifica tu conexión.');
-    } finally {
-      if (isLatest()) setIsLoading(false);
-    }
-  }, [year, startRequest]);
+  // Los estudiantes sí cambian por año: una entrada de caché por año.
+  const estudiantesQuery = useQuery({
+    queryKey: queryKeys.miGrado.estudiantes(year),
+    queryFn:  () => docenteApi.getEstudiantes(year),
+  });
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const estudiantes = estudiantesQuery.data ?? SIN_ESTUDIANTES;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -64,12 +54,20 @@ export const useMiGrado = (): UseMiGradoReturn => {
     });
   }, [estudiantes, search, gradoFilter]);
 
+  const hasError = perfilQuery.isError || estudiantesQuery.isError;
+
   return {
-    perfil, estudiantes, isLoading, error,
+    perfil:    perfilQuery.data ?? null,
+    estudiantes,
+    isLoading: perfilQuery.isPending || estudiantesQuery.isPending,
+    error:     hasError ? 'No se pudo cargar la información del grado. Verifica tu conexión.' : '',
     year, setYear,
     search, setSearch,
     gradoFilter, setGradoFilter,
     filtered,
-    refresh: fetchData,
+    refresh: () => {
+      void perfilQuery.refetch();
+      void estudiantesQuery.refetch();
+    },
   };
 };

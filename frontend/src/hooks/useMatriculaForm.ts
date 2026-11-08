@@ -2,6 +2,8 @@
 // Estado y lógica del formulario de nueva matrícula (la página solo renderiza).
 import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { gradosApi, matriculasApi, api, type Grado, type MatriculaPayload } from '../services/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../lib/queryKeys';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -74,6 +76,7 @@ export const useMatriculaForm = () => {
   const [acudienteEncontrado, setAcudienteEncontrado] = useState<AcudienteEncontrado | null>(null);
   const [buscandoAcudiente, setBuscandoAcudiente]     = useState(false);
   const cedulaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setIsLoadingGrados(true);
@@ -189,6 +192,8 @@ export const useMatriculaForm = () => {
         credenciales:   result.credenciales,
         acudienteNuevo: result.acudienteNuevo ?? true,
       });
+      // Nuevo estudiante: los totales del dashboard cambiaron.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       setForm(EMPTY_FORM);
       setAcudienteEncontrado(null);
     } catch (err) {

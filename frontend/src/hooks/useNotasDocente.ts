@@ -8,6 +8,8 @@ import {
   type NotaEstudianteItem,
 } from '../services/docenteApi';
 import { useLatestRequest } from './useLatestRequest';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../lib/queryKeys';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -96,6 +98,7 @@ interface UseNotasDocenteReturn {
 }
 
 export const useNotasDocente = (): UseNotasDocenteReturn => {
+  const queryClient = useQueryClient();
   const [perfil,         setPerfil]         = useState<DocentePerfil | null>(null);
   const [isSetupLoading, setIsSetupLoading] = useState(true);
   const [setupError,     setSetupError]     = useState('');
@@ -315,12 +318,14 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
       setSavedPuesto(puesto);
       setSavedObservaciones(observaciones);
       setSaveSuccess(true);
+      // El boletín de este estudiante en caché quedó desactualizado.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.boletin.byMatricula(selected.id_matricula) });
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Error al guardar las notas.');
     } finally {
       setIsSaving(false);
     }
-  }, [selected, materias, periodo, year, puesto, savedPuesto, observaciones, savedObservaciones]);
+  }, [selected, materias, periodo, year, puesto, savedPuesto, observaciones, savedObservaciones, queryClient]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {

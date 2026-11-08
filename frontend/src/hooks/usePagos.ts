@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { deudoresKeys } from './useDeudores';
+import { queryKeys } from '../lib/queryKeys';
 import {
   pagosApi,
   type Tarifa,
@@ -161,9 +161,10 @@ export const usePagos = (): UsePagosReturn => {
 
   const refreshResumen = useCallback(async () => {
     if (!selectedMatricula) return;
-    // Hubo un pago o se generaron cuentas: la lista de deudores en caché
-    // quedó desactualizada. Se marca para que se recargue al verla.
-    void queryClient.invalidateQueries({ queryKey: deudoresKeys.all });
+    // Hubo un pago o se generaron cuentas: deudores y dashboard en caché
+    // quedaron desactualizados. Se marcan para que se recarguen al verlos.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.deudores.all });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
     const data = await pagosApi.getResumen(selectedMatricula.id_matricula);
     setResumen(data);
   }, [selectedMatricula, queryClient]);
