@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { listar, buscar, obtener, actualizar } from './estudiante.controller.js';
 import { authenticate, authorize } from '../middlewares/auth.middleware.js';
 import { ROLES } from '../constants/roles.js';
+import { validar, v } from '../middlewares/validar.middleware.js';
 
 const router = Router();
 
@@ -25,6 +26,7 @@ router.get(
   '/:id',
   authenticate,
   authorize(ROLES.ADMINISTRADOR, ROLES.DOCENTE),
+  validar([v.documento('id', 'El documento', 'param')]),
   obtener,
 );
 
@@ -33,6 +35,14 @@ router.patch(
   '/:id',
   authenticate,
   authorize(ROLES.ADMINISTRADOR),
+  validar([
+    v.documento('id', 'El documento', 'param'),
+    v.texto('nombre', 'El nombre', 150).optional(),
+    v.fecha('fecha_nacimiento', 'La fecha de nacimiento', { opcional: true }),
+    v.textoOpcional('rh', 'El RH', 5),
+    v.textoOpcional('direccion', 'La dirección', 200),
+    v.textoOpcional('observaciones', 'Las observaciones', 2000),
+  ]),
   actualizar,
 );
 

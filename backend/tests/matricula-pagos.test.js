@@ -157,3 +157,65 @@ test('el acudiente ve los pagos de sus hijos y no los de otros', async () => {
   const otros = await s.api('GET', `/acudiente/pagos/${idAjena}`, { token });
   assert.equal(otros.status, 403);
 });
+
+test('validación: datos mal formados → 400 con mensaje claro', async () => {
+  const pago = await s.api('POST', '/pagos', {
+    token: admin, body: { id_cuenta: 1, monto_pago: 'abc', id_metodo_pago: idEfectivo },
+  });
+  assert.equal(pago.status, 400);
+  assert.match(pago.body.message, /monto/i);
+
+  const correo = await s.api('POST', '/matriculas', {
+    token: admin,
+    body: { ...nuevaMatricula('3001', '7001'), acudiente: { cedula: '7001', nombre: 'X', correo: 'no-es-correo' } },
+  });
+  assert.equal(correo.status, 400);
+  assert.match(correo.body.message, /correo/i);
+
+  const tarifa = await s.api('POST', '/pagos/tarifas', {
+    token: admin, body: { year: 'dos mil', valor_pension: -5, valor_matricula: 1 },
+  });
+  assert.equal(tarifa.status, 400);
+  assert.ok(tarifa.body.errors.length >= 2);
+
+  assert.equal((await s.api('GET', '/pagos/matriculas/abc', { token: admin })).status, 400);
+});
+
+test('notas: el docente guarda notas, puesto y observaciones del periodo', async () => {
+  const docente = await s.api('POST', '/docentes', {
+    token: admin, body: { cedula: '9001', nombre: 'Profe Uno', jornada: 'MAÑANA', nombreGrado: 'Primero' },
+  });
+  assert.equal(docente.status, 201);
+  const token = await s.login('9001', '9001');
+
+  const { Materia } = s.modelos;
+  const mate = await Materia.findOne({ where: { nombre: 'Matemáticas' } });
+  const guardar = (extra) => s.api('POST', '/notas/estudiante-bulk', {
+    token,
+    body: { id_matricula: idMatricula, numero_periodo: 1, year: YEAR, ...extra },
+  });
+
+  const fuera = await guardar({ materias: [{ id_materia: mate.id_materia, nota: 11, fallas: 0 }] });
+  assert.equal(fuera.status, 400);
+
+  const ok = await guardar({
+    materias: [{ id_materia: mate.id_materia, nota: 8.5, fallas: 2, intensidad_horaria: 4, observacion: null }],
+    puesto: 3,
+    observaciones: 'Buen desempeño en el periodo',
+  });
+  assert.equal(ok.status, 200);
+
+  const leido = await s.api('GET', `/notas/estudiante/${idMatricula}?numero_periodo=1&year=${YEAR}`, { token });
+  assert.equal(leido.status, 200);
+  assert.equal(leido.body.data.puesto, 3);
+  assert.equal(leido.body.data.observaciones, 'Buen desempeño en el periodo');
+  const m = leido.body.data.materias.find((x) => x.id_materia === mate.id_materia);
+  assert.equal(m.nota, 8.5);
+  assert.equal(m.fallas, 2);
+
+  // Solo observaciones (sin materias cambiadas) también se guarda
+  await guardar({ materias: [], observaciones: 'Actualizada' });
+  const otra = await s.api('GET', `/notas/estudiante/${idMatricula}?numero_periodo=1&year=${YEAR}`, { token });
+  assert.equal(otra.body.data.observaciones, 'Actualizada');
+  assert.equal(otra.body.data.puesto, 3);
+});

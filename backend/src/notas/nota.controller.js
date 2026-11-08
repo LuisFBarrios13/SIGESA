@@ -56,12 +56,12 @@ export const getNotasDeEstudiante = async (req, res) => {
 
 /**
  * POST /api/notas/estudiante-bulk — múltiples materias, un estudiante.
- * Body: { id_matricula, numero_periodo, year, materias[], puesto? }
+ * Body: { id_matricula, numero_periodo, year, materias[], puesto?, observaciones? }
  *   Cada item de materias: { id_materia, nota?, fallas?, observacion? }
  *   puesto: número entero ≥ 1 | null (para borrarlo)
  */
 export const guardarNotasDeEstudiante = async (req, res) => {
-  const { id_matricula, numero_periodo, year, materias, puesto } = req.body;
+  const { id_matricula, numero_periodo, year, materias, puesto, observaciones } = req.body;
 
   if (!id_matricula || !numero_periodo || !year || !Array.isArray(materias)) {
     return errorResponse(
@@ -77,6 +77,7 @@ export const guardarNotasDeEstudiante = async (req, res) => {
     year:           Number(year),
     materias,
     puesto,           // undefined → no se toca; null → se borra; número → se guarda
+    observaciones,    // undefined → no se toca; '' → se borra
   });
 
   return successResponse(res, data, `${data.length} nota(s) guardada(s)`);
