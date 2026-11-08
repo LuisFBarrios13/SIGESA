@@ -1,8 +1,7 @@
 // src/types/estudiantes.ts
-// Tipos del dominio de estudiantes (API).
-
-import type { JornadaEstudiante } from './shared';
-import type { MatriculaListItem } from './matriculas';
+import type { JornadaEstudiante }      from './shared';
+import type { MatriculaListItem }      from './matriculas';
+import type { AcudienteDetalle }       from './acudientes-admin';
 
 export type { MatriculaListItem };
 
@@ -23,16 +22,8 @@ export interface EstudianteListItem {
 }
 
 export interface EstudianteDetalle extends EstudianteListItem {
-  acudientes: {
-    cedula:    string;
-    nombre:    string;
-    telefono:  string | null;
-    correo:    string | null;
-    RelacionEA: {
-      parentesco:          string | null;
-      acudiente_principal: boolean;
-    };
-  }[];
+  // Usa AcudienteDetalle para que coincida con el panel de edición
+  acudientes: AcudienteDetalle[];
 }
 
 export interface ActualizarEstudiantePayload {

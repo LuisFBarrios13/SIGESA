@@ -15,40 +15,42 @@ import { ROLES } from '../constants/roles.js';
 
 const SALT_ROUNDS = 10;
 
-/**
- * DTO shape expected by crearMatriculaConAcudiente:
- * {
- *   estudiante: { numero_identidad, nombre, fecha_nacimiento, rh?, direccion?, observaciones? },
- *   matricula:  { id_grado, year, jornada: 'MAÑANA'|'TARDE', fecha_matricula? },
- *   acudiente:  { cedula, nombre, telefono?, correo?, direccion?, telefono_trabajo?, direccion_trabajo? },
- *   relacion:   { parentesco? }
- * }
- *
- * Transactional: all-or-nothing.
- */
 export const crearMatriculaConAcudiente = async (dto) => {
   const { estudiante, matricula, acudiente, relacion = {} } = dto;
 
   return sequelize.transaction(async (t) => {
-    // ── 1. Create or find Estudiante ──────────────────────────
-    const [estudianteRecord, estudianteCreado] = await Estudiante.findOrCreate({
-      where: { numero_identidad: estudiante.numero_identidad },
-      defaults: {
-        nombre: estudiante.nombre,
-        fecha_nacimiento: estudiante.fecha_nacimiento,
-        rh: estudiante.rh ?? null,
-        direccion: estudiante.direccion ?? null,
-        observaciones: estudiante.observaciones ?? null,
-      },
-      transaction: t,
-    });
 
-    // ── 2. Check for duplicate enrollment same year ───────────
+    // ── 1. Validar que el estudiante no exista ya ─────────────────────────────
+    const estudianteExistente = await Estudiante.findByPk(
+      estudiante.numero_identidad, { transaction: t },
+    );
+
+    if (estudianteExistente) {
+      throw {
+        status: 409,
+        message: `Ya existe un estudiante registrado con el número de identidad ${estudiante.numero_identidad} (${estudianteExistente.nombre}). Si deseas re-matricularlo búscalo en la sección Estudiantes.`,
+      };
+    }
+
+    // ── 2. Crear el estudiante ────────────────────────────────────────────────
+    const estudianteRecord = await Estudiante.create(
+      {
+        numero_identidad: estudiante.numero_identidad,
+        nombre:           estudiante.nombre,
+        fecha_nacimiento: estudiante.fecha_nacimiento,
+        rh:               estudiante.rh ?? null,
+        direccion:        estudiante.direccion ?? null,
+        observaciones:    estudiante.observaciones ?? null,
+      },
+      { transaction: t },
+    );
+
+    // ── 3. Validar matrícula duplicada ────────────────────────────────────────
     const matriculaExistente = await Matricula.findOne({
       where: {
         id_estudiante: estudianteRecord.numero_identidad,
-        id_grado: matricula.id_grado,
-        year: matricula.year,
+        id_grado:      matricula.id_grado,
+        year:          matricula.year,
       },
       transaction: t,
     });
@@ -60,36 +62,49 @@ export const crearMatriculaConAcudiente = async (dto) => {
       };
     }
 
-    // ── 3. Create Matricula ───────────────────────────────────
+    // ── 4. Crear la matrícula ─────────────────────────────────────────────────
     const matriculaRecord = await Matricula.create(
       {
-        id_grado: matricula.id_grado,
-        id_estudiante: estudianteRecord.numero_identidad,
-        year: matricula.year,
-        jornada: matricula.jornada,          // ← nuevo campo
+        id_grado:        matricula.id_grado,
+        id_estudiante:   estudianteRecord.numero_identidad,
+        year:            matricula.year,
+        jornada:         matricula.jornada,
         fecha_matricula: matricula.fecha_matricula ?? new Date(),
-        estado: 'ACTIVO',
+        estado:          'ACTIVO',
       },
-      { transaction: t }
+      { transaction: t },
     );
 
-    // ── 4. Create Usuario for Acudiente ───────────────────────
-    const passwordHash = await bcrypt.hash(estudiante.numero_identidad, SALT_ROUNDS);
+    // ── 5. Acudiente: reutilizar si ya existe, crear si no ────────────────────
+    let acudienteRecord = await Acudiente.findByPk(acudiente.cedula, { transaction: t });
+    let acudienteNuevo = false;
 
-    let usuarioAcudiente = await Usuario.findOne({
-      where: { username: estudiante.numero_identidad },
-      transaction: t,
-    });
+    if (acudienteRecord) {
+      // El acudiente ya existe — solo se vincula al nuevo estudiante
+    } else {
+      // Verificar que el username no esté ocupado
+      const usuarioExistente = await Usuario.findOne({
+        where: { username: estudiante.numero_identidad },
+        transaction: t,
+      });
 
-    if (!usuarioAcudiente) {
-      usuarioAcudiente = await Usuario.create(
+      if (usuarioExistente) {
+        throw {
+          status: 409,
+          message: `Ya existe un usuario con el username ${estudiante.numero_identidad}. Es posible que este estudiante ya esté registrado en el sistema.`,
+        };
+      }
+
+      const passwordHash = await bcrypt.hash(estudiante.numero_identidad, SALT_ROUNDS);
+
+      const usuarioAcudiente = await Usuario.create(
         {
-          username: estudiante.numero_identidad,
-          password: passwordHash,
-          estado: true,
+          username:     estudiante.numero_identidad,
+          password:     passwordHash,
+          estado:       true,
           primer_login: true,
         },
-        { transaction: t }
+        { transaction: t },
       );
 
       const rolAcudiente = await Rol.findOne({
@@ -103,61 +118,72 @@ export const crearMatriculaConAcudiente = async (dto) => {
 
       await UsuarioRol.create(
         { id_usuario: usuarioAcudiente.id_usuario, id_rol: rolAcudiente.id_rol },
-        { transaction: t }
+        { transaction: t },
+      );
+
+      acudienteRecord = await Acudiente.create(
+        {
+          cedula:            acudiente.cedula,
+          nombre:            acudiente.nombre,
+          telefono:          acudiente.telefono          ?? null,
+          correo:            acudiente.correo            ?? null,
+          direccion:         acudiente.direccion         ?? null,
+          telefono_trabajo:  acudiente.telefono_trabajo  ?? null,
+          direccion_trabajo: acudiente.direccion_trabajo ?? null,
+          id_usuario:        usuarioAcudiente.id_usuario,
+        },
+        { transaction: t },
+      );
+
+      acudienteNuevo = true;
+    }
+
+    // ── 6. Vincular estudiante con acudiente ──────────────────────────────────
+    const relacionExistente = await RelacionEA.findOne({
+      where: {
+        id_estudiante: estudianteRecord.numero_identidad,
+        id_acudiente:  acudienteRecord.cedula,
+      },
+      transaction: t,
+    });
+
+    if (!relacionExistente) {
+      await RelacionEA.create(
+        {
+          id_estudiante:       estudianteRecord.numero_identidad,
+          id_acudiente:        acudienteRecord.cedula,
+          parentesco:          relacion.parentesco ?? null,
+          acudiente_principal: true,
+        },
+        { transaction: t },
       );
     }
 
-    // ── 5. Create or find Acudiente profile ───────────────────
-    const [acudienteRecord] = await Acudiente.findOrCreate({
-      where: { cedula: acudiente.cedula },
-      defaults: {
-        nombre: acudiente.nombre,
-        telefono: acudiente.telefono ?? null,
-        correo: acudiente.correo ?? null,
-        direccion: acudiente.direccion ?? null,
-        telefono_trabajo: acudiente.telefono_trabajo ?? null,
-        direccion_trabajo: acudiente.direccion_trabajo ?? null,
-        id_usuario: usuarioAcudiente.id_usuario,
-      },
-      transaction: t,
-    });
-
-    // ── 6. Create Relacion Estudiante-Acudiente ───────────────
-    const [, relacionCreada] = await RelacionEA.findOrCreate({
-      where: {
-        id_estudiante: estudianteRecord.numero_identidad,
-        id_acudiente: acudienteRecord.cedula,
-      },
-      defaults: {
-        parentesco: relacion.parentesco ?? null,
-        acudiente_principal: true,
-      },
-      transaction: t,
-    });
-
     return {
-      matricula: matriculaRecord.toJSON(),
-      estudiante: estudianteRecord.toJSON(),
-      acudiente: acudienteRecord.toJSON(),
-      estudianteCreado,
-      relacionCreada,
-      credenciales: {
-        username: estudiante.numero_identidad,
-        passwordTemporal: estudiante.numero_identidad,
-        nota: 'El acudiente debe cambiar su contraseña en el primer acceso',
-      },
+      matricula:     matriculaRecord.toJSON(),
+      estudiante:    estudianteRecord.toJSON(),
+      acudiente:     acudienteRecord.toJSON(),
+      acudienteNuevo,
+      credenciales: acudienteNuevo
+        ? {
+            username:         estudiante.numero_identidad,
+            passwordTemporal: estudiante.numero_identidad,
+            nota:             'El acudiente debe cambiar su contraseña en el primer acceso',
+          }
+        : {
+            username:         null,
+            passwordTemporal: null,
+            nota:             'El acudiente ya existía en el sistema. Se vinculó al nuevo estudiante con sus credenciales actuales.',
+          },
     };
   });
 };
 
-/**
- * Lists all enrollments with student info.
- */
 export const listarMatriculas = async () =>
   Matricula.findAll({
     include: [
       { model: Estudiante, as: 'estudiante' },
-      { model: Grado, as: 'grado' }
+      { model: Grado,      as: 'grado' },
     ],
     order: [['id_matricula', 'DESC']],
   });

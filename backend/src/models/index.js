@@ -47,6 +47,10 @@ Estudiante.belongsToMany(Acudiente, {
 Acudiente.belongsToMany(Estudiante, {
   through: RelacionEA, foreignKey: 'id_acudiente', otherKey: 'id_estudiante', as: 'estudiantes',
 });
+RelacionEA.belongsTo(Estudiante, { foreignKey: 'id_estudiante', as: 'estudiante' });
+RelacionEA.belongsTo(Acudiente,  { foreignKey: 'id_acudiente', as: 'acudiente' });
+Estudiante.hasMany(RelacionEA,   { foreignKey: 'id_estudiante', as: 'relaciones' });
+Acudiente.hasMany(RelacionEA,    { foreignKey: 'id_acudiente', as: 'relaciones' });
 
 // ── Asociaciones Matrícula ────────────────────────────────────
 Matricula.belongsTo(Estudiante, { foreignKey: 'id_estudiante', as: 'estudiante' });

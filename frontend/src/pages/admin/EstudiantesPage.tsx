@@ -1,5 +1,5 @@
 // src/pages/admin/EstudiantesPage.tsx
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import {
   estudiantesApi,
   type EstudianteListItem,
@@ -70,7 +70,7 @@ const FilterSelect = ({ icon, value, onChange, options, placeholder }: FilterSel
   </div>
 );
 
-// ── Panel de acudientes (fila expansible dentro de la tabla) ──
+// ── Panel de acudientes ───────────────────────────────────────
 
 interface AcudientesPanelProps {
   acudientes: AcudienteDetalle[];
@@ -289,7 +289,6 @@ const StudentRow = ({ estudiante: e, onEditarEstudiante, onVerAcudientes, panelA
               day: '2-digit', month: 'short', year: 'numeric' })
           : '—'}
       </td>
-      {/* Acciones */}
       <td className="px-4 py-3.5">
         <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button onClick={() => onEditarEstudiante(e)} title="Editar estudiante"
@@ -319,10 +318,10 @@ const StatsBar = ({ estudiantes }: { estudiantes: EstudianteListItem[] }) => {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
       {[
-        { label: 'Total', value: estudiantes.length, icon: 'group',        color: 'text-primary',     bg: 'bg-primary-fixed' },
-        { label: 'Activos',  value: activos,          icon: 'check_circle', color: 'text-emerald-700', bg: 'bg-emerald-100'   },
-        { label: 'Retirados',value: retirados,         icon: 'cancel',       color: 'text-red-700',     bg: 'bg-red-100'       },
-        { label: 'Graduados',value: graduados,         icon: 'school',       color: 'text-blue-700',    bg: 'bg-blue-100'      },
+        { label: 'Total',     value: estudiantes.length, icon: 'group',        color: 'text-primary',     bg: 'bg-primary-fixed' },
+        { label: 'Activos',   value: activos,            icon: 'check_circle', color: 'text-emerald-700', bg: 'bg-emerald-100'   },
+        { label: 'Retirados', value: retirados,          icon: 'cancel',       color: 'text-red-700',     bg: 'bg-red-100'       },
+        { label: 'Graduados', value: graduados,          icon: 'school',       color: 'text-blue-700',    bg: 'bg-blue-100'      },
       ].map((s) => (
         <div key={s.label} className="bg-white rounded-xl border border-outline-variant shadow-sm p-4 flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full ${s.bg} flex items-center justify-center flex-shrink-0`}>
@@ -463,18 +462,19 @@ const EstudiantesPage = () => {
           )}
         </div>
         <div className="flex flex-wrap gap-3 items-center">
-          <FilterSelect icon="school"         value={filterGrado}   onChange={setFilterGrado}
+          <FilterSelect icon="school" value={filterGrado} onChange={setFilterGrado}
             placeholder="Todos los grados"
             options={NOMBRES_GRADOS.map((g) => ({ value: g, label: g }))} />
-          <FilterSelect icon="wb_sunny"       value={filterJornada} onChange={setFilterJornada}
+          <FilterSelect icon="wb_sunny" value={filterJornada} onChange={setFilterJornada}
             placeholder="Todas las jornadas"
             options={[{ value: 'MAÑANA', label: 'Mañana' }, { value: 'TARDE', label: 'Tarde' }]} />
-          <FilterSelect icon="calendar_today" value={filterYear}    onChange={setFilterYear}
+          <FilterSelect icon="calendar_today" value={filterYear} onChange={setFilterYear}
             placeholder="Todos los años" options={years.map((y) => ({ value: y, label: y }))} />
-          <FilterSelect icon="flag"           value={filterEstado}  onChange={setFilterEstado}
+          <FilterSelect icon="flag" value={filterEstado} onChange={setFilterEstado}
             placeholder="Todos los estados"
             options={[
-              { value: 'ACTIVO', label: 'Activo' }, { value: 'RETIRADO', label: 'Retirado' },
+              { value: 'ACTIVO', label: 'Activo' },
+              { value: 'RETIRADO', label: 'Retirado' },
               { value: 'GRADUADO', label: 'Graduado' },
             ]} />
           {hasFilters && (
@@ -510,6 +510,7 @@ const EstudiantesPage = () => {
           <p className="text-sm text-error font-medium">{error}</p>
         </div>
       )}
+
       {isLoading && (
         <div className="flex items-center justify-center py-24">
           <div className="flex flex-col items-center gap-3">
@@ -518,6 +519,7 @@ const EstudiantesPage = () => {
           </div>
         </div>
       )}
+
       {!isLoading && !error && filtered.length === 0 && (
         <div className="bg-white rounded-2xl border border-outline-variant shadow-sm
           py-20 flex flex-col items-center gap-4 text-stone-400">
@@ -578,9 +580,8 @@ const EstudiantesPage = () => {
               </thead>
               <tbody>
                 {filtered.map((e) => (
-                  <>
+                  <Fragment key={e.numero_identidad}>
                     <StudentRow
-                      key={e.numero_identidad}
                       estudiante={e}
                       onEditarEstudiante={abrirEdicionEstudiante}
                       onVerAcudientes={abrirPanel}
@@ -588,7 +589,6 @@ const EstudiantesPage = () => {
                     />
                     {panel.idEstudiante === e.numero_identidad && (
                       <AcudientesPanel
-                        key={`panel-${e.numero_identidad}`}
                         acudientes={panel.acudientes}
                         isLoading={panel.isLoading}
                         error={panel.error}
@@ -596,7 +596,7 @@ const EstudiantesPage = () => {
                         colSpan={8}
                       />
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

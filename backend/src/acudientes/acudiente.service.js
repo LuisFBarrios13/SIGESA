@@ -15,6 +15,19 @@ const CAMPOS_PERMITIDOS = [
 ];
 
 /**
+ * Busca un acudiente por cédula.
+ * @param {string} cedula
+ * @returns {Promise<Acudiente>}
+ */
+export const obtenerAcudiente = async (cedula) => {
+  const acudiente = await Acudiente.findByPk(cedula, {
+    attributes: ['cedula', 'nombre', 'telefono', 'correo', 'direccion', 'telefono_trabajo', 'direccion_trabajo'],
+  });
+  if (!acudiente) throw { status: 404, message: 'Acudiente no encontrado' };
+  return acudiente;
+};
+
+/**
  * Actualiza los datos editables de un acudiente.
  *
  * @param {string} cedula
@@ -28,7 +41,6 @@ export const actualizarAcudiente = async (cedula, dto) => {
   const actualizaciones = {};
   for (const campo of CAMPOS_PERMITIDOS) {
     if (dto[campo] !== undefined) {
-      // Normaliza cadenas vacías a null para campos opcionales
       actualizaciones[campo] =
         campo === 'nombre'
           ? dto[campo].trim()

@@ -6,6 +6,7 @@ import { useAuth } from './hooks/useAuth';
 import LoginPage          from './pages/shared/LoginPage';
 import ChangePasswordPage from './pages/shared/ChangePasswordPage';
 import CapacitacionesPage from './pages/shared/CapacitacionesPage';
+import AutoresPage        from './pages/shared/AutoresPage';
 
 import DashboardPage   from './pages/admin/DashboardPage';
 import MatriculaPage   from './pages/admin/MatriculaPage';
@@ -115,6 +116,13 @@ const AppRoutes = () => {
       <Route path="/capacitaciones" element={
         <ProtectedRoute>
           <Layout user={userProfile!}><CapacitacionesPage /></Layout>
+        </ProtectedRoute>
+      } />
+
+      {/* ── Autores — todos los roles ── */}
+      <Route path="/autores" element={
+        <ProtectedRoute>
+          <Layout user={userProfile!}><AutoresPage /></Layout>
         </ProtectedRoute>
       } />
 
