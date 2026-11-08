@@ -2,6 +2,7 @@
 import express from 'express';
 import cors    from 'cors';
 import { errorHandler } from '../middlewares/errorHandler.middleware.js';
+import { env } from './environment.js';
 
 import authRoutes       from '../auth/auth.routes.js';
 import gradoRoutes      from '../grados/grado.routes.js';
@@ -18,7 +19,7 @@ import acudientePortalRoutes from '../portal-acudiente/acudiente.portal.routes.j
 
 const app = express();
 
-app.use(cors());
+app.use(cors({ origin: env.corsOrigins.length ? env.corsOrigins : true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

@@ -27,6 +27,9 @@ export const env = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
   },
+  // Orígenes permitidos por CORS (separados por coma). Vacío = cualquier origen.
+  corsOrigins: (process.env.CORS_ORIGIN ?? '')
+    .split(',').map((o) => o.trim()).filter(Boolean),
   jwt: {
     secret: process.env.JWT_SECRET,
     expiresIn: process.env.JWT_EXPIRES_IN || '8h',
