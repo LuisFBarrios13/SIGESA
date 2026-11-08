@@ -1,310 +1,23 @@
-// src/pages/MatriculaPage.tsx
-import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
-import { gradosApi, matriculasApi, type Grado, type MatriculaPayload } from '../../services/api';
-import { api } from '../../services/api';
+// src/pages/admin/MatriculaPage.tsx
 import FormField, { inputClass, selectClass } from '../../components/ui/FormField';
-import SectionCard from '../../components/ui/SectionCard';
-
-// ── Types ─────────────────────────────────────────────────────
-
-type Jornada = 'MAÑANA' | 'TARDE';
-
-interface AcudienteEncontrado {
-  cedula:            string;
-  nombre:            string;
-  telefono:          string | null;
-  correo:            string | null;
-  direccion:         string | null;
-  telefono_trabajo:  string | null;
-  direccion_trabajo: string | null;
-}
-
-interface FormState {
-  numero_identidad:     string;
-  nombre_estudiante:    string;
-  fecha_nacimiento:     string;
-  rh:                   string;
-  direccion_estudiante: string;
-  observaciones:        string;
-  id_grado:             string;
-  year:                 string;
-  jornada:              Jornada | '';
-  cedula_acudiente:     string;
-  nombre_acudiente:     string;
-  telefono_acudiente:   string;
-  correo_acudiente:     string;
-  direccion_acudiente:  string;
-  parentesco:           string;
-}
-
-type FormErrors = Partial<Record<keyof FormState, string>>;
-
-const EMPTY_FORM: FormState = {
-  numero_identidad:     '',
-  nombre_estudiante:    '',
-  fecha_nacimiento:     '',
-  rh:                   '',
-  direccion_estudiante: '',
-  observaciones:        '',
-  id_grado:             '',
-  year:                 String(new Date().getFullYear()),
-  jornada:              '',
-  cedula_acudiente:     '',
-  nombre_acudiente:     '',
-  telefono_acudiente:   '',
-  correo_acudiente:     '',
-  direccion_acudiente:  '',
-  parentesco:           '',
-};
-
-// ── Jornada Option Card ───────────────────────────────────────
-
-interface JornadaOptionProps {
-  value:       Jornada;
-  label:       string;
-  description: string;
-  icon:        string;
-  selected:    boolean;
-  onSelect:    (v: Jornada) => void;
-}
-
-const JornadaOption = ({ value, label, description, icon, selected, onSelect }: JornadaOptionProps) => (
-  <button
-    type="button"
-    onClick={() => onSelect(value)}
-    className={`flex-1 flex items-center gap-4 px-5 py-4 rounded-xl border-2 text-left transition-all
-      ${selected
-        ? 'border-primary bg-primary-fixed/20 shadow-sm'
-        : 'border-outline-variant bg-white hover:border-primary/40 hover:bg-stone-50'
-      }`}
-  >
-    <div className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition-colors
-      ${selected ? 'bg-primary text-white' : 'bg-stone-100 text-stone-500'}`}>
-      <span className="material-symbols-outlined text-xl">{icon}</span>
-    </div>
-    <div>
-      <p className={`font-semibold text-sm ${selected ? 'text-primary' : 'text-on-surface'}`}>{label}</p>
-      <p className="text-xs text-on-surface-variant mt-0.5">{description}</p>
-    </div>
-    {selected && (
-      <span className="material-symbols-outlined text-primary ml-auto text-xl">check_circle</span>
-    )}
-  </button>
-);
-
-// ── Success Modal ─────────────────────────────────────────────
-
-interface SuccessModalProps {
-  credenciales:   { username: string | null; passwordTemporal: string | null; nota: string };
-  acudienteNuevo: boolean;
-  onClose:        () => void;
-}
-
-const SuccessModal = ({ credenciales, acudienteNuevo, onClose }: SuccessModalProps) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-    <div className="bg-white rounded-2xl shadow-2xl border border-outline-variant w-full max-w-md overflow-hidden">
-      <div className="bg-secondary px-6 py-5 flex items-center gap-3">
-        <div className="w-11 h-11 rounded-xl bg-secondary-container/30 flex items-center justify-center">
-          <span className="material-symbols-outlined text-white text-2xl">check_circle</span>
-        </div>
-        <div>
-          <h3 className="text-lg font-bold text-white">¡Matrícula creada!</h3>
-          <p className="text-xs text-on-secondary/70">El estudiante ha sido matriculado exitosamente</p>
-        </div>
-      </div>
-
-      <div className="px-6 py-6 space-y-4">
-        {acudienteNuevo && credenciales.username ? (
-          <>
-            <div className="bg-stone-50 rounded-xl border border-stone-200 p-4">
-              <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-3">
-                Credenciales del acudiente
-              </p>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-stone-500">Usuario</span>
-                  <code className="text-sm font-bold text-on-surface bg-stone-200 px-2.5 py-1 rounded-lg">
-                    {credenciales.username}
-                  </code>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-stone-500">Contraseña temporal</span>
-                  <code className="text-sm font-bold text-on-surface bg-stone-200 px-2.5 py-1 rounded-lg">
-                    {credenciales.passwordTemporal}
-                  </code>
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-3 p-3 bg-orange-50 rounded-xl border border-orange-200">
-              <span className="material-symbols-outlined text-orange-700 text-xl flex-shrink-0">warning</span>
-              <p className="text-xs text-orange-800">{credenciales.nota}</p>
-            </div>
-          </>
-        ) : (
-          <div className="flex gap-3 p-4 bg-secondary-container/20 rounded-xl border border-secondary/20">
-            <span className="material-symbols-outlined text-secondary text-xl flex-shrink-0">link</span>
-            <p className="text-sm text-on-surface-variant">{credenciales.nota}</p>
-          </div>
-        )}
-
-        <button
-          onClick={onClose}
-          className="w-full py-3 bg-orange-900 text-white rounded-lg font-semibold hover:bg-primary transition-all shadow-md"
-        >
-          Crear otra matrícula
-        </button>
-      </div>
-    </div>
-  </div>
-);
+import SectionCard           from '../../components/ui/SectionCard';
+import JornadaOption         from '../../components/matricula/JornadaOption';
+import SuccessModal          from '../../components/matricula/MatriculaSuccessModal';
+import { useMatriculaForm }  from '../../hooks/useMatriculaForm';
 
 // ── Main Page ─────────────────────────────────────────────────
 
 const MatriculaPage = () => {
-  const [form, setForm]         = useState<FormState>(EMPTY_FORM);
-  const [errors, setErrors]     = useState<FormErrors>({});
-  const [grados, setGrados]     = useState<Grado[]>([]);
-  const [isLoadingGrados, setIsLoadingGrados] = useState(true);
-  const [gradosLoadError, setGradosLoadError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError]   = useState('');
-  const [successData, setSuccessData]   = useState<{
-    credenciales: { username: string | null; passwordTemporal: string | null; nota: string };
-    acudienteNuevo: boolean;
-  } | null>(null);
-
-  // ── Estado del auto-completado de acudiente ───────────────
-  const [acudienteEncontrado, setAcudienteEncontrado] = useState<AcudienteEncontrado | null>(null);
-  const [buscandoAcudiente, setBuscandoAcudiente]     = useState(false);
-  const cedulaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    setIsLoadingGrados(true);
-    setGradosLoadError('');
-    gradosApi.listar()
-      .then(setGrados)
-      .catch(() => setGradosLoadError('No se pudieron cargar los grados.'))
-      .finally(() => setIsLoadingGrados(false));
-  }, []);
-
-  // ── Buscar acudiente cuando cambia la cédula ──────────────
-  useEffect(() => {
-    if (cedulaTimer.current) clearTimeout(cedulaTimer.current);
-
-    const cedula = form.cedula_acudiente.trim();
-
-    // Si se limpió el campo, reset
-    if (!cedula) {
-      setAcudienteEncontrado(null);
-      return;
-    }
-
-    // Esperar 600ms antes de buscar
-    if (cedula.length < 4) return;
-
-    cedulaTimer.current = setTimeout(async () => {
-      setBuscandoAcudiente(true);
-      try {
-        const data = await api.get<AcudienteEncontrado>(`/acudientes/${cedula}`);
-        // Acudiente encontrado — auto-completar campos
-        setAcudienteEncontrado(data);
-        setForm((prev) => ({
-          ...prev,
-          nombre_acudiente:    data.nombre,
-          telefono_acudiente:  data.telefono  ?? '',
-          correo_acudiente:    data.correo    ?? '',
-          direccion_acudiente: data.direccion ?? '',
-        }));
-      } catch {
-        // 404 = acudiente nuevo, no es un error
-        setAcudienteEncontrado(null);
-      } finally {
-        setBuscandoAcudiente(false);
-      }
-    }, 600);
-
-    return () => { if (cedulaTimer.current) clearTimeout(cedulaTimer.current); };
-  }, [form.cedula_acudiente]);
-
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => ({ ...prev, [name]: undefined }));
-
-    // Si cambia la cédula, resetear el acudiente encontrado
-    if (name === 'cedula_acudiente') {
-      setAcudienteEncontrado(null);
-    }
-  };
-
-  const handleJornadaSelect = (value: Jornada) => {
-    setForm((prev) => ({ ...prev, jornada: value, id_grado: '' }));
-    setErrors((prev) => ({ ...prev, jornada: undefined, id_grado: undefined }));
-  };
-
-  const validate = (): boolean => {
-    const next: FormErrors = {};
-    if (!form.numero_identidad.trim()) next.numero_identidad  = 'Requerido';
-    if (!form.nombre_estudiante.trim()) next.nombre_estudiante = 'Requerido';
-    if (!form.fecha_nacimiento)         next.fecha_nacimiento  = 'Requerido';
-    if (!form.id_grado)                 next.id_grado          = 'Selecciona un grado';
-    if (!form.year || isNaN(Number(form.year))) next.year      = 'Año inválido';
-    if (!form.jornada)                  next.jornada           = 'Selecciona una jornada';
-    if (!form.cedula_acudiente.trim())  next.cedula_acudiente  = 'Requerido';
-    if (!form.nombre_acudiente.trim())  next.nombre_acudiente  = 'Requerido';
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  };
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setSubmitError('');
-    if (!validate()) return;
-
-    const payload: MatriculaPayload = {
-      estudiante: {
-        numero_identidad: form.numero_identidad.trim(),
-        nombre:           form.nombre_estudiante.trim(),
-        fecha_nacimiento: form.fecha_nacimiento,
-        rh:               form.rh || undefined,
-        direccion:        form.direccion_estudiante || undefined,
-        observaciones:    form.observaciones || undefined,
-      },
-      matricula: {
-        id_grado: Number(form.id_grado),
-        year:     Number(form.year),
-        jornada:  form.jornada as Jornada,
-      },
-      acudiente: {
-        cedula:   form.cedula_acudiente.trim(),
-        nombre:   form.nombre_acudiente.trim(),
-        telefono: form.telefono_acudiente || undefined,
-        correo:   form.correo_acudiente   || undefined,
-        direccion: form.direccion_acudiente || undefined,
-      },
-      relacion: { parentesco: form.parentesco || undefined },
-    };
-
-    setIsSubmitting(true);
-    try {
-      const result = await matriculasApi.crear(payload);
-      setSuccessData({
-        credenciales:   result.credenciales,
-        acudienteNuevo: result.acudienteNuevo ?? true,
-      });
-      setForm(EMPTY_FORM);
-      setAcudienteEncontrado(null);
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Error al crear la matrícula');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const yearOptions = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() + i - 1);
-
-  // Si el acudiente fue encontrado, los campos son de solo lectura
-  const camposAcudienteReadonly = !!acudienteEncontrado;
+  const {
+    form, errors,
+    grados, isLoadingGrados, gradosLoadError,
+    isSubmitting, submitError,
+    successData, cerrarExito,
+    acudienteEncontrado, buscandoAcudiente, camposAcudienteReadonly,
+    yearOptions,
+    handleChange, handleJornadaSelect, handleSubmit,
+    limpiarAcudiente, resetForm,
+  } = useMatriculaForm();
 
   return (
     <>
@@ -312,7 +25,7 @@ const MatriculaPage = () => {
         <SuccessModal
           credenciales={successData.credenciales}
           acudienteNuevo={successData.acudienteNuevo}
-          onClose={() => setSuccessData(null)}
+          onClose={cerrarExito}
         />
       )}
 
@@ -512,17 +225,7 @@ const MatriculaPage = () => {
           {acudienteEncontrado && (
             <div className="md:col-span-2">
               <button type="button"
-                onClick={() => {
-                  setAcudienteEncontrado(null);
-                  setForm((prev) => ({
-                    ...prev,
-                    cedula_acudiente:    '',
-                    nombre_acudiente:    '',
-                    telefono_acudiente:  '',
-                    correo_acudiente:    '',
-                    direccion_acudiente: '',
-                  }));
-                }}
+                onClick={limpiarAcudiente}
                 className="text-xs text-stone-400 hover:text-error transition-colors flex items-center gap-1"
               >
                 <span className="material-symbols-outlined text-[14px]">close</span>
@@ -535,7 +238,7 @@ const MatriculaPage = () => {
         {/* ── Submit ────────────────────────────────────────── */}
         <div className="flex gap-4 justify-end pb-6">
           <button type="button"
-            onClick={() => { setForm(EMPTY_FORM); setErrors({}); setSubmitError(''); setAcudienteEncontrado(null); }}
+            onClick={resetForm}
             className="px-6 py-3 bg-white border border-outline-variant text-on-surface-variant
               rounded-lg font-semibold hover:bg-stone-50 transition-all">
             Limpiar formulario
