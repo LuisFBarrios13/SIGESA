@@ -2,6 +2,8 @@
 // Single Responsibility: all pagos state + side-effects live here.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { deudoresKeys } from './useDeudores';
 import {
   pagosApi,
   type Tarifa,
@@ -84,6 +86,7 @@ export const usePagos = (): UsePagosReturn => {
   const [estadoFilter, setEstadoFilter]         = useState<EstadoCuenta | 'TODOS'>('TODOS');
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queryClient = useQueryClient();
 
   // ── Bootstrap ────────────────────────────────────────────────
 
@@ -158,9 +161,12 @@ export const usePagos = (): UsePagosReturn => {
 
   const refreshResumen = useCallback(async () => {
     if (!selectedMatricula) return;
+    // Hubo un pago o se generaron cuentas: la lista de deudores en caché
+    // quedó desactualizada. Se marca para que se recargue al verla.
+    void queryClient.invalidateQueries({ queryKey: deudoresKeys.all });
     const data = await pagosApi.getResumen(selectedMatricula.id_matricula);
     setResumen(data);
-  }, [selectedMatricula]);
+  }, [selectedMatricula, queryClient]);
 
   // ── Modals ───────────────────────────────────────────────────
 

@@ -1,9 +1,17 @@
 // src/hooks/useDeudores.ts
-import { useState, useEffect, useCallback, useMemo } from 'react';
+// Usa TanStack Query: la caché, el estado de carga/error y el descarte de
+// respuestas viejas los maneja la librería (antes eran ~25 líneas a mano).
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { pagosApi } from '../services/pagosApi';
 import type { CuentaCobroDetalle } from '../services/pagosApi';
 import type { DeudorAgrupado } from '../types/deudores';
-import { useLatestRequest } from './useLatestRequest';
+
+/** Claves de caché de deudores. Úsalas también para invalidar tras un pago. */
+export const deudoresKeys = {
+  all:    ['deudores'] as const,
+  byYear: (year: number) => ['deudores', year] as const,
+};
 
 const agruparPorEstudiante = (cuentas: CuentaCobroDetalle[]): DeudorAgrupado[] => {
   const map = new Map<string, DeudorAgrupado>();
@@ -46,35 +54,22 @@ interface UseDeudoresReturn {
   refresh:       () => void;
 }
 
+// Constante fuera del hook: un [] nuevo en cada render invalidaría los useMemo.
+const SIN_DEUDORES: DeudorAgrupado[] = [];
+
 export const useDeudores = (): UseDeudoresReturn => {
-  const [deudores,   setDeudores]   = useState<DeudorAgrupado[]>([]);
-  const [isLoading,  setIsLoading]  = useState(true);
-  const [error,      setError]      = useState('');
   const [search,     setSearch]     = useState('');
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear());
 
-  const startRequest = useLatestRequest();
-
-  const fetchDeudores = useCallback(async () => {
-    const isLatest = startRequest();
-    setIsLoading(true);
-    setError('');
-    try {
-      const cuentas = await pagosApi.listarCuentas({
-        estado: 'VENCIDO',
-        year:   yearFilter,
-      });
-      if (!isLatest()) return;
-      setDeudores(agruparPorEstudiante(cuentas));
-    } catch {
-      if (!isLatest()) return;
-      setError('No se pudieron cargar los deudores. Verifica tu conexión.');
-    } finally {
-      if (isLatest()) setIsLoading(false);
-    }
-  }, [yearFilter, startRequest]);
-
-  useEffect(() => { fetchDeudores(); }, [fetchDeudores]);
+  // Cada año tiene su propia entrada en la caché: volver a un año ya visto
+  // muestra los datos al instante.
+  const { data: deudores = SIN_DEUDORES, isPending, isError, refetch } = useQuery({
+    queryKey: deudoresKeys.byYear(yearFilter),
+    queryFn:  async () => {
+      const cuentas = await pagosApi.listarCuentas({ estado: 'VENCIDO', year: yearFilter });
+      return agruparPorEstudiante(cuentas);
+    },
+  });
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -92,10 +87,12 @@ export const useDeudores = (): UseDeudoresReturn => {
   );
 
   return {
-    deudores, isLoading, error,
+    deudores,
+    isLoading: isPending,
+    error:     isError ? 'No se pudieron cargar los deudores. Verifica tu conexión.' : '',
     search, setSearch,
     yearFilter, setYearFilter,
     filtered, totalDeuda,
-    refresh: fetchDeudores,
+    refresh:   () => { void refetch(); },
   };
 };
