@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 const LoginPage = () => {
-  const { login } = useAuth();
+  const { login, sesionExpirada } = useAuth();
   const navigate = useNavigate();
 
   const [username, setUsername] = useState('');
@@ -99,6 +99,14 @@ const LoginPage = () => {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Aviso de sesión vencida */}
+            {sesionExpirada && !error && (
+              <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                <span className="material-symbols-outlined text-amber-600 text-xl">schedule</span>
+                <p className="text-sm text-amber-800 font-medium">Tu sesión expiró. Inicia sesión de nuevo.</p>
+              </div>
+            )}
+
             {/* Error banner */}
             {error && (
               <div className="flex items-center gap-3 p-4 bg-error-container rounded-lg border border-error/20">

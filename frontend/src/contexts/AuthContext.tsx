@@ -1,7 +1,9 @@
 // src/contexts/AuthContext.tsx
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { authApi, saveToken, getToken, removeToken } from '../services/api';
+import {
+  authApi, saveToken, getToken, removeToken, suscribirSesionExpirada, tokenVencido,
+} from '../services/api';
 import type { AuthUser } from '../types/auth';
 import { AuthContext } from './auth-context';
 
@@ -10,21 +12,26 @@ import { AuthContext } from './auth-context';
 interface StoredSession {
   token: string | null;
   user: AuthUser | null;
+  /** Había sesión guardada pero el token ya venció. */
+  expirada: boolean;
 }
 
 const readStoredSession = (): StoredSession => {
   const storedToken = getToken();
   const storedUser = localStorage.getItem('sigesa_user');
 
-  if (storedToken && storedUser) {
+  // Un token que ya venció no sirve: se descarta antes de mostrar la app.
+  const expirada = !!storedToken && !!storedUser && tokenVencido(storedToken);
+  if (storedToken && storedUser && !expirada) {
     try {
-      return { token: storedToken, user: JSON.parse(storedUser) as AuthUser };
+      return { token: storedToken, user: JSON.parse(storedUser) as AuthUser, expirada: false };
     } catch {
-      removeToken();
-      localStorage.removeItem('sigesa_user');
+      // JSON corrupto: se limpia abajo
     }
   }
-  return { token: null, user: null };
+  removeToken();
+  localStorage.removeItem('sigesa_user');
+  return { token: null, user: null, expirada };
 };
 
 // ── Provider ──────────────────────────────────────────────────
@@ -45,9 +52,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [token, setToken] = useState<string | null>(session.token);
   const isLoading = false;
   const queryClient = useQueryClient();
+  const [sesionExpirada, setSesionExpirada] = useState(session.expirada);
 
   const login = async (username: string, password: string): Promise<void> => {
     const result = await authApi.login(username, password);
+    setSesionExpirada(false);
     // Por si quedó caché de una sesión anterior (p. ej. token vencido sin logout).
     queryClient.clear();
     saveToken(result.token);
@@ -56,7 +65,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setUser(result.user);
   };
 
-  const logout = (): void => {
+  const logout = useCallback((): void => {
     // Borrar la caché: si otra persona inicia sesión en este navegador
     // no debe ver datos del usuario anterior.
     queryClient.clear();
@@ -64,7 +73,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     localStorage.removeItem('sigesa_user');
     setToken(null);
     setUser(null);
-  };
+  }, [queryClient]);
+
+  // Si la API responde 401 (token vencido), se cierra la sesión; las rutas
+  // protegidas redirigen al login, que muestra el aviso.
+  useEffect(() => suscribirSesionExpirada(() => {
+    setSesionExpirada(true);
+    logout();
+  }), [logout]);
 
   const changePassword = async (newPassword: string): Promise<void> => {
     await authApi.changePassword(newPassword);
@@ -85,6 +101,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         login,
         logout,
         changePassword,
+        sesionExpirada,
       }}
     >
       {children}

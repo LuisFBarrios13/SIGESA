@@ -8,6 +8,8 @@ export interface AuthContextValue extends AuthState {
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   changePassword: (newPassword: string) => Promise<void>;
+  /** true si la última sesión se cerró porque el token venció. */
+  sesionExpirada: boolean;
 }
 
 // Context created with undefined default so consumers must be inside provider

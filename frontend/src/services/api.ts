@@ -9,6 +9,26 @@ export const removeToken = ()           => localStorage.removeItem(TOKEN_KEY);
 
 interface ApiResponse<T> { success: boolean; message: string; data: T; }
 
+// ── Sesión vencida ────────────────────────────────────────────
+// Si una petición con token recibe 401, el token venció o es inválido.
+// AuthProvider se suscribe aquí para cerrar la sesión y mandar al login.
+let alExpirar: (() => void) | null = null;
+
+export const suscribirSesionExpirada = (fn: () => void) => {
+  alExpirar = fn;
+  return () => { if (alExpirar === fn) alExpirar = null; };
+};
+
+/** true si el JWT ya venció según su campo "exp" (sin verificar la firma). */
+export const tokenVencido = (token: string): boolean => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now();
+  } catch {
+    return true; // token malformado
+  }
+};
+
 const buildHeaders = (): HeadersInit => {
   const token = getToken();
   return {
@@ -18,12 +38,26 @@ const buildHeaders = (): HeadersInit => {
 };
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res  = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: { ...buildHeaders(), ...options.headers },
-  });
-  const body: ApiResponse<T> = await res.json();
-  if (!res.ok) throw new Error(body.message ?? 'Error en la solicitud');
+  const conToken = !!getToken();
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers: { ...buildHeaders(), ...options.headers },
+    });
+  } catch {
+    throw new Error('No se pudo conectar con el servidor. Revisa tu conexión.');
+  }
+
+  if (res.status === 401 && conToken) {
+    alExpirar?.();
+    throw new Error('Tu sesión expiró. Inicia sesión de nuevo.');
+  }
+
+  // Una respuesta que no es JSON (p. ej. un proxy caído) no debe romper con un error críptico.
+  const body = (await res.json().catch(() => null)) as ApiResponse<T> | null;
+  if (!res.ok) throw new Error(body?.message ?? `Error en la solicitud (${res.status})`);
+  if (!body) throw new Error('Respuesta inválida del servidor');
   return body.data;
 }
 
