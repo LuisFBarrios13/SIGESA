@@ -118,6 +118,27 @@ test('pagos parciales y completos actualizan el estado y los totales', async () 
   assert.equal(resumen.body.data.totales.pendiente, 150000 * 10);
 });
 
+test('dashboard: totales calculados en la base de datos', async () => {
+  const { status, body } = await s.api('GET', `/dashboard?year=${YEAR}`, { token: admin });
+  assert.equal(status, 200);
+  const d = body.data;
+  assert.equal(d.totalEstudiantes, 2);
+  assert.equal(d.estudiantesActivos, 2);
+  assert.equal(d.tasaMatricula, 100);
+  assert.equal(d.totalDeuda, 150000 * 10 + 200000);
+  assert.equal(d.totalRecaudado, 200000);
+  assert.equal(d.monthlyChart.length, 12);
+  assert.equal(d.monthlyChart[0].recaudado, 200000); // la cuenta de matrícula es del mes 1
+
+  // Pensiones (feb–nov) de meses ya terminados quedan vencidas.
+  const mesActual = new Date().getMonth() + 1;
+  const vencidas  = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11].filter((m) => m < mesActual).length;
+  assert.equal(d.totalDeudores, vencidas > 0 ? 1 : 0);
+  if (vencidas > 0) assert.equal(d.topDeudores[0].saldo, 150000 * vencidas);
+
+  assert.equal((await s.api('GET', '/dashboard?year=abc', { token: admin })).status, 400);
+});
+
 test('el acudiente ve los pagos de sus hijos y no los de otros', async () => {
   // Matrícula de otra familia
   const ajena = await s.api('POST', '/matriculas', { token: admin, body: nuevaMatricula('2001', '6001') });

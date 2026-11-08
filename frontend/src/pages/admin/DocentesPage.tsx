@@ -65,7 +65,10 @@ const DocentesPage = () => {
   const loadingGrados = disponibilidadQuery.isPending || docentesQuery.isPending;
 
   /** Recarga lista de docentes y disponibilidad de grados. */
-  const cargarDatos = () => { void queryClient.invalidateQueries({ queryKey: queryKeys.docentes.all }); };
+  const cargarDatos = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.docentes.all });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all }); // total de docentes
+  };
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;

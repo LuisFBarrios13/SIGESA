@@ -16,6 +16,7 @@ import materiaRoutes    from '../materias/materia.routes.js';
 import boletinRoutes    from '../boletin/boletin.routes.js';
 import acudienteRoutes  from '../acudientes/acudiente.routes.js';
 import acudientePortalRoutes from '../portal-acudiente/acudiente.portal.routes.js';
+import dashboardRoutes  from '../dashboard/dashboard.routes.js';
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use('/api/materias',    materiaRoutes);
 app.use('/api/boletin',     boletinRoutes);
 app.use('/api/acudientes',  acudienteRoutes);
 app.use('/api/acudiente',   acudientePortalRoutes);
+app.use('/api/dashboard',   dashboardRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Ruta ${req.originalUrl} no encontrada` });

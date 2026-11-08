@@ -358,6 +358,8 @@ export const listarTodasCuentas = async ({ year, estado, search } = {}) => {
       },
     ],
     order: [['year', 'DESC'], ['mes', 'ASC']],
-    limit: 100,
+    // Con año el resultado está acotado (≈11 cuentas por estudiante); sin año
+    // se limita para no devolver el histórico completo.
+    limit: year ? undefined : 500,
   });
 };
