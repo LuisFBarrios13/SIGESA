@@ -1,15 +1,18 @@
 // src/index.js
 import { env } from './config/environment.js';
-import { connectDB, sequelize } from './config/database.js';
+import { connectDB } from './config/database.js';
+import { migrarPendientes } from './config/migrator.js';
 import app from './config/app.js';
 
-// Importar modelos para que Sequelize los registre antes del sync
-import './models/index.js'; // ← agrega esta línea
+// Importar modelos para que Sequelize registre modelos y asociaciones
+import './models/index.js';
 
 const startServer = async () => {
   await connectDB();
-  await sequelize.sync({ alter: env.nodeEnv === 'development' });
-  console.log('✅ Modelos sincronizados con la base de datos.');
+
+  // El esquema se maneja con migraciones (carpeta /migrations), no con sync().
+  const aplicadas = await migrarPendientes();
+  aplicadas.forEach((nombre) => console.log(`🗃️  Migración aplicada: ${nombre}`));
 
   app.listen(env.port, () => {
     console.log(`🚀 Servidor corriendo en http://localhost:${env.port}`);
@@ -17,4 +20,7 @@ const startServer = async () => {
   });
 };
 
-startServer();
+startServer().catch((err) => {
+  console.error('❌ No se pudo iniciar el servidor:', err);
+  process.exit(1);
+});
