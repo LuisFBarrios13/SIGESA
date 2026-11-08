@@ -14,7 +14,7 @@ import notaRoutes       from '../notas/nota.routes.js';
 import materiaRoutes    from '../materias/materia.routes.js';
 import boletinRoutes    from '../boletin/boletin.routes.js';
 import acudienteRoutes  from '../acudientes/acudiente.routes.js';
-import acudientePortalRoutes from '../acudiente/acudiente.portal.routes.js';
+import acudientePortalRoutes from '../portal-acudiente/acudiente.portal.routes.js';
 
 const app = express();
 

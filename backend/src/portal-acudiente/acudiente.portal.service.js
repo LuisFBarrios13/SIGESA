@@ -1,4 +1,4 @@
-// src/acudiente/acudiente.portal.service.js
+// src/portal-acudiente/acudiente.portal.service.js
 import { Acudiente, Estudiante, Matricula, Grado, RelacionEA, CuentaCobro, ConceptoPago, MetodoPago, Pago, Tarifa } from '../models/index.js';
 import { Op } from 'sequelize';
 

@@ -1,4 +1,4 @@
-// src/acudiente/acudiente.portal.controller.js
+// src/portal-acudiente/acudiente.portal.controller.js
 import { getMisEstudiantes, getResumenPagos } from './acudiente.portal.service.js';
 import { successResponse, errorResponse }     from '../utils/responseHandler.js';
 
