@@ -14,10 +14,13 @@ const BoletinPage = () => {
   const navigate = useNavigate();
 
   const idMatricula = Number(params.get('matricula') ?? 0);
+  // Año y periodo iniciales desde la URL (los envían Mi Grado y Notas).
+  const yearInicial    = Number(params.get('year'))    || undefined;
+  const periodoInicial = Number(params.get('periodo')) || undefined;
 
   // periodo/year vienen del hook — son la fuente de verdad
   const { data, isLoading, error, periodo, year, setPeriodo, setYear } =
-    useBoletinData(idMatricula);
+    useBoletinData(idMatricula, { year: yearInicial, periodo: periodoInicial });
 
   if (!idMatricula) {
     return (
@@ -95,7 +98,7 @@ const BoletinPage = () => {
               fontSize: 12, cursor: 'pointer',
             }}
           >
-            {yearOptions.map((y) => (
+            {(yearOptions.includes(year) ? yearOptions : [year, ...yearOptions]).map((y) => (
               <option key={y} value={y} style={{ color: 'black' }}>{y}</option>
             ))}
           </select>

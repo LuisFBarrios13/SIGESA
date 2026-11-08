@@ -32,7 +32,7 @@ const NotasPage = () => {
 
   const handleBoletin = () => {
     if (!selected) return;
-    window.open(`/docente/boletin?matricula=${selected.id_matricula}&year=${year}`, '_blank');
+    window.open(`/docente/boletin?matricula=${selected.id_matricula}&year=${year}&periodo=${periodo}`, '_blank');
   };
 
   if (isSetupLoading) {

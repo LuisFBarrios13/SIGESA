@@ -17,6 +17,11 @@ export const queryKeys = {
     perfil: ['mi-grado', 'perfil'] as const,
     estudiantes: (year: number) => ['mi-grado', 'estudiantes', year] as const,
   },
+  acudiente: {
+    all:     ['acudiente'] as const,
+    perfil:  ['acudiente', 'perfil'] as const,
+    resumen: (id_matricula: number) => ['acudiente', 'resumen', id_matricula] as const,
+  },
   boletin: {
     all:   ['boletin'] as const,
     byMatricula: (id_matricula: number) => ['boletin', id_matricula] as const,

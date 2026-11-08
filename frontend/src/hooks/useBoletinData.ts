@@ -16,9 +16,17 @@ interface UseBoletinDataReturn {
   refresh:   () => void;
 }
 
-export const useBoletinData = (id_matricula: number): UseBoletinDataReturn => {
-  const [periodo, setPeriodo] = useState(1);
-  const [year,    setYear]    = useState(new Date().getFullYear());
+interface Iniciales {
+  year?:    number;
+  periodo?: number;
+}
+
+export const useBoletinData = (
+  id_matricula: number,
+  iniciales: Iniciales = {},
+): UseBoletinDataReturn => {
+  const [periodo, setPeriodo] = useState(iniciales.periodo ?? 1);
+  const [year,    setYear]    = useState(iniciales.year ?? new Date().getFullYear());
 
   const { data, isPending, error, refetch } = useQuery({
     queryKey: queryKeys.boletin.detalle(id_matricula, periodo, year),

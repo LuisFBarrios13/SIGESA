@@ -1,7 +1,10 @@
 // src/hooks/useAcudiente.ts
 // Single Responsibility: todo el estado y side-effects del portal de acudiente.
+// Los datos del servidor los maneja TanStack Query; aquí solo se guarda
+// qué estudiante y qué matrícula eligió el usuario.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { acudienteApi }                     from '../services/acudienteApi';
 import type {
   AcudientePerfil,
@@ -9,6 +12,7 @@ import type {
   MatriculaResumenAcudiente,
   ResumenPagosAcudiente,
 } from '../services/acudienteApi';
+import { queryKeys } from '../lib/queryKeys';
 
 interface UseAcudienteReturn {
   perfil:          AcudientePerfil | null;
@@ -33,74 +37,60 @@ const getDefaultMatricula = (e: EstudianteVinculado): MatriculaResumenAcudiente 
   );
 };
 
+const mensaje = (err: unknown, porDefecto: string) =>
+  err instanceof Error ? err.message : porDefecto;
+
 export const useAcudiente = (): UseAcudienteReturn => {
-  const [perfil,           setPerfil]           = useState<AcudientePerfil | null>(null);
-  const [isLoading,        setIsLoading]        = useState(true);
-  const [error,            setError]            = useState('');
-  const [selected,         setSelected]         = useState<EstudianteVinculado | null>(null);
-  const [matricula,        setMatricula]        = useState<MatriculaResumenAcudiente | null>(null);
-  const [resumen,          setResumen]          = useState<ResumenPagosAcudiente | null>(null);
-  const [isLoadingResumen, setIsLoadingResumen] = useState(false);
-  const [resumenError,     setResumenError]     = useState('');
+  // Solo se guarda lo que eligió el usuario (null = "usar el valor por defecto").
+  const [idEstudiante, setIdEstudiante] = useState<string | null>(null);
+  const [idMatricula,  setIdMatricula]  = useState<number | null>(null);
 
-  // ── Carga inicial ──────────────────────────────────────────────────────────
+  // ── Perfil + estudiantes vinculados ─────────────────────────────────────────
+  const perfilQuery = useQuery({
+    queryKey: queryKeys.acudiente.perfil,
+    queryFn:  acudienteApi.getMisEstudiantes,
+  });
+  const perfil = perfilQuery.data ?? null;
 
-  const fetchPerfil = useCallback(async () => {
-    setIsLoading(true);
-    setError('');
-    try {
-      const data = await acudienteApi.getMisEstudiantes();
-      setPerfil(data);
-      if (data.estudiantes.length > 0) {
-        const first = data.estudiantes[0];
-        setSelected(first);
-        setMatricula(getDefaultMatricula(first));
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar la información.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  // ── Selección derivada (sin useEffect) ──────────────────────────────────────
+  // Por defecto: el primer estudiante y su matrícula activa / más reciente.
+  const selected =
+    perfil?.estudiantes.find((e) => e.numero_identidad === idEstudiante) ??
+    perfil?.estudiantes[0] ??
+    null;
 
-  useEffect(() => { fetchPerfil(); }, [fetchPerfil]);
+  const matricula = selected
+    ? (selected.matriculas.find((m) => m.id_matricula === idMatricula) ?? getDefaultMatricula(selected))
+    : null;
 
-  // ── Carga del resumen de pagos cuando cambia la matrícula ──────────────────
+  // ── Resumen de pagos de la matrícula seleccionada ───────────────────────────
+  const resumenQuery = useQuery({
+    queryKey: queryKeys.acudiente.resumen(matricula?.id_matricula ?? 0),
+    queryFn:  () => acudienteApi.getResumenPagos(matricula!.id_matricula),
+    enabled:  !!matricula,
+  });
 
-  useEffect(() => {
-    if (!matricula) { setResumen(null); return; }
-    let cancelado = false; // si se elige otro estudiante antes de responder, se ignora
-    setIsLoadingResumen(true);
-    setResumenError('');
-    acudienteApi.getResumenPagos(matricula.id_matricula)
-      .then((r) => { if (!cancelado) setResumen(r); })
-      .catch((err) => {
-        if (cancelado) return;
-        setResumenError(err instanceof Error ? err.message : 'No se pudieron cargar los pagos.');
-        setResumen(null);
-      })
-      .finally(() => { if (!cancelado) setIsLoadingResumen(false); });
-    return () => { cancelado = true; };
-  }, [matricula]);
+  // ── Handlers de selección ───────────────────────────────────────────────────
+  const selectStudent = (e: EstudianteVinculado) => {
+    setIdEstudiante(e.numero_identidad);
+    setIdMatricula(null); // vuelve a la matrícula por defecto de ese estudiante
+  };
 
-  // ── Handlers de selección ──────────────────────────────────────────────────
-
-  const selectStudent = useCallback((e: EstudianteVinculado) => {
-    setSelected(e);
-    setMatricula(getDefaultMatricula(e));
-    setResumen(null);
-  }, []);
-
-  const selectMatricula = useCallback((m: MatriculaResumenAcudiente) => {
-    setMatricula(m);
-    setResumen(null);
-  }, []);
+  const selectMatricula = (m: MatriculaResumenAcudiente) => {
+    setIdMatricula(m.id_matricula);
+  };
 
   return {
-    perfil, isLoading, error,
+    perfil,
+    isLoading: perfilQuery.isPending,
+    error:     perfilQuery.error ? mensaje(perfilQuery.error, 'No se pudo cargar la información.') : '',
     selected, selectStudent,
     matricula, selectMatricula,
-    resumen, isLoadingResumen, resumenError,
-    refresh: fetchPerfil,
+    resumen:          matricula ? (resumenQuery.data ?? null) : null,
+    // isLoading (no isPending): es false cuando la consulta está deshabilitada.
+    isLoadingResumen: resumenQuery.isLoading,
+    resumenError:     resumenQuery.error ? mensaje(resumenQuery.error, 'No se pudieron cargar los pagos.') : '',
+    // "Actualizar" recarga perfil y pagos del portal.
+    refresh: () => { void perfilQuery.refetch(); if (matricula) void resumenQuery.refetch(); },
   };
 };
