@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { api }                              from '../services/api';
 import type { EstudianteListItem }          from '../services/api';
 import type { CuentaCobroDetalle }          from '../services/pagosApi';
+import type { DocenteListItem }             from '../types/docentes';
 
 const MESES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
 
@@ -48,7 +49,7 @@ export const useDashboard = (): UseDashboardReturn => {
       const [estudiantes, cuentas, docentes] = await Promise.all([
         api.get<EstudianteListItem[]>('/estudiantes'),
         api.get<CuentaCobroDetalle[]>(`/pagos?year=${year}`),
-        api.get<any[]>('/docentes'),
+        api.get<DocenteListItem[]>('/docentes'),
       ]);
 
       // ── Estudiantes ──────────────────────────────────────

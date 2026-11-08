@@ -10,7 +10,7 @@ import {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-export interface MateriaEdit extends NotaEstudianteItem {
+export interface MateriaEdit extends Omit<NotaEstudianteItem, 'nota'> {
   nota:                  number | '';
   savedNota:             number | '';
   fallas:                number;
@@ -144,14 +144,6 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
       .finally(() => setIsLoadingStudents(false));
   }, [perfil, year]);
 
-  useEffect(() => {
-    if (!selected) return;
-    loadNotas(selected, periodo, year);
-    setSaveSuccess(false);
-    setSaveError('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodo]);
-
   // ── Load notas ────────────────────────────────────────────────────────────
   const loadNotas = useCallback(
     async (matricula: MatriculaDocente, per: number, yr: number) => {
@@ -176,6 +168,15 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
     },
     [],
   );
+
+  // Recargar notas al cambiar de periodo
+  useEffect(() => {
+    if (!selected) return;
+    loadNotas(selected, periodo, year);
+    setSaveSuccess(false);
+    setSaveError('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodo]);
 
   const selectStudent = useCallback(
     async (m: MatriculaDocente) => {
@@ -309,7 +310,7 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
     } finally {
       setIsSaving(false);
     }
-  }, [selected, materias, periodo, year, puesto, savedPuesto]);
+  }, [selected, materias, periodo, year, puesto, savedPuesto, observaciones, savedObservaciones]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {

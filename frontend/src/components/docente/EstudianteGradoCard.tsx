@@ -18,6 +18,11 @@ const JORNADA_LABEL: Record<string, string> = {
   TARDE:  'Tarde',
 };
 
+const MS_POR_ANIO = 1000 * 60 * 60 * 24 * 365.25;
+
+const calcularEdad = (fechaNacimiento: string): number =>
+  Math.floor((Date.now() - new Date(fechaNacimiento + 'T00:00:00').getTime()) / MS_POR_ANIO);
+
 const EstudianteGradoCard = ({ matricula, index }: EstudianteGradoCardProps) => {
   const { estudiante, grado, jornada } = matricula;
   const navigate = useNavigate();
@@ -29,10 +34,7 @@ const EstudianteGradoCard = ({ matricula, index }: EstudianteGradoCardProps) => 
     .join('')
     .toUpperCase();
 
-  const age = Math.floor(
-    (Date.now() - new Date(estudiante.fecha_nacimiento + 'T00:00:00').getTime()) /
-    (1000 * 60 * 60 * 24 * 365.25),
-  );
+  const age = calcularEdad(estudiante.fecha_nacimiento);
 
   const handleBoletin = () => {
     const year = matricula.year;

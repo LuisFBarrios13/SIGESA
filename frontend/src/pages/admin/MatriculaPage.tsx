@@ -289,8 +289,8 @@ const MatriculaPage = () => {
     try {
       const result = await matriculasApi.crear(payload);
       setSuccessData({
-        credenciales:   (result as any).credenciales,
-        acudienteNuevo: (result as any).acudienteNuevo ?? true,
+        credenciales:   result.credenciales,
+        acudienteNuevo: result.acudienteNuevo ?? true,
       });
       setForm(EMPTY_FORM);
       setAcudienteEncontrado(null);

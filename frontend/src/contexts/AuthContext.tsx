@@ -1,18 +1,30 @@
 // src/contexts/AuthContext.tsx
-import { createContext, useState, useEffect, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { authApi, saveToken, getToken, removeToken } from '../services/api';
-import type { AuthUser, AuthState } from '../types/auth';
+import type { AuthUser } from '../types/auth';
+import { AuthContext } from './auth-context';
 
-// ── Context shape ─────────────────────────────────────────────
+// ── Rehidratación desde localStorage ──────────────────────────
 
-interface AuthContextValue extends AuthState {
-  login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
-  changePassword: (newPassword: string) => Promise<void>;
+interface StoredSession {
+  token: string | null;
+  user: AuthUser | null;
 }
 
-// Context created with undefined default so consumers must be inside provider
-export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const readStoredSession = (): StoredSession => {
+  const storedToken = getToken();
+  const storedUser = localStorage.getItem('sigesa_user');
+
+  if (storedToken && storedUser) {
+    try {
+      return { token: storedToken, user: JSON.parse(storedUser) as AuthUser };
+    } catch {
+      removeToken();
+      localStorage.removeItem('sigesa_user');
+    }
+  }
+  return { token: null, user: null };
+};
 
 // ── Provider ──────────────────────────────────────────────────
 
@@ -25,26 +37,12 @@ interface AuthProviderProps {
  * Single Responsibility: authentication lifecycle only.
  */
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Rehydrate from localStorage on mount
-  useEffect(() => {
-    const storedToken = getToken();
-    const storedUser = localStorage.getItem('sigesa_user');
-
-    if (storedToken && storedUser) {
-      try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      } catch {
-        removeToken();
-        localStorage.removeItem('sigesa_user');
-      }
-    }
-    setIsLoading(false);
-  }, []);
+  // La sesión se lee de forma síncrona en el primer render (lazy init),
+  // así no hace falta un useEffect ni un estado de carga intermedio.
+  const [session] = useState(readStoredSession);
+  const [user, setUser] = useState<AuthUser | null>(session.user);
+  const [token, setToken] = useState<string | null>(session.token);
+  const isLoading = false;
 
   const login = async (username: string, password: string): Promise<void> => {
     const result = await authApi.login(username, password);

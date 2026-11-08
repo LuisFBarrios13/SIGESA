@@ -34,9 +34,10 @@ export interface MatriculaResult {
   matricula:    Record<string, unknown>;
   estudiante:   Record<string, unknown>;
   acudiente:    Record<string, unknown>;
+  acudienteNuevo: boolean;
   credenciales: {
-    username:         string;
-    passwordTemporal: string;
+    username:         string | null;
+    passwordTemporal: string | null;
     nota:             string;
   };
 }

@@ -1,6 +1,5 @@
 // Single Responsibility: renders the financial statement card
 
-import Icon from '../ui/Icon';
 import type { FinancialItem, OverdueAlert } from '../../types/acudientes';
 
 // ── Payment Status Label (Open/Closed via config map) ─────────

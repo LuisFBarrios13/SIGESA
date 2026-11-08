@@ -18,5 +18,10 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // El patrón "cargar datos en useEffect" se usa en todo el proyecto.
+      // Se deja como aviso hasta migrar a una librería de data fetching.
+      'react-hooks/set-state-in-effect': 'warn',
+    },
   },
 ])

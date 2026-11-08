@@ -3,7 +3,6 @@
 // El docente selecciona un estudiante y rellena: nota, fallas e I.H. por materia,
 // más el puesto del periodo.
 
-import { useNavigate }          from 'react-router-dom';
 import { useNotasDocente }      from '../../hooks/useNotasDocente';
 import EstudianteNotasPanel     from '../../components/docente/EstudianteNotasPanel';
 
@@ -16,8 +15,6 @@ const JORNADA_COLORS: Record<string, string> = {
 };
 
 const NotasPage = () => {
-  const navigate = useNavigate();
-
   const {
     isSetupLoading, setupError, perfil,
     periodo, setPeriodo,
@@ -25,7 +22,7 @@ const NotasPage = () => {
     search, setSearch, gradoFilter, setGradoFilter, filtered, isLoadingStudents,
     selected, selectStudent, clearSelected,
     materias, isLoadingNotas, notasError,
-    updateNota, updateFallas, updateIH, updateObs,
+    updateNota, updateFallas, updateIH,
     puesto, savedPuesto, updatePuesto,
     observaciones, updateObservaciones,
     isSaving, saveError, saveSuccess, hasDirty, handleSave,
