@@ -136,6 +136,7 @@ const DocentesPage = () => {
       )}
       {editando && (
         <EditarDocenteModal
+          key={editando.cedula}
           docente={editando}
           isLoading={editLoading}
           error={editError}

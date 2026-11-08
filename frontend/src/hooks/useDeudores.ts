@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { pagosApi } from '../services/pagosApi';
 import type { CuentaCobroDetalle } from '../services/pagosApi';
 import type { DeudorAgrupado } from '../types/deudores';
+import { useLatestRequest } from './useLatestRequest';
 
 const agruparPorEstudiante = (cuentas: CuentaCobroDetalle[]): DeudorAgrupado[] => {
   const map = new Map<string, DeudorAgrupado>();
@@ -52,7 +53,10 @@ export const useDeudores = (): UseDeudoresReturn => {
   const [search,     setSearch]     = useState('');
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear());
 
+  const startRequest = useLatestRequest();
+
   const fetchDeudores = useCallback(async () => {
+    const isLatest = startRequest();
     setIsLoading(true);
     setError('');
     try {
@@ -60,13 +64,15 @@ export const useDeudores = (): UseDeudoresReturn => {
         estado: 'VENCIDO',
         year:   yearFilter,
       });
+      if (!isLatest()) return;
       setDeudores(agruparPorEstudiante(cuentas));
     } catch {
+      if (!isLatest()) return;
       setError('No se pudieron cargar los deudores. Verifica tu conexión.');
     } finally {
-      setIsLoading(false);
+      if (isLatest()) setIsLoading(false);
     }
-  }, [yearFilter]);
+  }, [yearFilter, startRequest]);
 
   useEffect(() => { fetchDeudores(); }, [fetchDeudores]);
 

@@ -2,7 +2,7 @@
 // Single Responsibility: formulario de edición de datos de un acudiente.
 // Open/Closed: campos declarados en CAMPOS_CONFIG — extensible sin tocar la lógica.
 
-import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
+import { useState, type FormEvent, type ChangeEvent } from 'react';
 import type { AcudienteDetalle, ActualizarAcudientePayload } from '../../types/acudientes-admin';
 
 // ── Configuración de campos ───────────────────────────────────
@@ -155,11 +155,6 @@ const EditarAcudienteModal = ({
 }: EditarAcudienteModalProps) => {
   const [form,   setForm]   = useState<FormState>(() => buildInitialState(acudiente));
   const [errors, setErrors] = useState<FormErrors>({});
-
-  useEffect(() => {
-    setForm(buildInitialState(acudiente));
-    setErrors({});
-  }, [acudiente]);
 
   // ── Handlers ─────────────────────────────────────────────────
 

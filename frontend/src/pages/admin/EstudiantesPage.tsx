@@ -89,6 +89,7 @@ const EstudiantesPage = () => {
     <>
       {estudianteEditando && (
         <EditarEstudianteModal
+          key={estudianteEditando.numero_identidad}
           estudiante={estudianteEditando} isLoading={editEstLoading} error={editEstError}
           onClose={cerrarEdicionEstudiante}
           onConfirm={(p) => confirmarEdicionEstudiante(p, handleEditEstudianteSuccess)}
@@ -96,6 +97,7 @@ const EstudiantesPage = () => {
       )}
       {acudienteEditando && (
         <EditarAcudienteModal
+          key={acudienteEditando.cedula}
           acudiente={acudienteEditando} nombreEstudiante={panel.nombreEstudiante}
           isLoading={editAcuLoading} error={editAcuError}
           onClose={cerrarEdicionAcudiente}

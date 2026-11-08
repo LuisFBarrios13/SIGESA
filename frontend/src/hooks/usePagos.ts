@@ -96,11 +96,13 @@ export const usePagos = (): UsePagosReturn => {
   // ── Load tarifa when year changes ────────────────────────────
 
   useEffect(() => {
+    let cancelado = false; // si cambia el año antes de responder, se ignora esta respuesta
     setIsTarifaLoading(true);
     pagosApi.getTarifa(yearFilter)
-      .then(setTarifa)
-      .catch(() => setTarifa(null))
-      .finally(() => setIsTarifaLoading(false));
+      .then((t) => { if (!cancelado) setTarifa(t); })
+      .catch(() => { if (!cancelado) setTarifa(null); })
+      .finally(() => { if (!cancelado) setIsTarifaLoading(false); });
+    return () => { cancelado = true; };
   }, [yearFilter]);
 
   // ── Debounced search ─────────────────────────────────────────
@@ -111,18 +113,22 @@ export const usePagos = (): UsePagosReturn => {
       setSearchResults([]);
       return;
     }
+    let cancelado = false; // el usuario siguió escribiendo: ignorar esta búsqueda
     searchTimer.current = setTimeout(async () => {
       setIsSearching(true);
       try {
         const data = await pagosApi.buscarMatriculas(searchQuery.trim(), yearFilter);
-        setSearchResults(data);
+        if (!cancelado) setSearchResults(data);
       } catch {
-        setSearchResults([]);
+        if (!cancelado) setSearchResults([]);
       } finally {
-        setIsSearching(false);
+        if (!cancelado) setIsSearching(false);
       }
     }, 350);
-    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+    return () => {
+      cancelado = true;
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
   }, [searchQuery, yearFilter]);
 
   // ── Load resumen when matricula selected ─────────────────────

@@ -7,6 +7,7 @@ import {
   type MatriculaDocente,
   type NotaEstudianteItem,
 } from '../services/docenteApi';
+import { useLatestRequest } from './useLatestRequest';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -138,35 +139,44 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
     setMaterias([]);
     setPuesto(null);
     setSavedPuesto(null);
+    let cancelado = false; // si cambia el año antes de responder, se ignora
     docenteApi.getEstudiantes(year)
-      .then(setEstudiantes)
+      .then((e) => { if (!cancelado) setEstudiantes(e); })
       .catch(() => {})
-      .finally(() => setIsLoadingStudents(false));
+      .finally(() => { if (!cancelado) setIsLoadingStudents(false); });
+    return () => { cancelado = true; };
   }, [perfil, year]);
 
   // ── Load notas ────────────────────────────────────────────────────────────
+  // Si el docente cambia de estudiante/periodo antes de que responda la API,
+  // la respuesta anterior se descarta (evita ver notas de otro estudiante).
+  const startNotasRequest = useLatestRequest();
+
   const loadNotas = useCallback(
     async (matricula: MatriculaDocente, per: number, yr: number) => {
+      const isLatest = startNotasRequest();
       setIsLoadingNotas(true);
       setNotasError('');
       setSaveSuccess(false);
       try {
         const result = await docenteApi.getNotasEstudiante(matricula.id_matricula, per, yr);
+        if (!isLatest()) return;
         setMaterias(buildMaterias(result.materias));
         setPuesto(result.puesto);
         setSavedPuesto(result.puesto);
         setObservaciones(result.observaciones ?? '');
         setSavedObservaciones(result.observaciones ?? '');
       } catch {
+        if (!isLatest()) return;
         setNotasError('No se pudieron cargar las notas. Verifica tu conexión.');
         setMaterias([]);
         setPuesto(null);
         setSavedPuesto(null);
       } finally {
-        setIsLoadingNotas(false);
+        if (isLatest()) setIsLoadingNotas(false);
       }
     },
-    [],
+    [startNotasRequest],
   );
 
   // Recargar notas al cambiar de periodo

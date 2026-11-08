@@ -3,6 +3,7 @@ import { api }                              from '../services/api';
 import type { EstudianteListItem }          from '../services/api';
 import type { CuentaCobroDetalle }          from '../services/pagosApi';
 import type { DocenteListItem }             from '../types/docentes';
+import { useLatestRequest }                 from './useLatestRequest';
 
 const MESES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
 
@@ -42,7 +43,10 @@ export const useDashboard = (): UseDashboardReturn => {
   const [error,     setError]     = useState('');
   const [year,      setYear]      = useState(new Date().getFullYear());
 
+  const startRequest = useLatestRequest();
+
   const fetchData = useCallback(async () => {
+    const isLatest = startRequest();
     setIsLoading(true);
     setError('');
     try {
@@ -51,6 +55,7 @@ export const useDashboard = (): UseDashboardReturn => {
         api.get<CuentaCobroDetalle[]>(`/pagos?year=${year}`),
         api.get<DocenteListItem[]>('/docentes'),
       ]);
+      if (!isLatest()) return;
 
       // ── Estudiantes ──────────────────────────────────────
       const totalEstudiantes   = estudiantes.length;
@@ -114,11 +119,12 @@ export const useDashboard = (): UseDashboardReturn => {
         topDeudores,
       });
     } catch (err) {
+      if (!isLatest()) return;
       setError(err instanceof Error ? err.message : 'Error cargando el dashboard');
     } finally {
-      setIsLoading(false);
+      if (isLatest()) setIsLoading(false);
     }
-  }, [year]);
+  }, [year, startRequest]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

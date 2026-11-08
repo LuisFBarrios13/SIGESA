@@ -2,7 +2,7 @@
 // Single Responsibility: formulario de edición de datos personales del docente.
 // Open/Closed: campos declarados en CAMPOS_CONFIG, extensible sin tocar la lógica.
 
-import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
+import { useState, type FormEvent, type ChangeEvent } from 'react';
 import type { DocenteListItem, ActualizarDocentePayload } from '../../types/docentes';
 
 // ── Configuración de campos editables ────────────────────────
@@ -139,11 +139,6 @@ const EditarDocenteModal = ({
 }: EditarDocenteModalProps) => {
   const [form,   setForm]   = useState<FormState>(() => buildInitialState(docente));
   const [errors, setErrors] = useState<FormErrors>({});
-
-  useEffect(() => {
-    setForm(buildInitialState(docente));
-    setErrors({});
-  }, [docente]);
 
   // ── Handlers ─────────────────────────────────────────────────
 

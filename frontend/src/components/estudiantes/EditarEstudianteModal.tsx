@@ -3,7 +3,7 @@
 // Open/Closed: los campos editables se declaran en CAMPOS_CONFIG — agregar
 // un campo nuevo no requiere tocar la lógica del formulario.
 
-import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
+import { useState, type FormEvent, type ChangeEvent } from 'react';
 import type { EstudianteListItem, ActualizarEstudiantePayload } from '../../types/estudiantes';
 
 // ── Campos editables ──────────────────────────────────────────
@@ -164,12 +164,6 @@ const EditarEstudianteModal = ({
 }: EditarEstudianteModalProps) => {
   const [form,   setForm]   = useState<FormState>(() => buildInitialState(estudiante));
   const [errors, setErrors] = useState<FormErrors>({});
-
-  // Sincroniza si el prop cambia (p.ej. el padre abre el modal con otro estudiante)
-  useEffect(() => {
-    setForm(buildInitialState(estudiante));
-    setErrors({});
-  }, [estudiante]);
 
   // ── Handlers ─────────────────────────────────────────────────
 

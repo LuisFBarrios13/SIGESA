@@ -69,15 +69,18 @@ export const useAcudiente = (): UseAcudienteReturn => {
 
   useEffect(() => {
     if (!matricula) { setResumen(null); return; }
+    let cancelado = false; // si se elige otro estudiante antes de responder, se ignora
     setIsLoadingResumen(true);
     setResumenError('');
     acudienteApi.getResumenPagos(matricula.id_matricula)
-      .then(setResumen)
+      .then((r) => { if (!cancelado) setResumen(r); })
       .catch((err) => {
+        if (cancelado) return;
         setResumenError(err instanceof Error ? err.message : 'No se pudieron cargar los pagos.');
         setResumen(null);
       })
-      .finally(() => setIsLoadingResumen(false));
+      .finally(() => { if (!cancelado) setIsLoadingResumen(false); });
+    return () => { cancelado = true; };
   }, [matricula]);
 
   // ── Handlers de selección ──────────────────────────────────────────────────

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { boletinApi }                        from '../services/boletinApi';
 import type { BoletinData }                  from '../types/boletin';
+import { useLatestRequest }                  from './useLatestRequest';
 
 interface UseBoletinDataReturn {
   data:      BoletinData | null;
@@ -21,20 +22,25 @@ export const useBoletinData = (id_matricula: number): UseBoletinDataReturn => {
   const [periodo,   setPeriodo]   = useState(1);
   const [year,      setYear]      = useState(new Date().getFullYear());
 
+  const startRequest = useLatestRequest();
+
   const fetchData = useCallback(async () => {
     if (!id_matricula) return;
+    const isLatest = startRequest();
     setIsLoading(true);
     setError('');
     try {
       const result = await boletinApi.get(id_matricula, periodo, year);
+      if (!isLatest()) return;
       setData(result);
     } catch (err) {
+      if (!isLatest()) return;
       setError(err instanceof Error ? err.message : 'No se pudo cargar el boletín.');
       setData(null);
     } finally {
-      setIsLoading(false);
+      if (isLatest()) setIsLoading(false);
     }
-  }, [id_matricula, periodo, year]);
+  }, [id_matricula, periodo, year, startRequest]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { docenteApi, type DocentePerfil, type MatriculaDocente } from '../services/docenteApi';
+import { useLatestRequest } from './useLatestRequest';
 
 interface UseMiGradoReturn {
   perfil:        DocentePerfil | null;
@@ -28,7 +29,10 @@ export const useMiGrado = (): UseMiGradoReturn => {
   const [search,       setSearch]       = useState('');
   const [gradoFilter,  setGradoFilter]  = useState<number | 'TODOS'>('TODOS');
 
+  const startRequest = useLatestRequest();
+
   const fetchData = useCallback(async () => {
+    const isLatest = startRequest();
     setIsLoading(true);
     setError('');
     try {
@@ -36,14 +40,16 @@ export const useMiGrado = (): UseMiGradoReturn => {
         docenteApi.getPerfil(),
         docenteApi.getEstudiantes(year),
       ]);
+      if (!isLatest()) return;
       setPerfil(perfilData);
       setEstudiantes(estudiantesData);
     } catch {
+      if (!isLatest()) return;
       setError('No se pudo cargar la información del grado. Verifica tu conexión.');
     } finally {
-      setIsLoading(false);
+      if (isLatest()) setIsLoading(false);
     }
-  }, [year]);
+  }, [year, startRequest]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
