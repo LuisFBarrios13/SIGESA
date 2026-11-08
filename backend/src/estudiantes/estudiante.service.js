@@ -1,6 +1,7 @@
 // src/estudiantes/estudiante.service.js
 import { Op } from 'sequelize';
 import { Estudiante, Matricula, Grado, RelacionEA, Acudiente } from '../models/index.js';
+import { AppError } from '../utils/AppError.js';
 
 /**
  * Lista todos los estudiantes con su matrícula activa más reciente.
@@ -40,7 +41,7 @@ export const obtenerEstudiante = async (numero_identidad) => {
     ],
   });
 
-  if (!estudiante) throw { status: 404, message: 'Estudiante no encontrado' };
+  if (!estudiante) throw new AppError(404, 'Estudiante no encontrado');
   return estudiante;
 };
 
@@ -53,7 +54,7 @@ export const obtenerEstudiante = async (numero_identidad) => {
  */
 export const actualizarEstudiante = async (numero_identidad, dto) => {
   const estudiante = await Estudiante.findByPk(numero_identidad);
-  if (!estudiante) throw { status: 404, message: 'Estudiante no encontrado' };
+  if (!estudiante) throw new AppError(404, 'Estudiante no encontrado');
 
   const camposPermitidos = ['nombre', 'fecha_nacimiento', 'rh', 'direccion', 'observaciones'];
   const actualizaciones = {};
@@ -72,7 +73,7 @@ export const actualizarEstudiante = async (numero_identidad, dto) => {
  * @param {string} query - texto de búsqueda
  */
 export const buscarEstudiantes = async (query) => {
-  if (!query?.trim()) throw { status: 400, message: 'El parámetro de búsqueda es requerido' };
+  if (!query?.trim()) throw new AppError(400, 'El parámetro de búsqueda es requerido');
 
   return Estudiante.findAll({
     where: {

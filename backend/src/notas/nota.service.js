@@ -4,6 +4,7 @@ import { sequelize } from '../config/database.js';
 import {
   Nota, Materia, Periodo, Matricula, Docente, Grado, Estudiante, ResumenPeriodo,
 } from '../models/index.js';
+import { AppError } from '../utils/AppError.js';
 
 // ── Helpers privados ───────────────────────────────────────────────────────────
 
@@ -21,12 +22,12 @@ const verifyDocenteOwnsMatriculas = async (id_usuario, matriculaIds) => {
     where:   { id_usuario },
     include: [{ model: Grado, as: 'grados', attributes: ['id_grado'] }],
   });
-  if (!docente) throw { status: 403, message: 'Perfil de docente no encontrado.' };
+  if (!docente) throw new AppError(403, 'Perfil de docente no encontrado.');
 
   const gradoIds   = new Set(docente.grados.map((g) => g.id_grado));
   const matriculas = await Matricula.findAll({ where: { id_matricula: { [Op.in]: matriculaIds } } });
   const forbidden  = matriculas.find((m) => !gradoIds.has(m.id_grado));
-  if (forbidden) throw { status: 403, message: 'No tienes permiso para registrar notas en ese grado.' };
+  if (forbidden) throw new AppError(403, 'No tienes permiso para registrar notas en ese grado.');
 };
 
 const parseFallas = (val) => {

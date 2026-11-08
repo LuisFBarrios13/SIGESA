@@ -1,6 +1,7 @@
 // src/portal-acudiente/acudiente.portal.service.js
 import { Acudiente, Estudiante, Matricula, Grado, RelacionEA, CuentaCobro, ConceptoPago, MetodoPago, Pago, Tarifa } from '../models/index.js';
 import { Op } from 'sequelize';
+import { AppError } from '../utils/AppError.js';
 
 /**
  * Devuelve el perfil del acudiente + sus estudiantes vinculados con matrículas.
@@ -11,7 +12,7 @@ export const getMisEstudiantes = async (id_usuario) => {
     where: { id_usuario },
   });
 
-  if (!acudiente) throw { status: 404, message: 'No se encontró un perfil de acudiente para este usuario.' };
+  if (!acudiente) throw new AppError(404, 'No se encontró un perfil de acudiente para este usuario.');
 
   // Estudiantes vinculados a través de RelacionEA
   const relaciones = await RelacionEA.findAll({
@@ -56,7 +57,7 @@ export const getMisEstudiantes = async (id_usuario) => {
  */
 export const getResumenPagos = async (id_usuario, id_matricula) => {
   const acudiente = await Acudiente.findOne({ where: { id_usuario } });
-  if (!acudiente) throw { status: 404, message: 'Perfil de acudiente no encontrado.' };
+  if (!acudiente) throw new AppError(404, 'Perfil de acudiente no encontrado.');
 
   // Verificar que la matrícula pertenece a un estudiante del acudiente
   const matricula = await Matricula.findByPk(id_matricula, {
@@ -66,7 +67,7 @@ export const getResumenPagos = async (id_usuario, id_matricula) => {
     ],
   });
 
-  if (!matricula) throw { status: 404, message: 'Matrícula no encontrada.' };
+  if (!matricula) throw new AppError(404, 'Matrícula no encontrada.');
 
   // Comprobar vínculo
   const relacion = await RelacionEA.findOne({
@@ -75,7 +76,7 @@ export const getResumenPagos = async (id_usuario, id_matricula) => {
       id_estudiante: matricula.id_estudiante,
     },
   });
-  if (!relacion) throw { status: 403, message: 'No tienes acceso a esta matrícula.' };
+  if (!relacion) throw new AppError(403, 'No tienes acceso a esta matrícula.');
 
   // Cuentas de cobro con pagos
   const cuentas = await CuentaCobro.findAll({

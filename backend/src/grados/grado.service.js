@@ -2,6 +2,7 @@
 import { sequelize } from '../config/database.js';
 import { Grado, Docente } from '../models/index.js';
 import { Op } from 'sequelize';
+import { AppError } from '../utils/AppError.js';
 
 /**
  * Conflict detection: can a docente be assigned to a grado?
@@ -154,7 +155,7 @@ export const listarDocentesConDisponibilidad = async () => {
 export const asignarDocenteAGrado = async (id_grado, cedula_docente) => {
   return sequelize.transaction(async (t) => {
     const grado = await Grado.findByPk(id_grado, { transaction: t });
-    if (!grado) throw { status: 404, message: 'Grado no encontrado' };
+    if (!grado) throw new AppError(404, 'Grado no encontrado');
 
     // Allow removing the docente (set to null)
     if (cedula_docente === null) {
@@ -168,7 +169,7 @@ export const asignarDocenteAGrado = async (id_grado, cedula_docente) => {
     // Conflict check (exclude current grado so an idempotent re-assign works)
     const check = await checkDocenteGradoConflict(cedula_docente, id_grado, id_grado);
     if (check.conflict) {
-      throw { status: 409, message: check.reason };
+      throw new AppError(409, check.reason);
     }
 
     await grado.update({ id_docente: cedula_docente }, { transaction: t });
@@ -184,14 +185,14 @@ export const asignarDocenteAGrado = async (id_grado, cedula_docente) => {
  * Creates a new grado.
  */
 export const crearGrado = async ({ nombre, jornada }) => {
-  if (!nombre?.trim()) throw { status: 400, message: 'El nombre del grado es requerido' };
+  if (!nombre?.trim()) throw new AppError(400, 'El nombre del grado es requerido');
   if (!['MAÑANA', 'TARDE'].includes(jornada)) {
-    throw { status: 400, message: 'La jornada debe ser MAÑANA o TARDE' };
+    throw new AppError(400, 'La jornada debe ser MAÑANA o TARDE');
   }
 
   const existe = await Grado.findOne({ where: { nombre: nombre.trim(), jornada } });
   if (existe) {
-    throw { status: 409, message: `Ya existe el grado "${nombre.trim()}" en jornada ${jornada}` };
+    throw new AppError(409, `Ya existe el grado "${nombre.trim()}" en jornada ${jornada}`);
   }
 
   return Grado.create({ nombre: nombre.trim(), jornada, id_docente: null });

@@ -12,6 +12,7 @@ import {
   Grado,
 } from '../models/index.js';
 import { ROLES } from '../constants/roles.js';
+import { AppError } from '../utils/AppError.js';
 
 const SALT_ROUNDS = 10;
 
@@ -26,10 +27,7 @@ export const crearMatriculaConAcudiente = async (dto) => {
     );
 
     if (estudianteExistente) {
-      throw {
-        status: 409,
-        message: `Ya existe un estudiante registrado con el número de identidad ${estudiante.numero_identidad} (${estudianteExistente.nombre}). Si deseas re-matricularlo búscalo en la sección Estudiantes.`,
-      };
+      throw new AppError(409, `Ya existe un estudiante registrado con el número de identidad ${estudiante.numero_identidad} (${estudianteExistente.nombre}). Si deseas re-matricularlo búscalo en la sección Estudiantes.`);
     }
 
     // ── 2. Crear el estudiante ────────────────────────────────────────────────
@@ -56,10 +54,7 @@ export const crearMatriculaConAcudiente = async (dto) => {
     });
 
     if (matriculaExistente) {
-      throw {
-        status: 409,
-        message: `El estudiante ya está matriculado en este grado para el año ${matricula.year}`,
-      };
+      throw new AppError(409, `El estudiante ya está matriculado en este grado para el año ${matricula.year}`);
     }
 
     // ── 4. Crear la matrícula ─────────────────────────────────────────────────
@@ -89,10 +84,7 @@ export const crearMatriculaConAcudiente = async (dto) => {
       });
 
       if (usuarioExistente) {
-        throw {
-          status: 409,
-          message: `Ya existe un usuario con el username ${estudiante.numero_identidad}. Es posible que este estudiante ya esté registrado en el sistema.`,
-        };
+        throw new AppError(409, `Ya existe un usuario con el username ${estudiante.numero_identidad}. Es posible que este estudiante ya esté registrado en el sistema.`);
       }
 
       const passwordHash = await bcrypt.hash(estudiante.numero_identidad, SALT_ROUNDS);

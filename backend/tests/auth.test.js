@@ -78,3 +78,12 @@ test('cada rol solo entra a sus rutas', async () => {
   assert.equal((await s.api('GET', '/pagos/metodos',  { token: acudiente })).status, 403);
   assert.equal((await s.api('GET', '/docente/perfil', { token: acudiente })).status, 403);
 });
+
+test('errores: JSON mal formado → 400 y ruta inexistente → 404', async () => {
+  const res = await fetch(s.url + '/auth/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{ esto no es json',
+  });
+  assert.equal(res.status, 400);
+  assert.equal((await res.json()).success, false);
+  assert.equal((await s.api('GET', '/no-existe')).status, 404);
+});

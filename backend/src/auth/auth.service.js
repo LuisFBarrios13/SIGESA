@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { Usuario, Rol, Docente, Acudiente } from '../models/index.js';
 import { generateToken } from '../utils/jwt.js';
+import { AppError } from '../utils/AppError.js';
 
 export const loginService = async (username, password) => {
   const usuario = await Usuario.findOne({
@@ -26,10 +27,10 @@ export const loginService = async (username, password) => {
     ],
   });
 
-  if (!usuario) throw { status: 401, message: 'Credenciales inválidas' };
+  if (!usuario) throw new AppError(401, 'Credenciales inválidas');
 
   const isValid = await bcrypt.compare(password, usuario.password);
-  if (!isValid) throw { status: 401, message: 'Credenciales inválidas' };
+  if (!isValid) throw new AppError(401, 'Credenciales inválidas');
 
   const roles = usuario.roles.map((r) => r.nombre);
 
@@ -58,7 +59,7 @@ export const loginService = async (username, password) => {
 
 export const changePasswordService = async (userId, newPassword) => {
   const usuario = await Usuario.findByPk(userId);
-  if (!usuario) throw { status: 404, message: 'Usuario no encontrado' };
+  if (!usuario) throw new AppError(404, 'Usuario no encontrado');
 
   const hashed = await bcrypt.hash(newPassword, 10);
   await usuario.update({ password: hashed, primer_login: false });

@@ -14,6 +14,7 @@ import {
   Tarifa,
 } from '../models/index.js';
 import { Op } from 'sequelize';
+import { AppError } from '../utils/AppError.js';
 
 // ── Constants ──────────────────────────────────────────────────
 
@@ -153,7 +154,7 @@ export const obtenerResumenPagos = async (id_matricula) => {
       { model: Grado, as: 'grado' },
     ],
   });
-  if (!matricula) throw { status: 404, message: 'Matrícula no encontrada' };
+  if (!matricula) throw new AppError(404, 'Matrícula no encontrada');
 
   const cuentas = await listarCuentasPorMatricula(id_matricula);
 
@@ -187,14 +188,11 @@ export const obtenerResumenPagos = async (id_matricula) => {
  */
 export const generarCuentasPension = async (id_matricula, year) => {
   const matricula = await Matricula.findByPk(id_matricula);
-  if (!matricula) throw { status: 404, message: 'Matrícula no encontrada' };
+  if (!matricula) throw new AppError(404, 'Matrícula no encontrada');
 
   const tarifa = await getTarifa(year);
   if (!tarifa) {
-    throw {
-      status: 400,
-      message: `No hay tarifa configurada para el año ${year}. Configura el valor de pensión y matrícula antes de generar cuentas.`,
-    };
+    throw new AppError(400, `No hay tarifa configurada para el año ${year}. Configura el valor de pensión y matrícula antes de generar cuentas.`);
   }
 
   const conceptos = await ensureConceptos();
@@ -226,14 +224,11 @@ export const generarCuentasPension = async (id_matricula, year) => {
  */
 export const crearCuentaMatricula = async (id_matricula, year) => {
   const matricula = await Matricula.findByPk(id_matricula);
-  if (!matricula) throw { status: 404, message: 'Matrícula no encontrada' };
+  if (!matricula) throw new AppError(404, 'Matrícula no encontrada');
 
   const tarifa = await getTarifa(year);
   if (!tarifa) {
-    throw {
-      status: 400,
-      message: `No hay tarifa configurada para el año ${year}. Configura el valor de pensión y matrícula antes de generar cuentas.`,
-    };
+    throw new AppError(400, `No hay tarifa configurada para el año ${year}. Configura el valor de pensión y matrícula antes de generar cuentas.`);
   }
 
   const conceptos = await ensureConceptos();
@@ -247,7 +242,7 @@ export const crearCuentaMatricula = async (id_matricula, year) => {
     },
   });
   if (existente) {
-    throw { status: 409, message: `Ya existe una cuenta de matrícula para el año ${year}` };
+    throw new AppError(409, `Ya existe una cuenta de matrícula para el año ${year}`);
   }
 
   return CuentaCobro.create({
@@ -273,11 +268,11 @@ export const registrarPago = async (dto) => {
       lock: t.LOCK.UPDATE,
       of: CuentaCobro,
     });
-    if (!cuenta) throw { status: 404, message: 'Cuenta de cobro no encontrada' };
+    if (!cuenta) throw new AppError(404, 'Cuenta de cobro no encontrada');
 
     const pagos = await Pago.findAll({ where: { id_cuenta_cobro: id_cuenta }, transaction: t });
     const metodo = await MetodoPago.findByPk(id_metodo_pago, { transaction: t });
-    if (!metodo) throw { status: 404, message: 'Método de pago no válido' };
+    if (!metodo) throw new AppError(404, 'Método de pago no válido');
 
     const totalYaPagado = pagos.reduce(
       (s, p) => s + parseFloat(p.monto_pago), 0,
@@ -285,13 +280,10 @@ export const registrarPago = async (dto) => {
     const saldo = parseFloat(cuenta.valor_deuda) - totalYaPagado;
 
     if (parseFloat(monto_pago) <= 0) {
-      throw { status: 400, message: 'El monto debe ser mayor a 0' };
+      throw new AppError(400, 'El monto debe ser mayor a 0');
     }
     if (parseFloat(monto_pago) > saldo + 0.01) {
-      throw {
-        status: 400,
-        message: `El monto ($${monto_pago}) supera el saldo pendiente ($${saldo.toFixed(2)})`,
-      };
+      throw new AppError(400, `El monto ($${monto_pago}) supera el saldo pendiente ($${saldo.toFixed(2)})`);
     }
 
     const pago = await Pago.create(

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { sequelize } from '../config/database.js';
 import { Docente, Usuario, UsuarioRol, Rol, Grado } from '../models/index.js';
 import { ROLES } from '../constants/roles.js';
+import { AppError } from '../utils/AppError.js';
 
 const SALT_ROUNDS = 10;
 
@@ -12,10 +13,7 @@ const resolverGradosAfectados = async (nombreGrado, jornadaDocente, t) => {
   if (jornadaDocente === 'COMPLETA') {
     const filas = await Grado.findAll({ where: { nombre: nombreGrado }, transaction: t });
     if (filas.length < 2) {
-      throw {
-        status: 404,
-        message: `No se encontraron las dos jornadas del grado "${nombreGrado}". Ejecuta el seed de grados primero.`,
-      };
+      throw new AppError(404, `No se encontraron las dos jornadas del grado "${nombreGrado}". Ejecuta el seed de grados primero.`);
     }
     return filas;
   }
@@ -25,10 +23,7 @@ const resolverGradosAfectados = async (nombreGrado, jornadaDocente, t) => {
     transaction: t,
   });
   if (!fila) {
-    throw {
-      status: 404,
-      message: `No existe el grado "${nombreGrado}" en jornada ${jornadaDocente}.`,
-    };
+    throw new AppError(404, `No existe el grado "${nombreGrado}" en jornada ${jornadaDocente}.`);
   }
   return [fila];
 };
@@ -37,10 +32,7 @@ const verificarDisponibilidad = async (gradosAfectados, nombreGrado, jornadaDoce
   for (const grado of gradosAfectados) {
     if (grado.id_docente) {
       const ocupante = await Docente.findByPk(grado.id_docente, { transaction: t });
-      throw {
-        status: 409,
-        message: `El grado "${nombreGrado}" en jornada ${grado.jornada} ya está asignado a ${ocupante?.nombre ?? 'otro docente'}.`,
-      };
+      throw new AppError(409, `El grado "${nombreGrado}" en jornada ${grado.jornada} ya está asignado a ${ocupante?.nombre ?? 'otro docente'}.`);
     }
   }
 
@@ -53,10 +45,7 @@ const verificarDisponibilidad = async (gradosAfectados, nombreGrado, jornadaDoce
     if (filaOpuesta?.id_docente) {
       const docenteOpuesto = await Docente.findByPk(filaOpuesta.id_docente, { transaction: t });
       if (docenteOpuesto?.jornada === 'COMPLETA') {
-        throw {
-          status: 409,
-          message: `El grado "${nombreGrado}" está cubierto en jornada completa por ${docenteOpuesto.nombre}. No se puede asignar otro docente.`,
-        };
+        throw new AppError(409, `El grado "${nombreGrado}" está cubierto en jornada completa por ${docenteOpuesto.nombre}. No se puede asignar otro docente.`);
       }
     }
   }
@@ -68,7 +57,7 @@ export const registrarDocente = async (dto) => {
   return sequelize.transaction(async (t) => {
     const existente = await Docente.findByPk(cedula, { transaction: t });
     if (existente) {
-      throw { status: 409, message: `Ya existe un docente con cédula ${cedula}.` };
+      throw new AppError(409, `Ya existe un docente con cédula ${cedula}.`);
     }
 
     const gradosAfectados = await resolverGradosAfectados(nombreGrado, jornada, t);
@@ -143,7 +132,7 @@ export const actualizarDocente = async (cedula, dto) => {
     include: [{ model: Grado, as: 'grados', attributes: ['id_grado', 'nombre', 'jornada'] }],
   });
 
-  if (!docente) throw { status: 404, message: 'Docente no encontrado' };
+  if (!docente) throw new AppError(404, 'Docente no encontrado');
 
   const actualizaciones = {};
   for (const campo of CAMPOS_PERMITIDOS) {
@@ -156,7 +145,7 @@ export const actualizarDocente = async (cedula, dto) => {
   }
 
   if (!actualizaciones.nombre?.length) {
-    throw { status: 400, message: 'El nombre del docente no puede estar vacío' };
+    throw new AppError(400, 'El nombre del docente no puede estar vacío');
   }
 
   await docente.update(actualizaciones);

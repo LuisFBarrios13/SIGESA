@@ -4,6 +4,7 @@ import {
   Matricula, Estudiante, Grado, Docente,
   Materia, Nota, Periodo, ResumenPeriodo,
 } from '../models/index.js';
+import { AppError } from '../utils/AppError.js';
 
 // ── Nivel de desempeño ─────────────────────────────────────────────────────────
 const nivelDesempeño = (nota) => {
@@ -30,7 +31,7 @@ export const getBoletinData = async (id_matricula, numero_periodo, year) => {
     ],
   });
 
-  if (!matricula) throw { status: 404, message: 'Matrícula no encontrada.' };
+  if (!matricula) throw new AppError(404, 'Matrícula no encontrada.');
 
   // 2. Catálogo de materias ordenado por área y nombre
   const materias = await Materia.findAll({

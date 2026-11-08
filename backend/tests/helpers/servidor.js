@@ -83,5 +83,5 @@ export const iniciarServidor = async () => {
     await sequelize.close();
   };
 
-  return { api, crearUsuario, login, cerrar, modelos };
+  return { api, url, crearUsuario, login, cerrar, modelos };
 };

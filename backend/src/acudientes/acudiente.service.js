@@ -1,5 +1,6 @@
 // src/acudientes/acudiente.service.js
 import { Acudiente } from '../models/index.js';
+import { AppError } from '../utils/AppError.js';
 
 /**
  * Campos que el administrador puede modificar de un acudiente.
@@ -23,7 +24,7 @@ export const obtenerAcudiente = async (cedula) => {
   const acudiente = await Acudiente.findByPk(cedula, {
     attributes: ['cedula', 'nombre', 'telefono', 'correo', 'direccion', 'telefono_trabajo', 'direccion_trabajo'],
   });
-  if (!acudiente) throw { status: 404, message: 'Acudiente no encontrado' };
+  if (!acudiente) throw new AppError(404, 'Acudiente no encontrado');
   return acudiente;
 };
 
@@ -36,7 +37,7 @@ export const obtenerAcudiente = async (cedula) => {
  */
 export const actualizarAcudiente = async (cedula, dto) => {
   const acudiente = await Acudiente.findByPk(cedula);
-  if (!acudiente) throw { status: 404, message: 'Acudiente no encontrado' };
+  if (!acudiente) throw new AppError(404, 'Acudiente no encontrado');
 
   const actualizaciones = {};
   for (const campo of CAMPOS_PERMITIDOS) {
@@ -49,7 +50,7 @@ export const actualizarAcudiente = async (cedula, dto) => {
   }
 
   if (!actualizaciones.nombre?.length) {
-    throw { status: 400, message: 'El nombre del acudiente no puede estar vacío' };
+    throw new AppError(400, 'El nombre del acudiente no puede estar vacío');
   }
 
   await acudiente.update(actualizaciones);

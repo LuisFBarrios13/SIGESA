@@ -3,6 +3,7 @@
 
 import { Docente, Grado, Matricula, Estudiante } from '../models/index.js';
 import { Op } from 'sequelize';
+import { AppError } from '../utils/AppError.js';
 
 /**
  * Finds the Docente record for the given id_usuario.
@@ -16,7 +17,7 @@ const findDocenteByUsuario = async (id_usuario) => {
     include: [{ model: Grado, as: 'grados', attributes: ['id_grado', 'nombre', 'jornada'] }],
   });
   if (!docente) {
-    throw { status: 404, message: 'No se encontró un perfil de docente para este usuario.' };
+    throw new AppError(404, 'No se encontró un perfil de docente para este usuario.');
   }
   return docente;
 };
