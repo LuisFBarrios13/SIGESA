@@ -1,8 +1,10 @@
 // src/hooks/usePagos.ts
-// Single Responsibility: all pagos state + side-effects live here.
+// Single Responsibility: todo el estado de la página de pagos.
+// Lecturas con useQuery y escrituras con useMutation (TanStack Query);
+// aquí solo queda el estado propio de la pantalla (búsqueda, selección, modal).
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../lib/queryKeys';
 import {
   pagosApi,
@@ -63,191 +65,159 @@ interface UsePagosReturn {
   cuentasFiltradas: CuentaCobro[];
 }
 
+const SIN_METODOS: MetodoPago[] = [];
+const SIN_RESULTADOS: MatriculaResumen[] = [];
+const MIN_BUSQUEDA = 2;
+const ESPERA_BUSQUEDA_MS = 350;
+
+const mensaje = (err: unknown, porDefecto: string) =>
+  err instanceof Error ? err.message : porDefecto;
+
+/** Devuelve `valor` solo cuando deja de cambiar durante `ms` milisegundos. */
+const useDebounced = <T,>(valor: T, ms: number): T => {
+  const [estable, setEstable] = useState(valor);
+  useEffect(() => {
+    const id = setTimeout(() => setEstable(valor), ms);
+    return () => clearTimeout(id);
+  }, [valor, ms]);
+  return estable;
+};
+
 export const usePagos = (): UsePagosReturn => {
-  const [searchQuery, setSearchQuery]           = useState('');
-  const [yearFilter, setYearFilter]             = useState(new Date().getFullYear());
-  const [searchResults, setSearchResults]       = useState<MatriculaResumen[]>([]);
-  const [isSearching, setIsSearching]           = useState(false);
-
-  const [selectedMatricula, setSelectedMatricula] = useState<MatriculaResumen | null>(null);
-  const [resumen, setResumen]                   = useState<ResumenPagos | null>(null);
-  const [isLoadingResumen, setIsLoadingResumen] = useState(false);
-
-  const [metodos, setMetodos]                   = useState<MetodoPago[]>([]);
-  const [metodosError, setMetodosError]         = useState('');
-
-  const [tarifa, setTarifa]                     = useState<Tarifa | null>(null);
-  const [isTarifaLoading, setIsTarifaLoading]   = useState(false);
-
-  const [modal, setModal]                       = useState<ModalKind>(null);
-  const [opLoading, setOpLoading]               = useState(false);
-  const [opError, setOpError]                   = useState('');
-
-  const [estadoFilter, setEstadoFilter]         = useState<EstadoCuenta | 'TODOS'>('TODOS');
-
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queryClient = useQueryClient();
 
-  // ── Bootstrap ────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery]             = useState('');
+  const [yearFilter, setYearFilter]               = useState(new Date().getFullYear());
+  const [selectedMatricula, setSelectedMatricula] = useState<MatriculaResumen | null>(null);
+  const [modal, setModal]                         = useState<ModalKind>(null);
+  const [estadoFilter, setEstadoFilter]           = useState<EstadoCuenta | 'TODOS'>('TODOS');
 
-  useEffect(() => {
-    pagosApi.getMetodos()
-      .then(setMetodos)
-      .catch(() => setMetodosError('No se pudieron cargar los métodos de pago.'));
-  }, []);
+  // ── Lecturas ─────────────────────────────────────────────────
 
-  // ── Load tarifa when year changes ────────────────────────────
+  const metodosQuery = useQuery({
+    queryKey:  queryKeys.pagos.metodos,
+    queryFn:   pagosApi.getMetodos,
+    staleTime: Infinity, // catálogo fijo
+  });
 
-  useEffect(() => {
-    let cancelado = false; // si cambia el año antes de responder, se ignora esta respuesta
-    setIsTarifaLoading(true);
-    pagosApi.getTarifa(yearFilter)
-      .then((t) => { if (!cancelado) setTarifa(t); })
-      .catch(() => { if (!cancelado) setTarifa(null); })
-      .finally(() => { if (!cancelado) setIsTarifaLoading(false); });
-    return () => { cancelado = true; };
-  }, [yearFilter]);
+  const tarifaQuery = useQuery({
+    queryKey: queryKeys.pagos.tarifa(yearFilter),
+    queryFn:  () => pagosApi.getTarifa(yearFilter),
+  });
 
-  // ── Debounced search ─────────────────────────────────────────
+  // Búsqueda: se consulta cuando el usuario deja de escribir.
+  const busqueda       = searchQuery.trim();
+  const busquedaEstable = useDebounced(busqueda, ESPERA_BUSQUEDA_MS);
+  const busquedaQuery  = useQuery({
+    queryKey: queryKeys.pagos.buscar(busquedaEstable, yearFilter),
+    queryFn:  () => pagosApi.buscarMatriculas(busquedaEstable, yearFilter),
+    enabled:  busquedaEstable.length >= MIN_BUSQUEDA,
+  });
+  const busquedaActiva = busqueda.length >= MIN_BUSQUEDA;
 
-  useEffect(() => {
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (!searchQuery.trim() || searchQuery.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    let cancelado = false; // el usuario siguió escribiendo: ignorar esta búsqueda
-    searchTimer.current = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const data = await pagosApi.buscarMatriculas(searchQuery.trim(), yearFilter);
-        if (!cancelado) setSearchResults(data);
-      } catch {
-        if (!cancelado) setSearchResults([]);
-      } finally {
-        if (!cancelado) setIsSearching(false);
-      }
-    }, 350);
-    return () => {
-      cancelado = true;
-      if (searchTimer.current) clearTimeout(searchTimer.current);
-    };
-  }, [searchQuery, yearFilter]);
+  const resumenQuery = useQuery({
+    queryKey: queryKeys.pagos.resumen(selectedMatricula?.id_matricula ?? 0),
+    queryFn:  () => pagosApi.getResumen(selectedMatricula!.id_matricula),
+    enabled:  !!selectedMatricula,
+  });
 
-  // ── Load resumen when matricula selected ─────────────────────
+  // ── Escrituras ───────────────────────────────────────────────
 
-  const selectMatricula = useCallback(async (m: MatriculaResumen) => {
+  /** Tras un pago o cuentas nuevas: todo lo que muestra deudas queda viejo. */
+  const invalidarDeudas = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.pagos.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.deudores.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.acudiente.all }),
+  ]);
+
+  const pagoMutation = useMutation({
+    mutationFn: pagosApi.registrarPago,
+    onSuccess:  async () => { await invalidarDeudas(); setModal(null); },
+  });
+
+  const pensionMutation = useMutation({
+    mutationFn: ({ id, year }: { id: number; year: number }) => pagosApi.generarPension(id, year),
+    onSuccess:  invalidarDeudas,
+  });
+
+  const cuentaMatriculaMutation = useMutation({
+    mutationFn: ({ id, year }: { id: number; year: number }) => pagosApi.crearCuentaMatricula(id, year),
+    onSuccess:  invalidarDeudas,
+  });
+
+  const tarifaMutation = useMutation({
+    mutationFn: ({ year, pension, matricula }: { year: number; pension: number; matricula: number }) =>
+      pagosApi.upsertTarifa(year, pension, matricula),
+    onSuccess: (guardada, { year }) => {
+      queryClient.setQueryData(queryKeys.pagos.tarifa(year), guardada);
+      setModal(null);
+    },
+  });
+
+  const mutaciones = [pagoMutation, pensionMutation, cuentaMatriculaMutation, tarifaMutation];
+  const limpiarErrores = () => mutaciones.forEach((m) => m.reset());
+
+  const errores: [unknown, string][] = [
+    [pagoMutation.error,            'Error al registrar el pago'],
+    [pensionMutation.error,         'Error al generar pensiones'],
+    [cuentaMatriculaMutation.error, 'Error al crear cuenta de matrícula'],
+    [tarifaMutation.error,          'Error al guardar la tarifa'],
+  ];
+  const opError = errores.filter(([e]) => e).map(([e, def]) => mensaje(e, def))[0] ?? '';
+
+  /** mutateAsync sin propagar el error: ya queda visible en opError. */
+  const ejecutar = async (fn: () => Promise<unknown>) => {
+    limpiarErrores();
+    try { await fn(); } catch { /* se muestra vía opError */ }
+  };
+
+  // ── Selección y modales ──────────────────────────────────────
+
+  const selectMatricula = (m: MatriculaResumen) => {
     setSelectedMatricula(m);
     setSearchQuery('');
-    setSearchResults([]);
-    setIsLoadingResumen(true);
     setEstadoFilter('TODOS');
-    try {
-      const data = await pagosApi.getResumen(m.id_matricula);
-      setResumen(data);
-    } catch {
-      setResumen(null);
-    } finally {
-      setIsLoadingResumen(false);
-    }
-  }, []);
+  };
 
-  const clearSelection = useCallback(() => {
+  const clearSelection = () => {
     setSelectedMatricula(null);
-    setResumen(null);
     setModal(null);
-    setOpError('');
-  }, []);
+    limpiarErrores();
+  };
 
-  const refreshResumen = useCallback(async () => {
-    if (!selectedMatricula) return;
-    // Hubo un pago o se generaron cuentas: deudores y dashboard en caché
-    // quedaron desactualizados. Se marcan para que se recarguen al verlos.
-    void queryClient.invalidateQueries({ queryKey: queryKeys.deudores.all });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-    const data = await pagosApi.getResumen(selectedMatricula.id_matricula);
-    setResumen(data);
-  }, [selectedMatricula, queryClient]);
+  const tarifa = tarifaQuery.data ?? null;
 
-  // ── Modals ───────────────────────────────────────────────────
+  const openPagoModal   = (cuenta: CuentaCobro) => { limpiarErrores(); setModal({ type: 'pago', cuenta }); };
+  const openTarifaModal = () => { limpiarErrores(); setModal({ type: 'tarifa', year: yearFilter, tarifa }); };
+  const closeModal      = () => { setModal(null); limpiarErrores(); };
 
-  const openPagoModal    = useCallback((cuenta: CuentaCobro) => {
-    setOpError('');
-    setModal({ type: 'pago', cuenta });
-  }, []);
+  // ── Operaciones ──────────────────────────────────────────────
 
-  const openTarifaModal  = useCallback(() => {
-    setOpError('');
-    setModal({ type: 'tarifa', year: yearFilter, tarifa });
-  }, [yearFilter, tarifa]);
+  const registrarPago = (monto: number, id_metodo: number, fecha?: string, obs?: string) => {
+    if (modal?.type !== 'pago') return Promise.resolve();
+    const { id_cuenta } = modal.cuenta;
+    return ejecutar(() => pagoMutation.mutateAsync({
+      id_cuenta, monto_pago: monto, id_metodo_pago: id_metodo, fecha_pago: fecha, observaciones: obs,
+    }));
+  };
 
-  const closeModal       = useCallback(() => { setModal(null); setOpError(''); }, []);
+  const generarPension = () => {
+    if (!selectedMatricula) return Promise.resolve();
+    return ejecutar(() => pensionMutation.mutateAsync({ id: selectedMatricula.id_matricula, year: yearFilter }));
+  };
 
-  // ── Operations ───────────────────────────────────────────────
+  const crearMatricula = () => {
+    if (!selectedMatricula) return Promise.resolve();
+    return ejecutar(() => cuentaMatriculaMutation.mutateAsync({ id: selectedMatricula.id_matricula, year: yearFilter }));
+  };
 
-  const registrarPago = useCallback(async (
-    monto: number, id_metodo: number, fecha?: string, obs?: string,
-  ) => {
-    if (modal?.type !== 'pago') return;
-    setOpLoading(true); setOpError('');
-    try {
-      await pagosApi.registrarPago({
-        id_cuenta: modal.cuenta.id_cuenta,
-        monto_pago: monto,
-        id_metodo_pago: id_metodo,
-        fecha_pago: fecha,
-        observaciones: obs,
-      });
-      await refreshResumen();
-      closeModal();
-    } catch (e) {
-      setOpError(e instanceof Error ? e.message : 'Error al registrar el pago');
-    } finally {
-      setOpLoading(false);
-    }
-  }, [modal, refreshResumen, closeModal]);
+  const saveTarifa = (valor_pension: number, valor_matricula: number) =>
+    ejecutar(() => tarifaMutation.mutateAsync({ year: yearFilter, pension: valor_pension, matricula: valor_matricula }));
 
-  const generarPension = useCallback(async () => {
-    if (!selectedMatricula) return;
-    setOpLoading(true); setOpError('');
-    try {
-      await pagosApi.generarPension(selectedMatricula.id_matricula, yearFilter);
-      await refreshResumen();
-    } catch (e) {
-      setOpError(e instanceof Error ? e.message : 'Error al generar pensiones');
-    } finally {
-      setOpLoading(false);
-    }
-  }, [selectedMatricula, yearFilter, refreshResumen]);
+  // ── Derivados ────────────────────────────────────────────────
 
-  const crearMatricula = useCallback(async () => {
-    if (!selectedMatricula) return;
-    setOpLoading(true); setOpError('');
-    try {
-      await pagosApi.crearCuentaMatricula(selectedMatricula.id_matricula, yearFilter);
-      await refreshResumen();
-    } catch (e) {
-      setOpError(e instanceof Error ? e.message : 'Error al crear cuenta de matrícula');
-    } finally {
-      setOpLoading(false);
-    }
-  }, [selectedMatricula, yearFilter, refreshResumen]);
-
-  const saveTarifa = useCallback(async (valor_pension: number, valor_matricula: number) => {
-    setOpLoading(true); setOpError('');
-    try {
-      const saved = await pagosApi.upsertTarifa(yearFilter, valor_pension, valor_matricula);
-      setTarifa(saved);
-      closeModal();
-    } catch (e) {
-      setOpError(e instanceof Error ? e.message : 'Error al guardar la tarifa');
-    } finally {
-      setOpLoading(false);
-    }
-  }, [yearFilter, closeModal]);
-
-  // ── Derived: filtered cuentas ────────────────────────────────
-
+  const resumen = selectedMatricula ? (resumenQuery.data ?? null) : null;
   const cuentasFiltradas = (resumen?.cuentas ?? []).filter((c) =>
     estadoFilter === 'TODOS' || c.estado === estadoFilter,
   );
@@ -255,13 +225,20 @@ export const usePagos = (): UsePagosReturn => {
   return {
     searchQuery, setSearchQuery,
     yearFilter, setYearFilter,
-    searchResults, isSearching,
-    selectedMatricula, resumen, isLoadingResumen,
+    searchResults: busquedaActiva ? (busquedaQuery.data ?? SIN_RESULTADOS) : SIN_RESULTADOS,
+    // También "buscando" mientras se espera a que el usuario deje de escribir.
+    isSearching:   busquedaActiva && (busqueda !== busquedaEstable || busquedaQuery.isFetching),
+    selectedMatricula, resumen,
+    isLoadingResumen: resumenQuery.isLoading,
     selectMatricula, clearSelection,
-    metodos, metodosError,
-    tarifa, isTarifaLoading, openTarifaModal,
+    metodos:      metodosQuery.data ?? SIN_METODOS,
+    metodosError: metodosQuery.error ? 'No se pudieron cargar los métodos de pago.' : '',
+    tarifa,
+    isTarifaLoading: tarifaQuery.isLoading,
+    openTarifaModal,
     modal, openPagoModal, closeModal,
-    opLoading, opError,
+    opLoading: mutaciones.some((m) => m.isPending),
+    opError,
     registrarPago, generarPension, crearMatricula, saveTarifa,
     estadoFilter, setEstadoFilter, cuentasFiltradas,
   };

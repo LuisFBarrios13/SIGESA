@@ -1,14 +1,22 @@
 // src/hooks/useNotasDocente.ts
+// Registro de notas del docente.
+// - Perfil, estudiantes y notas se leen con useQuery (perfil y estudiantes
+//   comparten caché con Mi Grado).
+// - Lo que el docente va editando es un "borrador" local ligado a
+//   estudiante + periodo + año; si cambia cualquiera de los tres, se muestran
+//   los datos del servidor de esa combinación.
+// - Guardar es un useMutation que, al terminar, actualiza la caché de notas.
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   docenteApi,
   type DocentePerfil,
   type MatriculaDocente,
   type NotaEstudianteItem,
+  type NotasEstudianteResponse,
+  type GuardarNotaEstudiantePayload,
 } from '../services/docenteApi';
-import { useLatestRequest } from './useLatestRequest';
-import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../lib/queryKeys';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -24,6 +32,15 @@ export interface MateriaEdit extends Omit<NotaEstudianteItem, 'nota'> {
   dirty:                 boolean;
   error:                 string;
 }
+
+/** Lo que el docente puede editar de un estudiante en un periodo. */
+interface Formulario {
+  materias:      MateriaEdit[];
+  puesto:        number | null;
+  observaciones: string;
+}
+
+type ClaveNotas = ReturnType<typeof queryKeys.notas.porEstudiante>;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -51,6 +68,30 @@ const buildMaterias = (items: NotaEstudianteItem[]): MateriaEdit[] =>
       error:            '',
     };
   });
+
+const desdeServidor = (r: NotasEstudianteResponse): Formulario => ({
+  materias:      buildMaterias(r.materias),
+  puesto:        r.puesto,
+  observaciones: r.observaciones ?? '',
+});
+
+/** Formulario guardado → forma de la respuesta del servidor (para la caché). */
+const aRespuesta = (f: Formulario): NotasEstudianteResponse => ({
+  puesto:        f.puesto,
+  observaciones: f.observaciones,
+  materias: f.materias.map((m) => ({
+    id_materia:         m.id_materia,
+    nombre:             m.nombre,
+    area:               m.area,
+    intensidad_horaria: m.intensidad_horaria,
+    nota:               m.nota === '' ? null : m.nota,
+    fallas:             m.fallas,
+    observacion:        m.observacion ?? null,
+  })),
+});
+
+const FORMULARIO_VACIO: Formulario = { materias: [], puesto: null, observaciones: '' };
+const SIN_ESTUDIANTES: MatriculaDocente[] = [];
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
@@ -99,235 +140,155 @@ interface UseNotasDocenteReturn {
 
 export const useNotasDocente = (): UseNotasDocenteReturn => {
   const queryClient = useQueryClient();
-  const [perfil,         setPerfil]         = useState<DocentePerfil | null>(null);
-  const [isSetupLoading, setIsSetupLoading] = useState(true);
-  const [setupError,     setSetupError]     = useState('');
 
-  const [periodo, setPeriodo] = useState(1);
-  const [year,    setYear]    = useState(new Date().getFullYear());
+  const [periodo,     setPeriodoState] = useState(1);
+  const [year,        setYearState]    = useState(new Date().getFullYear());
+  const [search,      setSearch]       = useState('');
+  const [gradoFilter, setGradoFilter]  = useState<number | 'TODOS'>('TODOS');
+  const [selected,    setSelected]     = useState<MatriculaDocente | null>(null);
+  const [errorValidacion, setErrorValidacion] = useState('');
 
-  const [estudiantes,       setEstudiantes]       = useState<MatriculaDocente[]>([]);
-  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
-  const [search,            setSearch]            = useState('');
-  const [gradoFilter,       setGradoFilter]       = useState<number | 'TODOS'>('TODOS');
+  // ── Lecturas ────────────────────────────────────────────────────────────────
+  const perfilQuery = useQuery({
+    queryKey: queryKeys.miGrado.perfil,
+    queryFn:  docenteApi.getPerfil,
+  });
 
-  const [selected,       setSelected]       = useState<MatriculaDocente | null>(null);
-  const [materias,       setMaterias]       = useState<MateriaEdit[]>([]);
-  const [isLoadingNotas, setIsLoadingNotas] = useState(false);
-  const [notasError,     setNotasError]     = useState('');
+  const estudiantesQuery = useQuery({
+    queryKey: queryKeys.miGrado.estudiantes(year),
+    queryFn:  () => docenteApi.getEstudiantes(year),
+    enabled:  !!perfilQuery.data,
+  });
 
-  const [puesto,      setPuesto]      = useState<number | null>(null);
-  const [savedPuesto, setSavedPuesto] = useState<number | null>(null);
+  const claveNotas = queryKeys.notas.porEstudiante(selected?.id_matricula ?? 0, periodo, year);
+  const notasQuery = useQuery({
+    queryKey:  claveNotas,
+    queryFn:   () => docenteApi.getNotasEstudiante(selected!.id_matricula, periodo, year),
+    enabled:   !!selected,
+    // Mientras se edita no conviene que una recarga cambie los "valores guardados".
+    staleTime: Infinity,
+  });
 
-  const [observaciones,      setObservaciones]      = useState('');
-  const [savedObservaciones, setSavedObservaciones] = useState('');
+  // ── Borrador ────────────────────────────────────────────────────────────────
+  const clave = claveNotas.join('|');
+  const [borrador, setBorrador] = useState<(Formulario & { clave: string }) | null>(null);
 
-  const [isSaving,    setIsSaving]    = useState(false);
-  const [saveError,   setSaveError]   = useState('');
-  const [saveSuccess, setSaveSuccess] = useState(false);
-
-  // ── Bootstrap ────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    setIsSetupLoading(true);
-    docenteApi.getPerfil()
-      .then(setPerfil)
-      .catch(() => setSetupError('No se pudo cargar el perfil del docente.'))
-      .finally(() => setIsSetupLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (!perfil) return;
-    setIsLoadingStudents(true);
-    setSelected(null);
-    setMaterias([]);
-    setPuesto(null);
-    setSavedPuesto(null);
-    let cancelado = false; // si cambia el año antes de responder, se ignora
-    docenteApi.getEstudiantes(year)
-      .then((e) => { if (!cancelado) setEstudiantes(e); })
-      .catch(() => {})
-      .finally(() => { if (!cancelado) setIsLoadingStudents(false); });
-    return () => { cancelado = true; };
-  }, [perfil, year]);
-
-  // ── Load notas ────────────────────────────────────────────────────────────
-  // Si el docente cambia de estudiante/periodo antes de que responda la API,
-  // la respuesta anterior se descarta (evita ver notas de otro estudiante).
-  const startNotasRequest = useLatestRequest();
-
-  const loadNotas = useCallback(
-    async (matricula: MatriculaDocente, per: number, yr: number) => {
-      const isLatest = startNotasRequest();
-      setIsLoadingNotas(true);
-      setNotasError('');
-      setSaveSuccess(false);
-      try {
-        const result = await docenteApi.getNotasEstudiante(matricula.id_matricula, per, yr);
-        if (!isLatest()) return;
-        setMaterias(buildMaterias(result.materias));
-        setPuesto(result.puesto);
-        setSavedPuesto(result.puesto);
-        setObservaciones(result.observaciones ?? '');
-        setSavedObservaciones(result.observaciones ?? '');
-      } catch {
-        if (!isLatest()) return;
-        setNotasError('No se pudieron cargar las notas. Verifica tu conexión.');
-        setMaterias([]);
-        setPuesto(null);
-        setSavedPuesto(null);
-      } finally {
-        if (isLatest()) setIsLoadingNotas(false);
-      }
-    },
-    [startNotasRequest],
+  const servidor = useMemo(
+    () => (selected && notasQuery.data ? desdeServidor(notasQuery.data) : FORMULARIO_VACIO),
+    [selected, notasQuery.data],
   );
+  const formulario: Formulario = borrador?.clave === clave ? borrador : servidor;
 
-  // Recargar notas al cambiar de periodo
-  useEffect(() => {
-    if (!selected) return;
-    loadNotas(selected, periodo, year);
-    setSaveSuccess(false);
-    setSaveError('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodo]);
-
-  const selectStudent = useCallback(
-    async (m: MatriculaDocente) => {
-      setSelected(m);
-      setSearch('');
-      setSaveError('');
-      setSaveSuccess(false);
-      await loadNotas(m, periodo, year);
+  // ── Guardar ─────────────────────────────────────────────────────────────────
+  const guardarMutation = useMutation({
+    mutationFn: ({ payload }: { payload: GuardarNotaEstudiantePayload; queryKey: ClaveNotas; guardado: Formulario }) =>
+      docenteApi.guardarNotasEstudiante(payload),
+    onSuccess: (_res, { payload, queryKey, guardado }) => {
+      // Lo guardado pasa a ser el dato del servidor y el borrador se descarta.
+      queryClient.setQueryData(queryKey, aRespuesta(guardado));
+      setBorrador((b) => (b?.clave === queryKey.join('|') ? null : b));
+      // El boletín de este estudiante en caché quedó desactualizado.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.boletin.byMatricula(payload.id_matricula) });
     },
-    [loadNotas, periodo, year],
-  );
+  });
 
-  const clearSelected = useCallback(() => {
+  /** Aplica un cambio sobre el formulario actual (crea el borrador si no existe). */
+  const editar = (cambio: (f: Formulario) => Formulario) => {
+    setBorrador((prev) => ({ ...cambio(prev?.clave === clave ? prev : servidor), clave }));
+    guardarMutation.reset(); // quita el "guardado" anterior
+  };
+
+  const editarMateria = (id_materia: number, cambio: (m: MateriaEdit) => MateriaEdit) =>
+    editar((f) => ({
+      ...f,
+      materias: f.materias.map((m) => {
+        if (m.id_materia !== id_materia) return m;
+        const updated = cambio(m);
+        return { ...updated, dirty: isDirty(updated) };
+      }),
+    }));
+
+  // ── Navegación ──────────────────────────────────────────────────────────────
+  const limpiarMensajes = () => { guardarMutation.reset(); setErrorValidacion(''); };
+
+  const setPeriodo = (p: number) => { setPeriodoState(p); limpiarMensajes(); };
+
+  const clearSelected = () => {
     setSelected(null);
-    setMaterias([]);
-    setPuesto(null);
-    setSavedPuesto(null);
-    setObservaciones('');
-    setSavedObservaciones('');
-    setSaveError('');
-    setSaveSuccess(false);
-  }, []);
+    setBorrador(null);
+    limpiarMensajes();
+  };
 
-  // ── Edit handlers ─────────────────────────────────────────────────────────
+  // Cambiar de año cambia la lista de estudiantes: se suelta la selección.
+  const setYear = (y: number) => { setYearState(y); clearSelected(); };
 
-  const updateNota = useCallback((id_materia: number, val: number | '') => {
-    setMaterias((prev) =>
-      prev.map((m) => {
-        if (m.id_materia !== id_materia) return m;
-        const isValid = val === '' || (typeof val === 'number' && val >= 0 && val <= 10);
-        const updated = { ...m, nota: val, error: isValid ? '' : 'Debe ser entre 0 y 10' };
-        return { ...updated, dirty: isDirty(updated) };
-      }),
-    );
-    setSaveSuccess(false);
-  }, []);
+  const selectStudent = async (m: MatriculaDocente) => {
+    setSelected(m);
+    setSearch('');
+    limpiarMensajes();
+  };
 
-  const updateFallas = useCallback((id_materia: number, val: number) => {
-    const fallas = Math.max(0, Math.floor(val) || 0);
-    setMaterias((prev) =>
-      prev.map((m) => {
-        if (m.id_materia !== id_materia) return m;
-        const updated = { ...m, fallas };
-        return { ...updated, dirty: isDirty(updated) };
-      }),
-    );
-    setSaveSuccess(false);
-  }, []);
+  // ── Edición ─────────────────────────────────────────────────────────────────
+  const updateNota = (id_materia: number, val: number | '') =>
+    editarMateria(id_materia, (m) => {
+      const isValid = val === '' || (typeof val === 'number' && val >= 0 && val <= 10);
+      return { ...m, nota: val, error: isValid ? '' : 'Debe ser entre 0 y 10' };
+    });
 
-  const updateIH = useCallback((id_materia: number, val: number) => {
-    const ih = Math.max(0, Math.floor(val) || 0);
-    setMaterias((prev) =>
-      prev.map((m) => {
-        if (m.id_materia !== id_materia) return m;
-        const updated = { ...m, intensidad_horaria: ih };
-        return { ...updated, dirty: isDirty(updated) };
-      }),
-    );
-    setSaveSuccess(false);
-  }, []);
+  const updateFallas = (id_materia: number, val: number) =>
+    editarMateria(id_materia, (m) => ({ ...m, fallas: Math.max(0, Math.floor(val) || 0) }));
 
-  const updateObs = useCallback((id_materia: number, val: string) => {
-    setMaterias((prev) =>
-      prev.map((m) => {
-        if (m.id_materia !== id_materia) return m;
-        const updated = { ...m, observacion: val };
-        return { ...updated, dirty: isDirty(updated) };
-      }),
-    );
-    setSaveSuccess(false);
-  }, []);
+  const updateIH = (id_materia: number, val: number) =>
+    editarMateria(id_materia, (m) => ({ ...m, intensidad_horaria: Math.max(0, Math.floor(val) || 0) }));
 
-  const updatePuesto = useCallback((val: number | null) => {
-    setPuesto(val);
-    setSaveSuccess(false);
-  }, []);
+  const updateObs = (id_materia: number, val: string) =>
+    editarMateria(id_materia, (m) => ({ ...m, observacion: val }));
 
-  const updateObservaciones = useCallback((val: string) => {
-    setObservaciones(val);
-    setSaveSuccess(false);
-  }, []);
+  const updatePuesto        = (val: number | null) => editar((f) => ({ ...f, puesto: val }));
+  const updateObservaciones = (val: string)        => editar((f) => ({ ...f, observaciones: val }));
 
-  // ── Save ──────────────────────────────────────────────────────────────────
-  const handleSave = useCallback(async () => {
+  // ── Guardar ─────────────────────────────────────────────────────────────────
+  const { materias, puesto, observaciones } = formulario;
+  const puestoDirty        = puesto !== servidor.puesto;
+  const observacionesDirty = observaciones !== servidor.observaciones;
+  const hasDirty           = materias.some((m) => m.dirty) || puestoDirty || observacionesDirty;
+
+  const handleSave = async () => {
     if (!selected) return;
     if (materias.some((m) => m.error)) {
-      setSaveError('Corrige los errores antes de guardar.');
+      setErrorValidacion('Corrige los errores antes de guardar.');
       return;
     }
-
-    const dirtyItems         = materias.filter((m) => m.dirty);
-    const puestoDirty        = puesto !== savedPuesto;
-    const observacionesDirty = observaciones !== savedObservaciones;
-
-    if (!dirtyItems.length && !puestoDirty && !observacionesDirty) return;
-
-    setIsSaving(true);
-    setSaveError('');
-    setSaveSuccess(false);
+    setErrorValidacion('');
+    if (!hasDirty) return;
 
     try {
-      await docenteApi.guardarNotasEstudiante({
-        id_matricula:   selected.id_matricula,
-        numero_periodo: periodo,
-        year,
-        materias: dirtyItems.map((m) => ({
-          id_materia:         m.id_materia,
-          nota:               m.nota,
-          fallas:             m.fallas,
-          intensidad_horaria: m.intensidad_horaria,
-        })),
-        puesto:        puestoDirty        ? puesto        : undefined,
-        observaciones: observacionesDirty ? observaciones : undefined,
+      await guardarMutation.mutateAsync({
+        queryKey: claveNotas,
+        guardado: formulario,
+        payload: {
+          id_matricula:   selected.id_matricula,
+          numero_periodo: periodo,
+          year,
+          materias: materias.filter((m) => m.dirty).map((m) => ({
+            id_materia:         m.id_materia,
+            nota:               m.nota,
+            fallas:             m.fallas,
+            intensidad_horaria: m.intensidad_horaria,
+            observacion:        m.observacion ?? null,
+          })),
+          puesto:        puestoDirty        ? puesto        : undefined,
+          observaciones: observacionesDirty ? observaciones : undefined,
+        },
       });
-
-      setMaterias((prev) =>
-        prev.map((m) => ({
-          ...m,
-          savedNota:        m.nota,
-          savedFallas:      m.fallas,
-          savedIH:          m.intensidad_horaria,
-          savedObservacion: m.observacion ?? null,
-          dirty:            false,
-        })),
-      );
-      setSavedPuesto(puesto);
-      setSavedObservaciones(observaciones);
-      setSaveSuccess(true);
-      // El boletín de este estudiante en caché quedó desactualizado.
-      void queryClient.invalidateQueries({ queryKey: queryKeys.boletin.byMatricula(selected.id_matricula) });
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Error al guardar las notas.');
-    } finally {
-      setIsSaving(false);
+    } catch {
+      // El error queda visible en saveError.
     }
-  }, [selected, materias, periodo, year, puesto, savedPuesto, observaciones, savedObservaciones, queryClient]);
+  };
 
-  // ── Derived ───────────────────────────────────────────────────────────────
+  // ── Derivados ───────────────────────────────────────────────────────────────
+  const estudiantes = estudiantesQuery.data ?? SIN_ESTUDIANTES;
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return estudiantes.filter((m) => {
@@ -339,20 +300,27 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
     });
   }, [estudiantes, search, gradoFilter]);
 
-  const hasDirty = useMemo(
-    () => materias.some((m) => m.dirty) || puesto !== savedPuesto || observaciones !== savedObservaciones,
-    [materias, puesto, savedPuesto, observaciones, savedObservaciones],
-  );
+  const errorGuardado = guardarMutation.error
+    ? (guardarMutation.error instanceof Error ? guardarMutation.error.message : 'Error al guardar las notas.')
+    : '';
 
   return {
-    perfil, isSetupLoading, setupError,
+    perfil:         perfilQuery.data ?? null,
+    isSetupLoading: perfilQuery.isPending,
+    setupError:     perfilQuery.error ? 'No se pudo cargar el perfil del docente.' : '',
     periodo, setPeriodo, year, setYear,
-    estudiantes, search, setSearch, gradoFilter, setGradoFilter, filtered, isLoadingStudents,
+    estudiantes, search, setSearch, gradoFilter, setGradoFilter, filtered,
+    isLoadingStudents: estudiantesQuery.isLoading,
     selected, selectStudent, clearSelected,
-    materias, isLoadingNotas, notasError,
+    materias,
+    isLoadingNotas: notasQuery.isLoading,
+    notasError:     notasQuery.error ? 'No se pudieron cargar las notas. Verifica tu conexión.' : '',
     updateNota, updateFallas, updateIH, updateObs,
-    puesto, savedPuesto, updatePuesto,
+    puesto, savedPuesto: servidor.puesto, updatePuesto,
     observaciones, updateObservaciones,
-    isSaving, saveError, saveSuccess, hasDirty, handleSave,
+    isSaving:    guardarMutation.isPending,
+    saveError:   errorValidacion || errorGuardado,
+    saveSuccess: guardarMutation.isSuccess,
+    hasDirty, handleSave,
   };
 };

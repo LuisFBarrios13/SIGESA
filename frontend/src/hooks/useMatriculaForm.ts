@@ -2,7 +2,7 @@
 // Estado y lógica del formulario de nueva matrícula (la página solo renderiza).
 import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { gradosApi, matriculasApi, api, type Grado, type MatriculaPayload } from '../services/api';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../lib/queryKeys';
 
 // ── Types ─────────────────────────────────────────────────────
@@ -57,14 +57,13 @@ export const EMPTY_FORM: FormState = {
   parentesco:           '',
 };
 
+const SIN_GRADOS: Grado[] = [];
+
 // ── Hook ──────────────────────────────────────────────────────
 
 export const useMatriculaForm = () => {
   const [form, setForm]         = useState<FormState>(EMPTY_FORM);
   const [errors, setErrors]     = useState<FormErrors>({});
-  const [grados, setGrados]     = useState<Grado[]>([]);
-  const [isLoadingGrados, setIsLoadingGrados] = useState(true);
-  const [gradosLoadError, setGradosLoadError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError]   = useState('');
   const [successData, setSuccessData]   = useState<{
@@ -78,34 +77,31 @@ export const useMatriculaForm = () => {
   const cedulaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    setIsLoadingGrados(true);
-    setGradosLoadError('');
-    gradosApi.listar()
-      .then(setGrados)
-      .catch(() => setGradosLoadError('No se pudieron cargar los grados.'))
-      .finally(() => setIsLoadingGrados(false));
-  }, []);
+  const gradosQuery = useQuery({
+    queryKey:  queryKeys.grados,
+    queryFn:   gradosApi.listar,
+    staleTime: Infinity, // catálogo fijo
+  });
+  const grados          = gradosQuery.data ?? SIN_GRADOS;
+  const isLoadingGrados = gradosQuery.isPending;
+  const gradosLoadError = gradosQuery.error ? 'No se pudieron cargar los grados.' : '';
 
   // ── Buscar acudiente cuando cambia la cédula ──────────────
   useEffect(() => {
     if (cedulaTimer.current) clearTimeout(cedulaTimer.current);
 
+    // handleChange ya limpia el acudiente encontrado al cambiar la cédula.
     const cedula = form.cedula_acudiente.trim();
-
-    // Si se limpió el campo, reset
-    if (!cedula) {
-      setAcudienteEncontrado(null);
-      return;
-    }
-
-    // Esperar 600ms antes de buscar
     if (cedula.length < 4) return;
+
+    // Si la cédula cambia mientras la petición está en curso, se ignora la respuesta.
+    let cancelado = false;
 
     cedulaTimer.current = setTimeout(async () => {
       setBuscandoAcudiente(true);
       try {
         const data = await api.get<AcudienteEncontrado>(`/acudientes/${cedula}`);
+        if (cancelado) return;
         // Acudiente encontrado — auto-completar campos
         setAcudienteEncontrado(data);
         setForm((prev) => ({
@@ -117,13 +113,17 @@ export const useMatriculaForm = () => {
         }));
       } catch {
         // 404 = acudiente nuevo, no es un error
-        setAcudienteEncontrado(null);
+        if (!cancelado) setAcudienteEncontrado(null);
       } finally {
-        setBuscandoAcudiente(false);
+        if (!cancelado) setBuscandoAcudiente(false);
       }
     }, 600);
 
-    return () => { if (cedulaTimer.current) clearTimeout(cedulaTimer.current); };
+    return () => {
+      cancelado = true;
+      setBuscandoAcudiente(false);
+      if (cedulaTimer.current) clearTimeout(cedulaTimer.current);
+    };
   }, [form.cedula_acudiente]);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -192,8 +192,9 @@ export const useMatriculaForm = () => {
         credenciales:   result.credenciales,
         acudienteNuevo: result.acudienteNuevo ?? true,
       });
-      // Nuevo estudiante: los totales del dashboard cambiaron.
+      // Nuevo estudiante: dashboard y lista de estudiantes cambiaron.
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.estudiantes.all });
       setForm(EMPTY_FORM);
       setAcudienteEncontrado(null);
     } catch (err) {

@@ -71,6 +71,7 @@ export interface GuardarNotaEstudiantePayload {
     nota:                number | '';
     fallas:              number;
     intensidad_horaria:  number | null;
+    observacion?:        string | null;
   }[];
   puesto?:        number | null;
   observaciones?: string;

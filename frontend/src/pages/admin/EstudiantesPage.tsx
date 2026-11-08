@@ -1,5 +1,6 @@
 // src/pages/admin/EstudiantesPage.tsx
-import { useState, useEffect, useMemo, Fragment } from 'react';
+import { useState, useMemo, Fragment } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { estudiantesApi, type EstudianteListItem } from '../../services/api';
 import { useEditarEstudiante }   from '../../hooks/useEditarEstudiante';
 import { useEditarAcudiente }    from '../../hooks/useEditarAcudiente';
@@ -11,15 +12,25 @@ import StatsBar                  from '../../components/estudiantes/StatsBar';
 import StudentCard               from '../../components/estudiantes/StudentCard';
 import StudentRow                from '../../components/estudiantes/StudentRow';
 import { NOMBRES_GRADOS, getMatriculaActiva } from '../../constants/estudiantes';
+import { queryKeys } from '../../lib/queryKeys';
+
+const SIN_ESTUDIANTES: EstudianteListItem[] = [];
 
 // ── Main Page ─────────────────────────────────────────────────
 
 type ViewMode = 'cards' | 'table';
 
 const EstudiantesPage = () => {
-  const [estudiantes, setEstudiantes] = useState<EstudianteListItem[]>([]);
-  const [isLoading, setIsLoading]     = useState(true);
-  const [error, setError]             = useState('');
+  const queryClient = useQueryClient();
+  const estudiantesQuery = useQuery({
+    queryKey: queryKeys.estudiantes.lista,
+    queryFn:  estudiantesApi.listar,
+  });
+  const estudiantes = estudiantesQuery.data ?? SIN_ESTUDIANTES;
+  const isLoading   = estudiantesQuery.isPending;
+  const error       = estudiantesQuery.error ? 'No se pudo cargar la lista de estudiantes.' : '';
+  const fetchEstudiantes = () => { void estudiantesQuery.refetch(); };
+
   const [viewMode, setViewMode]       = useState<ViewMode>('table');
 
   const [search, setSearch]               = useState('');
@@ -40,16 +51,6 @@ const EstudiantesPage = () => {
     abrirEdicion: abrirEdicionAcudiente, cerrarEdicion: cerrarEdicionAcudiente,
     confirmarEdicion: confirmarEdicionAcudiente,
   } = useEditarAcudiente();
-
-  const fetchEstudiantes = () => {
-    setIsLoading(true); setError('');
-    estudiantesApi.listar()
-      .then(setEstudiantes)
-      .catch(() => setError('No se pudo cargar la lista de estudiantes.'))
-      .finally(() => setIsLoading(false));
-  };
-
-  useEffect(() => { fetchEstudiantes(); }, []);
 
   const years = useMemo(() => {
     const set = new Set<string>();
@@ -76,7 +77,7 @@ const EstudiantesPage = () => {
   };
 
   const handleEditEstudianteSuccess = (actualizado: EstudianteListItem) => {
-    setEstudiantes((prev) =>
+    queryClient.setQueryData<EstudianteListItem[]>(queryKeys.estudiantes.lista, (prev = []) =>
       prev.map((e) =>
         e.numero_identidad === actualizado.numero_identidad
           ? { ...actualizado, matriculas: e.matriculas }

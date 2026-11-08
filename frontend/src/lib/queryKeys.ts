@@ -22,6 +22,29 @@ export const queryKeys = {
     perfil:  ['acudiente', 'perfil'] as const,
     resumen: (id_matricula: number) => ['acudiente', 'resumen', id_matricula] as const,
   },
+  grados: ['grados'] as const,
+  estudiantes: {
+    all:   ['estudiantes'] as const,
+    lista: ['estudiantes', 'lista'] as const,
+  },
+  docentes: {
+    all:            ['docentes'] as const,
+    lista:          ['docentes', 'lista'] as const,
+    disponibilidad: ['docentes', 'disponibilidad'] as const,
+  },
+  pagos: {
+    all:     ['pagos'] as const,
+    metodos: ['pagos', 'metodos'] as const,
+    tarifa:  (year: number) => ['pagos', 'tarifa', year] as const,
+    buscar:  (q: string, year: number) => ['pagos', 'buscar', q, year] as const,
+    resumen: (id_matricula: number) => ['pagos', 'resumen', id_matricula] as const,
+  },
+  notas: {
+    all: ['notas'] as const,
+    // Los estudiantes del docente se comparten con Mi Grado (queryKeys.miGrado).
+    porEstudiante: (id_matricula: number, periodo: number, year: number) =>
+      ['notas', id_matricula, periodo, year] as const,
+  },
   boletin: {
     all:   ['boletin'] as const,
     byMatricula: (id_matricula: number) => ['boletin', id_matricula] as const,

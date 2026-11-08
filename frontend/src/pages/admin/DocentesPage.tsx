@@ -1,5 +1,7 @@
 // src/pages/admin/DocentesPage.tsx
-import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
+import { useState, type FormEvent, type ChangeEvent } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../lib/queryKeys';
 import {
   docentesApi,
   type DocentePayload,
@@ -27,14 +29,14 @@ const EMPTY_FORM: FormState = {
   cedula: '', nombre: '', telefono: '', correo: '', jornada: '', nombreGrado: '',
 };
 
+const SIN_GRADOS:   GradoDisponibilidad[] = [];
+const SIN_DOCENTES: DocenteListItem[]     = [];
+
 // ── Main Page ─────────────────────────────────────────────────
 
 const DocentesPage = () => {
   const [form, setForm]                   = useState<FormState>(EMPTY_FORM);
   const [errors, setErrors]               = useState<Partial<Record<keyof FormState, string>>>({});
-  const [grados, setGrados]               = useState<GradoDisponibilidad[]>([]);
-  const [docentes, setDocentes]           = useState<DocenteListItem[]>([]);
-  const [loadingGrados, setLoadingGrados] = useState(true);
   const [isSubmitting, setIsSubmitting]   = useState(false);
   const [submitError, setSubmitError]     = useState('');
   const [successData, setSuccessData]     = useState<Parameters<typeof SuccessModal>[0]['data'] | null>(null);
@@ -49,15 +51,21 @@ const DocentesPage = () => {
     confirmarEdicion,
   } = useEditarDocente();
 
-  const cargarDatos = () => {
-    setLoadingGrados(true);
-    Promise.all([docentesApi.disponibilidad(), docentesApi.listar()])
-      .then(([disp, docs]) => { setGrados(disp); setDocentes(docs); })
-      .catch(() => {})
-      .finally(() => setLoadingGrados(false));
-  };
+  const queryClient = useQueryClient();
+  const disponibilidadQuery = useQuery({
+    queryKey: queryKeys.docentes.disponibilidad,
+    queryFn:  docentesApi.disponibilidad,
+  });
+  const docentesQuery = useQuery({
+    queryKey: queryKeys.docentes.lista,
+    queryFn:  docentesApi.listar,
+  });
+  const grados        = disponibilidadQuery.data ?? SIN_GRADOS;
+  const docentes      = docentesQuery.data ?? SIN_DOCENTES;
+  const loadingGrados = disponibilidadQuery.isPending || docentesQuery.isPending;
 
-  useEffect(() => { cargarDatos(); }, []);
+  /** Recarga lista de docentes y disponibilidad de grados. */
+  const cargarDatos = () => { void queryClient.invalidateQueries({ queryKey: queryKeys.docentes.all }); };
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -123,7 +131,7 @@ const DocentesPage = () => {
 
   // Actualiza en memoria tras editar exitosamente
   const handleEditSuccess = (actualizado: DocenteListItem) => {
-    setDocentes((prev) =>
+    queryClient.setQueryData<DocenteListItem[]>(queryKeys.docentes.lista, (prev = []) =>
       prev.map((d) => d.cedula === actualizado.cedula ? actualizado : d),
     );
   };
