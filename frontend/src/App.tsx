@@ -1,26 +1,40 @@
 // src/App.tsx
+// Cada pantalla se descarga por separado (lazy) la primera vez que se visita;
+// el login se incluye en el paquete inicial porque es lo primero que se ve.
+import { lazy, Suspense, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './hooks/useAuth';
 
 import LoginPage          from './pages/shared/LoginPage';
-import ChangePasswordPage from './pages/shared/ChangePasswordPage';
+import Layout             from './components/layout/Layout';
+import ProtectedRoute     from './components/ui/ProtectedRoute';
 
-import DashboardPage   from './pages/admin/DashboardPage';
-import MatriculaPage   from './pages/admin/MatriculaPage';
-import DocentesPage    from './pages/admin/DocentesPage';
-import PagosPage       from './pages/admin/PagosPage';
-import DeudoresPage    from './pages/admin/DeudoresPage';
-import EstudiantesPage from './pages/admin/EstudiantesPage';
+const ChangePasswordPage = lazy(() => import('./pages/shared/ChangePasswordPage'));
 
-import AcudientePage from './pages/acudiente/AcudientePage';
+const DashboardPage   = lazy(() => import('./pages/admin/DashboardPage'));
+const MatriculaPage   = lazy(() => import('./pages/admin/MatriculaPage'));
+const DocentesPage    = lazy(() => import('./pages/admin/DocentesPage'));
+const PagosPage       = lazy(() => import('./pages/admin/PagosPage'));
+const DeudoresPage    = lazy(() => import('./pages/admin/DeudoresPage'));
+const EstudiantesPage = lazy(() => import('./pages/admin/EstudiantesPage'));
 
-import MiGradoPage  from './pages/docente/MiGradoPage';
-import NotasPage    from './pages/docente/NotasPage';
-import BoletinPage  from './pages/docente/BoletinPage';
+const AcudientePage = lazy(() => import('./pages/acudiente/AcudientePage'));
 
-import Layout         from './components/layout/Layout';
-import ProtectedRoute from './components/ui/ProtectedRoute';
+const MiGradoPage = lazy(() => import('./pages/docente/MiGradoPage'));
+const NotasPage   = lazy(() => import('./pages/docente/NotasPage'));
+const BoletinPage = lazy(() => import('./pages/docente/BoletinPage'));
+
+/** Mientras se descarga una pantalla. */
+const CargandoPagina = () => (
+  <div className="flex items-center justify-center py-24" role="status" aria-label="Cargando">
+    <span className="material-symbols-outlined text-primary animate-spin text-3xl">progress_activity</span>
+  </div>
+);
+
+const Cargar = ({ children }: { children: ReactNode }) => (
+  <Suspense fallback={<CargandoPagina />}>{children}</Suspense>
+);
 
 const HomeRedirect = () => {
   const { user } = useAuth();
@@ -40,7 +54,7 @@ const AppRoutes = () => {
   if (isAuthenticated && user?.primerLogin) {
     return (
       <Routes>
-        <Route path="/change-password" element={<ChangePasswordPage />} />
+        <Route path="/change-password" element={<Cargar><ChangePasswordPage /></Cargar>} />
         <Route path="*" element={<Navigate to="/change-password" replace />} />
       </Routes>
     );
@@ -53,60 +67,60 @@ const AppRoutes = () => {
       {/* ── Inicio ── */}
       <Route path="/" element={
         <ProtectedRoute>
-          <Layout user={userProfile!}><HomeRedirect /></Layout>
+          <Layout user={userProfile!}><Cargar><HomeRedirect /></Cargar></Layout>
         </ProtectedRoute>
       } />
 
       {/* ── Admin ── */}
       <Route path="/matricula" element={
         <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <Layout user={userProfile!}><MatriculaPage /></Layout>
+          <Layout user={userProfile!}><Cargar><MatriculaPage /></Cargar></Layout>
         </ProtectedRoute>
       } />
       <Route path="/docentes" element={
         <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <Layout user={userProfile!}><DocentesPage /></Layout>
+          <Layout user={userProfile!}><Cargar><DocentesPage /></Cargar></Layout>
         </ProtectedRoute>
       } />
       <Route path="/pagos" element={
         <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <Layout user={userProfile!}><PagosPage /></Layout>
+          <Layout user={userProfile!}><Cargar><PagosPage /></Cargar></Layout>
         </ProtectedRoute>
       } />
       <Route path="/deudores" element={
         <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <Layout user={userProfile!}><DeudoresPage /></Layout>
+          <Layout user={userProfile!}><Cargar><DeudoresPage /></Cargar></Layout>
         </ProtectedRoute>
       } />
       <Route path="/estudiantes" element={
         <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <Layout user={userProfile!}><EstudiantesPage /></Layout>
+          <Layout user={userProfile!}><Cargar><EstudiantesPage /></Cargar></Layout>
         </ProtectedRoute>
       } />
 
       {/* ── Acudiente ── */}
       <Route path="/acudiente" element={
         <ProtectedRoute roles={['ACUDIENTE']}>
-          <Layout user={userProfile!}><AcudientePage /></Layout>
+          <Layout user={userProfile!}><Cargar><AcudientePage /></Cargar></Layout>
         </ProtectedRoute>
       } />
 
       {/* ── Docente ── */}
       <Route path="/docente" element={
         <ProtectedRoute roles={['DOCENTE']}>
-          <Layout user={userProfile!}><MiGradoPage /></Layout>
+          <Layout user={userProfile!}><Cargar><MiGradoPage /></Cargar></Layout>
         </ProtectedRoute>
       } />
       <Route path="/docente/notas" element={
         <ProtectedRoute roles={['DOCENTE']}>
-          <Layout user={userProfile!}><NotasPage /></Layout>
+          <Layout user={userProfile!}><Cargar><NotasPage /></Cargar></Layout>
         </ProtectedRoute>
       } />
 
       {/* ── Boletín sin Layout (página de impresión limpia) ── */}
       <Route path="/docente/boletin" element={
         <ProtectedRoute roles={['DOCENTE', 'ADMINISTRADOR']}>
-          <BoletinPage />
+          <Cargar><BoletinPage /></Cargar>
         </ProtectedRoute>
       } />
 

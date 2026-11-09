@@ -177,14 +177,14 @@ const EditarAcudienteModal = ({
     e.preventDefault();
     if (!validate()) return;
 
-    // Solo envía los campos con valor; los opcionales vacíos se omiten
+    // Los opcionales se envían siempre: '' le indica al backend que borre el dato
     const payload: ActualizarAcudientePayload = {
-      nombre: form.nombre?.trim(),
-      ...(form.telefono          ? { telefono:          form.telefono.trim()          } : {}),
-      ...(form.correo            ? { correo:            form.correo.trim()            } : {}),
-      ...(form.direccion         ? { direccion:         form.direccion.trim()         } : {}),
-      ...(form.telefono_trabajo  ? { telefono_trabajo:  form.telefono_trabajo.trim()  } : {}),
-      ...(form.direccion_trabajo ? { direccion_trabajo: form.direccion_trabajo.trim() } : {}),
+      nombre:            form.nombre?.trim(),
+      telefono:          form.telefono?.trim()          ?? '',
+      correo:            form.correo?.trim()            ?? '',
+      direccion:         form.direccion?.trim()         ?? '',
+      telefono_trabajo:  form.telefono_trabajo?.trim()  ?? '',
+      direccion_trabajo: form.direccion_trabajo?.trim() ?? '',
     };
 
     await onConfirm(payload);

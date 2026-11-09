@@ -57,10 +57,15 @@ export const actualizarEstudiante = async (numero_identidad, dto) => {
   if (!estudiante) throw new AppError(404, 'Estudiante no encontrado');
 
   const camposPermitidos = ['nombre', 'fecha_nacimiento', 'rh', 'direccion', 'observaciones'];
+  const opcionales = new Set(['rh', 'direccion', 'observaciones']);
   const actualizaciones = {};
 
   for (const campo of camposPermitidos) {
-    if (dto[campo] !== undefined) actualizaciones[campo] = dto[campo];
+    if (dto[campo] === undefined) continue;
+    // Un opcional vacío ('' o null) significa "borrar el dato"
+    actualizaciones[campo] = opcionales.has(campo)
+      ? (typeof dto[campo] === 'string' ? dto[campo].trim() : '') || null
+      : dto[campo];
   }
 
   await estudiante.update(actualizaciones);

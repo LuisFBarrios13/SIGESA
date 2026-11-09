@@ -162,10 +162,11 @@ const EditarDocenteModal = ({
     e.preventDefault();
     if (!validate()) return;
 
+    // Los opcionales se envían siempre: '' le indica al backend que borre el dato
     const payload: ActualizarDocentePayload = {
       nombre:   form.nombre?.trim(),
-      ...(form.telefono ? { telefono: form.telefono.trim() } : {}),
-      ...(form.correo   ? { correo:   form.correo.trim()   } : {}),
+      telefono: form.telefono?.trim() ?? '',
+      correo:   form.correo?.trim()   ?? '',
     };
 
     await onConfirm(payload);

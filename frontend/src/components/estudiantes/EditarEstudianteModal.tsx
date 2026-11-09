@@ -184,13 +184,13 @@ const EditarEstudianteModal = ({
     e.preventDefault();
     if (!validate()) return;
 
-    // Solo envía campos con valor (omite cadenas vacías para campos opcionales)
+    // Los opcionales se envían siempre: '' le indica al backend que borre el dato
     const payload: ActualizarEstudiantePayload = {
       nombre:           form.nombre?.trim(),
       fecha_nacimiento: form.fecha_nacimiento,
-      ...(form.rh            ? { rh:            form.rh }            : {}),
-      ...(form.direccion     ? { direccion:      form.direccion }     : {}),
-      ...(form.observaciones ? { observaciones:  form.observaciones } : {}),
+      rh:               form.rh ?? '',
+      direccion:        form.direccion?.trim()     ?? '',
+      observaciones:    form.observaciones?.trim() ?? '',
     };
 
     await onConfirm(payload);
