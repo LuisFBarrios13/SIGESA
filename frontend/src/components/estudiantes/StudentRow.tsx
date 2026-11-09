@@ -1,97 +1,49 @@
 // src/components/estudiantes/StudentRow.tsx
+// Fila de la tabla de estudiantes. Muestra la matrícula indicada por la página
+// (la del año en curso o la del año filtrado).
 import type { EstudianteListItem } from '../../services/api';
 import type { MatriculaListItem } from '../../types/matriculas';
-import { ESTADO_COLOR, ESTADO_ICON, JORNADA_COLOR, getMatriculaActiva, getMatriculaVigente } from '../../constants/estudiantes';
-import PillBadge from './PillBadge';
-import { iniciales } from '../../utils/iniciales';
+import { Avatar } from '../ds/Controles';
+import EstadoBadge from '../ds/EstadoBadge';
+import AccionesEstudiante, { type AccionesEstudianteProps } from './AccionesEstudiante';
+import { fechaCorta } from '../../utils/fechas';
 
-interface StudentRowProps {
-  estudiante:         EstudianteListItem;
-  onEditarEstudiante: (e: EstudianteListItem) => void;
-  onVerAcudientes:    (id: string, nombre: string) => void;
-  onMatricular:       (e: EstudianteListItem) => void;
-  onCambiarEstado:    (e: EstudianteListItem, m: MatriculaListItem) => void;
-  panelAbierto:       boolean;
+export interface FilaEstudianteProps extends Omit<AccionesEstudianteProps, 'vigente'> {
+  matricula?: MatriculaListItem;
+  vigente?:   MatriculaListItem;
+  posteriores: number[];
 }
 
-const StudentRow = ({
-  estudiante: e, onEditarEstudiante, onVerAcudientes, onMatricular, onCambiarEstado, panelAbierto,
-}: StudentRowProps) => {
-  const matricula = getMatriculaActiva(e.matriculas);
-  const vigente   = getMatriculaVigente(e.matriculas);
+export const MarcaPosterior = ({ anios }: { anios: number[] }) =>
+  anios.length ? (
+    <span className="text-xs text-azul-texto" title="También tiene matrícula en">también {anios.join(', ')}</span>
+  ) : null;
+
+const StudentRow = ({ matricula, posteriores, ...acciones }: FilaEstudianteProps) => {
+  const e: EstudianteListItem = acciones.estudiante;
   return (
-    <tr className={`transition-colors group ${panelAbierto ? 'bg-primary-fixed/10' : 'hover:bg-stone-50/70'}`}>
-      <td className="px-5 py-3.5">
+    <tr className={`border-b border-linea ${acciones.panelAbierto ? 'bg-crema/60' : ''}`}>
+      <td className="px-3 py-3">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center flex-shrink-0">
-            <span className="text-[10px] font-black text-on-primary-fixed-variant">
-              {iniciales(e.nombre)}
-            </span>
-          </div>
-          <div>
-            <p className="font-semibold text-on-surface text-sm">{e.nombre}</p>
-            <p className="text-xs text-stone-400 font-mono">{e.numero_identidad}</p>
+          <Avatar nombre={e.nombre} />
+          <div className="min-w-0">
+            <p className="font-semibold text-tinta whitespace-nowrap">{e.nombre}</p>
+            <p className="text-xs text-tinta-suave">Doc. {e.numero_identidad}</p>
           </div>
         </div>
       </td>
-      <td className="px-5 py-3.5 text-sm text-stone-600">{matricula?.grado?.nombre ?? '—'}</td>
-      <td className="px-5 py-3.5">
-        {matricula?.grado?.jornada
-          ? <PillBadge label={matricula.grado.jornada === 'MAÑANA' ? 'Mañana' : 'Tarde'}
-              colorClass={JORNADA_COLOR[matricula.grado.jornada] ?? ''} />
-          : <span className="text-stone-300 text-xs">—</span>}
-      </td>
-      <td className="px-5 py-3.5 text-sm text-stone-600 font-mono">{matricula?.year ?? '—'}</td>
-      <td className="px-5 py-3.5 text-xs text-stone-500">
-        {e.fecha_nacimiento
-          ? new Date(e.fecha_nacimiento + 'T00:00:00').toLocaleDateString('es-CO', {
-              day: '2-digit', month: 'short', year: 'numeric' })
-          : '—'}
-      </td>
-      <td className="px-5 py-3.5">
-        {matricula
-          ? <PillBadge label={matricula.estado}
-              colorClass={ESTADO_COLOR[matricula.estado] ?? 'bg-stone-100 text-stone-700'}
-              icon={ESTADO_ICON[matricula.estado]} />
-          : <span className="text-stone-300 text-xs">—</span>}
-      </td>
-      <td className="px-5 py-3.5 text-xs text-stone-500">
-        {matricula
-          ? new Date(matricula.fecha_matricula).toLocaleDateString('es-CO', {
-              day: '2-digit', month: 'short', year: 'numeric' })
-          : '—'}
-      </td>
-      <td className="px-4 py-3.5">
-        <div className="flex items-center gap-1">
-          <button onClick={() => onEditarEstudiante(e)} title="Editar estudiante"
-            className="p-1.5 rounded-lg text-stone-400 hover:text-primary hover:bg-primary-fixed/30 transition-all">
-            <span className="material-symbols-outlined text-lg">edit</span>
-          </button>
-          <button onClick={() => onVerAcudientes(e.numero_identidad, e.nombre)}
-            title="Ver / editar acudientes"
-            className={`p-1.5 rounded-lg transition-all
-              ${panelAbierto
-                ? 'text-secondary bg-secondary-container/30'
-                : 'text-stone-400 hover:text-secondary hover:bg-secondary-container/20'}`}>
-            <span className="material-symbols-outlined text-lg">family_restroom</span>
-          </button>
-          <button onClick={() => onMatricular(e)} title="Matricular (otro año o grado)"
-            className="p-1.5 rounded-lg text-stone-400 hover:text-primary hover:bg-primary-fixed/30 transition-all">
-            <span className="material-symbols-outlined text-lg">how_to_reg</span>
-          </button>
-          {vigente && vigente.estado !== 'GRADUADO' && (
-            <button onClick={() => onCambiarEstado(e, vigente)}
-              title={vigente.estado === 'ACTIVO' ? `Retirar (${vigente.year})` : `Reactivar (${vigente.year})`}
-              className={`p-1.5 rounded-lg transition-all ${vigente.estado === 'ACTIVO'
-                ? 'text-stone-400 hover:text-red-700 hover:bg-red-50'
-                : 'text-stone-400 hover:text-emerald-700 hover:bg-emerald-50'}`}>
-              <span className="material-symbols-outlined text-lg">
-                {vigente.estado === 'ACTIVO' ? 'person_remove' : 'person_check'}
-              </span>
-            </button>
-          )}
+      <td className="px-3 py-3 text-tinta-media">{matricula?.grado?.nombre ?? '—'}</td>
+      <td className="px-3 py-3">{matricula?.grado?.jornada ? <EstadoBadge estado={matricula.grado.jornada} /> : '—'}</td>
+      <td className="px-3 py-3 text-tinta-media">
+        <div className="flex flex-col">
+          <span>{matricula?.year ?? '—'}</span>
+          <MarcaPosterior anios={posteriores} />
         </div>
       </td>
+      <td className="hidden xl:table-cell px-3 py-3 text-tinta-media whitespace-nowrap">{fechaCorta(e.fecha_nacimiento)}</td>
+      <td className="px-3 py-3">{matricula ? <EstadoBadge estado={matricula.estado} punto /> : '—'}</td>
+      <td className="hidden 2xl:table-cell px-3 py-3 text-tinta-media whitespace-nowrap">{fechaCorta(matricula?.fecha_matricula)}</td>
+      <td className="px-3 py-3"><AccionesEstudiante {...acciones} /></td>
     </tr>
   );
 };

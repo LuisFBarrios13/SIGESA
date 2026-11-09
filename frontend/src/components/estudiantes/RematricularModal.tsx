@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { EstudianteListItem, Grado } from '../../services/api';
 import type { JornadaEstudiante } from '../../types/shared';
-import { NOMBRES_GRADOS, getMatriculaActiva } from '../../constants/estudiantes';
+import { NOMBRES_GRADOS, getMatriculaReciente } from '../../constants/estudiantes';
 
 interface RematricularModalProps {
   estudiante: EstudianteListItem;
@@ -18,7 +18,7 @@ const YEAR_ACTUAL = new Date().getFullYear();
 
 /** Valores sugeridos: el año que le falta y el grado siguiente al último cursado. */
 const sugerencia = (e: EstudianteListItem, grados: Grado[]) => {
-  const ultima = getMatriculaActiva(e.matriculas);
+  const ultima = getMatriculaReciente(e.matriculas);
   const tieneEsteYear = e.matriculas.some((m) => m.year === YEAR_ACTUAL);
   const year = tieneEsteYear ? YEAR_ACTUAL + 1 : YEAR_ACTUAL;
   const jornada: JornadaEstudiante = ultima?.grado?.jornada ?? 'MAÑANA';

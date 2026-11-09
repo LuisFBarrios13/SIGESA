@@ -1,26 +1,42 @@
 // src/pages/admin/EstudiantesPage.tsx
+// Lista de estudiantes con filtros, edición, acudientes y gestión de matrícula.
+// Las consultas, mutaciones y modales no cambian; solo el diseño.
+//
+// Cada fila muestra la matrícula del año en curso (o la del año filtrado): la
+// misma que usan Deudores y el botón de retirar/reactivar. Antes se mostraba la
+// del año más reciente, y un estudiante ya matriculado para el año siguiente
+// aparecía con otro grado y año que en Deudores.
 import { useState, useMemo, Fragment } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { estudiantesApi, type EstudianteListItem } from '../../services/api';
 import { useEditarEstudiante }   from '../../hooks/useEditarEstudiante';
 import { useEditarAcudiente }    from '../../hooks/useEditarAcudiente';
 import EditarEstudianteModal     from '../../components/estudiantes/EditarEstudianteModal';
 import EditarAcudienteModal      from '../../components/estudiantes/EditarAcudienteModal';
-import AcudientesPanel           from '../../components/estudiantes/AcudientesPanel';
+import AcudientesPanel, { AcudientesLista } from '../../components/estudiantes/AcudientesPanel';
 import FilterSelect              from '../../components/estudiantes/FilterSelect';
-import StatsBar                  from '../../components/estudiantes/StatsBar';
 import StudentCard               from '../../components/estudiantes/StudentCard';
 import StudentRow                from '../../components/estudiantes/StudentRow';
-import { NOMBRES_GRADOS, getMatriculaActiva } from '../../constants/estudiantes';
+import { NOMBRES_GRADOS, aniosPosteriores, getMatriculaVigente, matriculaMostrada } from '../../constants/estudiantes';
 import { queryKeys } from '../../lib/queryKeys';
 import { useGestionMatricula } from '../../hooks/useGestionMatricula';
 import { useRestablecerClave } from '../../hooks/useRestablecerClave';
 import GestionMatriculaDialogos from '../../components/estudiantes/GestionMatriculaDialogos';
 import RestablecerClaveDialogos from '../../components/ui/RestablecerClaveDialogos';
+import PageHeader from '../../components/ds/PageHeader';
+import StatCard   from '../../components/ds/StatCard';
+import Tarjeta    from '../../components/ds/Tarjeta';
+import { Boton, Icono } from '../../components/ds/Controles';
+import { Aviso, Cargando } from '../../components/ds/Estados';
 
 const SIN_ESTUDIANTES: EstudianteListItem[] = [];
-
-// ── Main Page ─────────────────────────────────────────────────
+// Nacimiento y fecha de matrícula se ocultan en pantallas más angostas para que la tabla quepa.
+const COLUMNAS: { titulo: string; clase?: string }[] = [
+  { titulo: 'Estudiante' }, { titulo: 'Grado' }, { titulo: 'Jornada' }, { titulo: 'Año' },
+  { titulo: 'Nacimiento', clase: 'hidden xl:table-cell' }, { titulo: 'Estado' },
+  { titulo: 'Matrícula', clase: 'hidden 2xl:table-cell' }, { titulo: 'Acciones' },
+];
 
 type ViewMode = 'cards' | 'table';
 
@@ -67,18 +83,27 @@ const EstudiantesPage = () => {
     return Array.from(set).sort((a, b) => Number(b) - Number(a));
   }, [estudiantes]);
 
+  // Cada estudiante con la matrícula que se muestra (año filtrado o vigente).
+  const conMatricula = useMemo(() => estudiantes.map((e) => {
+    const matricula = matriculaMostrada(e.matriculas, filterYear || undefined);
+    return {
+      e, matricula,
+      vigente:     getMatriculaVigente(e.matriculas),
+      posteriores: aniosPosteriores(e.matriculas, matricula),
+    };
+  }), [estudiantes, filterYear]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return estudiantes.filter((e) => {
+    return conMatricula.filter(({ e, matricula: m }) => {
       if (q && !e.nombre.toLowerCase().includes(q) && !e.numero_identidad.toLowerCase().includes(q)) return false;
-      const m = getMatriculaActiva(e.matriculas);
+      if (filterYear    && !m) return false;
       if (filterGrado   && m?.grado?.nombre  !== filterGrado)   return false;
-      if (filterYear    && String(m?.year)   !== filterYear)    return false;
       if (filterJornada && m?.grado?.jornada !== filterJornada) return false;
       if (filterEstado  && m?.estado         !== filterEstado)  return false;
       return true;
     });
-  }, [estudiantes, search, filterGrado, filterYear, filterJornada, filterEstado]);
+  }, [conMatricula, search, filterGrado, filterYear, filterJornada, filterEstado]);
 
   const hasFilters = !!(search || filterGrado || filterYear || filterJornada || filterEstado);
   const clearFilters = () => {
@@ -94,6 +119,51 @@ const EstudiantesPage = () => {
       ),
     );
   };
+
+  // Resumen sobre la matrícula vigente de cada estudiante
+  const total     = estudiantes.length;
+  const contar    = (estado: string) => conMatricula.filter(({ vigente }) => vigente?.estado === estado).length;
+  const activos   = contar('ACTIVO');
+  const retirados = contar('RETIRADO');
+  const graduados = contar('GRADUADO');
+  const pct = (n: number) => `${total ? Math.round((n / total) * 100) : 0}%`;
+
+  const propsDe = (x: (typeof conMatricula)[number]) => ({
+    estudiante:   x.e,
+    matricula:    x.matricula,
+    vigente:      x.vigente,
+    posteriores:  x.posteriores,
+    panelAbierto: panel.idEstudiante === x.e.numero_identidad,
+    onEditarEstudiante: abrirEdicionEstudiante,
+    onVerAcudientes:    abrirPanel,
+    onMatricular:       gestion.abrirMatricular,
+    onCambiarEstado:    gestion.abrirCambioEstado,
+  });
+  const propsAcudientes = {
+    acudientes: panel.acudientes, isLoading: panel.isLoading, error: panel.error,
+    onEditar: abrirEdicionAcudiente, onRestablecerClave: restablecerAcudiente,
+  };
+
+  const acciones = (
+    <div className="flex flex-wrap items-center gap-3">
+      <Boton icono="refresh" onClick={fetchEstudiantes} className="min-h-[52px] rounded-full flex-1 lg:flex-none">
+        Actualizar
+      </Boton>
+      <Link to="/matricula"
+        className="inline-flex flex-1 lg:flex-none items-center justify-center gap-2 min-h-[52px] px-5 rounded-full whitespace-nowrap
+          bg-vino text-white text-sm font-semibold hover:bg-vino-hover transition-colors">
+        <Icono nombre="person_add" className="hidden sm:inline text-[19px]" />Nueva matrícula
+      </Link>
+    </div>
+  );
+
+  const tarjetas = (
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+      {filtered.map((x) => (
+        <StudentCard key={x.e.numero_identidad} {...propsDe(x)} panel={<AcudientesLista {...propsAcudientes} />} />
+      ))}
+    </div>
+  );
 
   return (
     <>
@@ -114,191 +184,117 @@ const EstudiantesPage = () => {
           onConfirm={(p) => confirmarEdicionAcudiente(p, () => {})}
         />
       )}
-
       <RestablecerClaveDialogos clave={clave} />
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-semibold text-primary">Estudiantes</h1>
-          <p className="text-base text-stone-500 mt-1">
-            Consulta, filtra y edita los datos de estudiantes y acudientes.
-          </p>
-        </div>
-        <button onClick={fetchEstudiantes}
-          className="flex items-center gap-2 px-4 py-2.5 bg-white border border-outline-variant
-            text-on-surface-variant rounded-lg font-semibold hover:bg-stone-50 transition-all text-sm">
-          <span className="material-symbols-outlined text-lg">refresh</span>Actualizar
-        </button>
-      </div>
+      <PageHeader titulo="Estudiantes" subtitulo="Consulta, filtra y edita los datos de estudiantes y acudientes"
+        acciones={acciones} />
 
       <GestionMatriculaDialogos gestion={gestion} />
 
-      {!isLoading && !error && <StatsBar estudiantes={estudiantes} />}
+      {!isLoading && !error && (
+        <section aria-label="Resumen de estudiantes" className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
+          <StatCard icono="group" etiqueta="Total" valor={total} tono="vino" chip="Todos" />
+          <StatCard icono="check_circle" etiqueta="Activos" valor={activos} tono="verde" chip={pct(activos)} />
+          <StatCard icono="person_off" etiqueta="Retirados" valor={retirados} tono="neutro" chip={pct(retirados)} />
+          <StatCard icono="school" etiqueta="Graduados" valor={graduados} tono="dorado" chip={pct(graduados)} />
+        </section>
+      )}
 
-      {/* Search + Filters */}
-      <div className="bg-white rounded-xl border border-outline-variant shadow-sm p-4 space-y-3">
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-stone-400 text-xl">search</span>
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre o número de identidad…"
-            className="w-full pl-10 pr-4 py-2.5 text-sm bg-stone-50 border border-stone-200 rounded-lg
-              text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30
-              focus:border-primary focus:bg-white transition-all" />
-          {search && (
-            <button onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
-              <span className="material-symbols-outlined text-lg">close</span>
-            </button>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-3 items-center">
-          <FilterSelect icon="school" value={filterGrado} onChange={setFilterGrado}
-            placeholder="Todos los grados"
+      <Tarjeta>
+        {/* Búsqueda y filtros */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <label className="flex items-center gap-2.5 min-h-12 px-3.5 rounded-[14px] bg-crema text-tinta-suave basis-full 2xl:basis-auto 2xl:flex-[1_1_260px]">
+            <Icono nombre="search" className="text-xl" />
+            <input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por nombre o número de identidad" aria-label="Buscar estudiante"
+              className="flex-1 min-w-0 bg-transparent text-[15px] text-tinta placeholder:text-tinta-suave focus:outline-none" />
+          </label>
+          <FilterSelect icon="school" value={filterGrado} onChange={setFilterGrado} placeholder="Todos los grados"
             options={NOMBRES_GRADOS.map((g) => ({ value: g, label: g }))} />
-          <FilterSelect icon="wb_sunny" value={filterJornada} onChange={setFilterJornada}
-            placeholder="Todas las jornadas"
+          <FilterSelect icon="wb_sunny" value={filterJornada} onChange={setFilterJornada} placeholder="Todas las jornadas"
             options={[{ value: 'MAÑANA', label: 'Mañana' }, { value: 'TARDE', label: 'Tarde' }]} />
-          <FilterSelect icon="calendar_today" value={filterYear} onChange={setFilterYear}
-            placeholder="Todos los años" options={years.map((y) => ({ value: y, label: y }))} />
-          <FilterSelect icon="flag" value={filterEstado} onChange={setFilterEstado}
-            placeholder="Todos los estados"
+          <FilterSelect icon="calendar_today" value={filterYear} onChange={setFilterYear} placeholder="Año en curso"
+            options={years.map((y) => ({ value: y, label: y }))} />
+          <FilterSelect icon="flag" value={filterEstado} onChange={setFilterEstado} placeholder="Todos los estados"
             options={[
               { value: 'ACTIVO', label: 'Activo' },
               { value: 'RETIRADO', label: 'Retirado' },
               { value: 'GRADUADO', label: 'Graduado' },
             ]} />
           {hasFilters && (
-            <button onClick={clearFilters}
-              className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold
-                text-error border border-error/30 bg-error-container/30 rounded-lg hover:bg-error-container/60 transition-colors">
-              <span className="material-symbols-outlined text-[15px]">filter_list_off</span>Limpiar
-            </button>
+            <Boton icono="filter_list_off" variante="suave" onClick={clearFilters} className="min-h-12">Limpiar</Boton>
           )}
-          <div className="ml-auto flex items-center gap-1 bg-stone-100 rounded-lg p-1">
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col">
+            <h2 className="m-0 text-base md:text-xl font-semibold">Lista de estudiantes</h2>
+            {!isLoading && (
+              <span className="text-sm text-tinta-suave">
+                {hasFilters ? `${filtered.length} de ${total} estudiantes` : `${total} estudiante${total !== 1 ? 's' : ''}`}
+                {!filterYear && ' · matrícula del año en curso'}
+              </span>
+            )}
+          </div>
+          <div role="group" aria-label="Vista" className="hidden md:flex gap-1 bg-crema rounded-xl p-1">
             {(['table', 'cards'] as ViewMode[]).map((m) => (
-              <button key={m} onClick={() => { setViewMode(m); cerrarPanel(); }}
-                title={m === 'table' ? 'Vista tabla' : 'Vista tarjetas'}
-                className={`p-1.5 rounded-md transition-colors ${viewMode === m
-                  ? 'bg-white shadow-sm text-primary' : 'text-stone-400 hover:text-stone-600'}`}>
-                <span className="material-symbols-outlined text-xl">{m === 'table' ? 'table_rows' : 'grid_view'}</span>
+              <button key={m} type="button" onClick={() => { setViewMode(m); cerrarPanel(); }}
+                aria-pressed={viewMode === m} aria-label={m === 'table' ? 'Vista de tabla' : 'Vista de tarjetas'}
+                className={`w-10 h-10 rounded-[10px] flex items-center justify-center transition-colors ${
+                  viewMode === m ? 'bg-tarjeta text-vino' : 'text-tinta-media hover:text-tinta'}`}>
+                <Icono nombre={m === 'table' ? 'table_rows' : 'grid_view'} className="text-xl" />
               </button>
             ))}
           </div>
         </div>
-        {!isLoading && (
-          <p className="text-xs text-stone-400">
-            {hasFilters
-              ? `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''} de ${estudiantes.length} estudiantes`
-              : `${estudiantes.length} estudiante${estudiantes.length !== 1 ? 's' : ''} en total`}
-          </p>
+
+        {error && <Aviso icono="error" titulo={error} enTarjeta={false} />}
+        {isLoading && <Cargando texto="Cargando estudiantes…" />}
+
+        {!isLoading && !error && filtered.length === 0 && (
+          <Aviso enTarjeta={false} icono={hasFilters ? 'manage_search' : 'group_off'}
+            titulo={hasFilters ? 'Sin resultados para los filtros aplicados' : 'No hay estudiantes registrados'}
+            texto={hasFilters ? 'Prueba con otros filtros o limpia la búsqueda.' : 'Aparecerán aquí una vez matriculados.'}>
+            {hasFilters && <Boton variante="suave" onClick={clearFilters}>Limpiar filtros</Boton>}
+          </Aviso>
         )}
-      </div>
 
-      {error && (
-        <div className="flex items-center gap-3 p-4 bg-error-container rounded-xl border border-error/20">
-          <span className="material-symbols-outlined text-error text-xl">error</span>
-          <p className="text-sm text-error font-medium">{error}</p>
-        </div>
-      )}
+        {!isLoading && !error && filtered.length > 0 && (
+          <>
+            {/* Celular: siempre tarjetas. Escritorio: la vista elegida. */}
+            <div className={viewMode === 'cards' ? '' : 'md:hidden'}>{tarjetas}</div>
 
-      {isLoading && (
-        <div className="flex items-center justify-center py-24">
-          <div className="flex flex-col items-center gap-3">
-            <span className="material-symbols-outlined text-primary animate-spin text-5xl">progress_activity</span>
-            <p className="text-sm text-stone-400">Cargando estudiantes…</p>
-          </div>
-        </div>
-      )}
-
-      {!isLoading && !error && filtered.length === 0 && (
-        <div className="bg-white rounded-2xl border border-outline-variant shadow-sm
-          py-20 flex flex-col items-center gap-4 text-stone-400">
-          <span className="material-symbols-outlined text-6xl">{hasFilters ? 'manage_search' : 'group_off'}</span>
-          <div className="text-center">
-            <p className="font-semibold text-sm">
-              {hasFilters ? 'Sin resultados para los filtros aplicados' : 'No hay estudiantes registrados'}
-            </p>
-            <p className="text-xs mt-1">
-              {hasFilters ? 'Prueba con otros filtros o limpia la búsqueda.' : 'Aparecerán aquí una vez matriculados.'}
-            </p>
-          </div>
-          {hasFilters && (
-            <button onClick={clearFilters}
-              className="px-4 py-2 text-xs font-semibold text-primary border border-primary/30
-                rounded-lg hover:bg-primary-fixed/20 transition-colors">
-              Limpiar filtros
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Vista tarjetas */}
-      {!isLoading && !error && filtered.length > 0 && viewMode === 'cards' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((e) => (
-            <StudentCard key={e.numero_identidad} estudiante={e}
-              onEditarEstudiante={abrirEdicionEstudiante}
-              onVerAcudientes={abrirPanel}
-              onMatricular={gestion.abrirMatricular}
-              onCambiarEstado={gestion.abrirCambioEstado}
-              panelAbierto={panel.idEstudiante === e.numero_identidad} />
-          ))}
-        </div>
-      )}
-
-      {/* Vista tabla */}
-      {!isLoading && !error && filtered.length > 0 && viewMode === 'table' && (
-        <div className="bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-stone-100 bg-stone-50/60 flex items-center gap-3">
-            <div className="p-2 bg-primary-fixed rounded-lg">
-              <span className="material-symbols-outlined text-on-primary-fixed-variant text-xl">group</span>
-            </div>
-            <div>
-              <h3 className="font-semibold text-on-surface">Lista de estudiantes</h3>
-              <p className="text-xs text-stone-500 mt-0.5">
-                {filtered.length} estudiante{filtered.length !== 1 ? 's' : ''}{hasFilters && ' (filtrado)'}
-                {' '}· Pasa el cursor para ver las acciones de edición
-              </p>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead>
-                <tr className="bg-stone-50 border-b border-stone-100">
-                  {['Estudiante', 'Grado', 'Jornada', 'Año', 'Nacimiento', 'Estado', 'Fecha matrícula', ''].map((h) => (
-                    <th key={h} className="px-5 py-3 text-[11px] font-bold text-stone-500 uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((e) => (
-                  <Fragment key={e.numero_identidad}>
-                    <StudentRow
-                      estudiante={e}
-                      onEditarEstudiante={abrirEdicionEstudiante}
-                      onVerAcudientes={abrirPanel}
-                      onMatricular={gestion.abrirMatricular}
-                      onCambiarEstado={gestion.abrirCambioEstado}
-                      panelAbierto={panel.idEstudiante === e.numero_identidad}
-                    />
-                    {panel.idEstudiante === e.numero_identidad && (
-                      <AcudientesPanel
-                        acudientes={panel.acudientes}
-                        isLoading={panel.isLoading}
-                        error={panel.error}
-                        onEditar={abrirEdicionAcudiente}
-                        onRestablecerClave={restablecerAcudiente}
-                        colSpan={8}
-                      />
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+            {viewMode === 'table' && (
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full border-collapse text-sm text-left">
+                  <caption className="sr-only">Estudiantes</caption>
+                  <thead>
+                    <tr className="bg-crema">
+                      {COLUMNAS.map(({ titulo: h, clase = '' }, i) => (
+                        <th key={h} scope="col"
+                          className={`${clase} px-3 py-3.5 font-semibold text-tinta whitespace-nowrap
+                            ${i === 0 ? 'rounded-l-xl' : ''} ${i === COLUMNAS.length - 1 ? 'rounded-r-xl' : ''}`}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((x) => (
+                      <Fragment key={x.e.numero_identidad}>
+                        <StudentRow {...propsDe(x)} />
+                        {panel.idEstudiante === x.e.numero_identidad && (
+                          <AcudientesPanel colSpan={COLUMNAS.length} {...propsAcudientes} />
+                        )}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </Tarjeta>
     </>
   );
 };

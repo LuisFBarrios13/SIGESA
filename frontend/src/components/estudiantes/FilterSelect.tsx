@@ -1,23 +1,21 @@
 // src/components/estudiantes/FilterSelect.tsx
+// Filtro con ícono sobre fondo crema (dentro de una tarjeta blanca).
+import { Icono } from '../ds/Controles';
 
 interface FilterSelectProps {
   icon: string; value: string; onChange: (v: string) => void;
   options: { value: string; label: string }[]; placeholder: string;
 }
+
 const FilterSelect = ({ icon, value, onChange, options, placeholder }: FilterSelectProps) => (
-  <div className="relative flex-1 min-w-[160px]">
-    <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined
-      text-stone-400 text-[18px] pointer-events-none">{icon}</span>
-    <select value={value} onChange={(e) => onChange(e.target.value)}
-      className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-outline-variant rounded-lg
-        text-on-surface appearance-none focus:outline-none focus:ring-2 focus:ring-primary/30
-        focus:border-primary transition-colors">
+  <label className="flex items-center gap-2 min-h-12 pl-3.5 pr-2 rounded-[14px] bg-crema text-tinta-media flex-1 min-w-[170px]">
+    <Icono nombre={icon} className="text-[19px] text-tinta-suave" />
+    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={placeholder}
+      className="flex-1 min-w-0 bg-transparent text-sm font-semibold text-tinta cursor-pointer focus:outline-none">
       <option value="">{placeholder}</option>
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
-    <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined
-      text-stone-400 text-[16px] pointer-events-none">expand_more</span>
-  </div>
+  </label>
 );
 
 export default FilterSelect;
