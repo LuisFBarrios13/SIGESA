@@ -22,7 +22,7 @@ const claseLateral = (activo: boolean) =>
   }`;
 
 const MenuLateral = ({ items, onSalir }: { items: NavItem[]; onSalir: () => void }) => (
-  <aside className="hidden lg:flex sticky top-5 h-[calc(100vh-2.5rem)] w-[260px] shrink-0 flex-col gap-7
+  <aside className="hidden lg:flex sticky top-[3.25rem] h-[calc(100vh-6.5rem)] w-[260px] shrink-0 flex-col gap-7
     bg-tarjeta rounded-card-lg px-[18px] py-6 overflow-y-auto">
     <div className="flex items-center gap-3 px-1.5">
       <img src="/escudo-128.png" alt="Escudo Colegio Pedagógico San Agustín" width={44} height={44}
@@ -148,8 +148,9 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <div className="min-h-screen bg-fondo-app text-tinta">
-      <div className="mx-auto max-w-[1440px] lg:flex lg:gap-6 lg:p-5">
+    <div className="min-h-screen bg-fondo-app text-tinta lg:p-8">
+      {/* Escritorio: todo dentro de un recuadro crema sobre el fondo degradado */}
+      <div className="mx-auto max-w-[1376px] lg:flex lg:gap-6 lg:p-5 lg:bg-crema lg:rounded-[36px] lg:min-h-[calc(100vh-4rem)]">
         <MenuLateral items={items} onSalir={salir} />
         <main className="flex-1 min-w-0 px-4 pt-5 pb-barra-movil sm:px-6 lg:px-1 lg:pt-2 lg:pb-8">
           <div className="flex flex-col gap-5 lg:gap-6">{children}</div>

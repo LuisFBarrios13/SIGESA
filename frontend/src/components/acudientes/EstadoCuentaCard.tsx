@@ -50,9 +50,11 @@ const EstadoCuentaCard = ({ year, pct, totales, pension, resumen }: Props) => {
               <span className="text-xs text-tinta-suave">
                 {proxima.cuenta.estado === 'VENCIDO' ? 'Pago vencido' : 'Próximo pago'}
               </span>
-              <span className="text-sm md:text-[15px] font-bold">{proxima.nombre} · {fmt(proxima.saldo)}</span>
+              <span className="text-sm md:text-[15px] font-bold whitespace-nowrap">{proxima.nombre} · {fmt(proxima.saldo)}</span>
             </div>
-            <EstadoBadge estado={proxima.cuenta.estado} />
+            <span className="min-h-11 px-3.5 rounded-xl bg-tinta text-white text-[13px] font-bold flex items-center shrink-0">
+              {proxima.cuenta.estado === 'VENCIDO' ? 'Vencido' : 'Pendiente'}
+            </span>
           </>
         ) : (
           <div className="flex items-center gap-2 text-sm font-bold text-verde-texto">
