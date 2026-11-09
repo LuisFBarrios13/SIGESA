@@ -1,17 +1,35 @@
 // src/pages/acudiente/AcudientePage.tsx
-import { useAcudiente }       from '../../hooks/useAcudiente';
-import WelcomeBanner          from '../../components/acudientes/WelcomeBanner';
-import EstudianteSelector     from '../../components/acudientes/EstudianteSelector';
-import MatriculaSelector      from '../../components/acudientes/MatriculaSelector';
-import ResumenFinanciero      from '../../components/acudientes/ResumenFinanciero';
-import CuentasLista           from '../../components/acudientes/CuentasLista';
-import { iniciales } from '../../utils/iniciales';
+// Portal del acudiente: pagos del estudiante a cargo por año escolar.
+// La lógica y las llamadas a la API viven en useAcudiente (sin cambios).
+import type { ReactNode } from 'react';
+import { useAcudiente } from '../../hooks/useAcudiente';
+import PageHeader  from '../../components/ds/PageHeader';
+import HeroBanner, { type HeroChip } from '../../components/ds/HeroBanner';
+import StatCard    from '../../components/ds/StatCard';
+import { ESTADOS } from '../../components/ds/tonos';
+import { SelectorAnio, SelectorEstudiante } from '../../components/acudientes/Selectores';
+import PagosPorMes      from '../../components/acudientes/PagosPorMes';
+import EstadoCuentaCard from '../../components/acudientes/EstadoCuentaCard';
+import DetalleCuotas    from '../../components/acudientes/DetalleCuotas';
+import { fmt, prepararCuotas, resumirCuotas } from '../../components/acudientes/cuotas';
 
-const ESTADO_COLOR: Record<string, string> = {
-  ACTIVO:   'bg-emerald-100 text-emerald-800',
-  RETIRADO: 'bg-red-100 text-red-800',
-  GRADUADO: 'bg-blue-100 text-blue-800',
-};
+const Aviso = ({ icono, titulo, texto, children }: {
+  icono: string; titulo: string; texto?: string; children?: ReactNode;
+}) => (
+  <div className="bg-tarjeta rounded-card py-14 px-6 flex flex-col items-center gap-3 text-center">
+    <span aria-hidden="true" className="material-symbols-outlined text-5xl text-tinta-suave">{icono}</span>
+    <p className="text-sm font-bold text-tinta">{titulo}</p>
+    {texto && <p className="text-sm text-tinta-suave max-w-sm">{texto}</p>}
+    {children}
+  </div>
+);
+
+const Cargando = ({ texto }: { texto: string }) => (
+  <div role="status" className="bg-tarjeta rounded-card py-14 flex flex-col items-center gap-3 text-tinta-suave">
+    <span aria-hidden="true" className="material-symbols-outlined animate-spin text-vino text-4xl">progress_activity</span>
+    <p className="text-sm">{texto}</p>
+  </div>
+);
 
 const AcudientePage = () => {
   const {
@@ -22,33 +40,26 @@ const AcudientePage = () => {
     refresh,
   } = useAcudiente();
 
+  const acciones = selected && (
+    <SelectorAnio matriculas={selected.matriculas} seleccionada={matricula} onSelect={selectMatricula} />
+  );
+
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-32 gap-3">
-        <span className="material-symbols-outlined text-primary animate-spin text-5xl">
-          progress_activity
-        </span>
-        <p className="text-sm text-stone-400">Cargando información…</p>
-      </div>
-    );
+    return (<><PageHeader titulo="Mis pagos" /><Cargando texto="Cargando información…" /></>);
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center gap-4 py-20">
-        <div className="flex items-center gap-3 p-5 bg-error-container rounded-2xl border border-error/20 max-w-md w-full">
-          <span className="material-symbols-outlined text-error text-2xl flex-shrink-0">error</span>
-          <p className="text-sm text-error font-medium">{error}</p>
-        </div>
-        <button
-          onClick={refresh}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary
-            border border-primary/30 rounded-lg hover:bg-primary-fixed/20 transition-colors"
-        >
-          <span className="material-symbols-outlined text-lg">refresh</span>
-          Reintentar
-        </button>
-      </div>
+      <>
+        <PageHeader titulo="Mis pagos" />
+        <Aviso icono="error" titulo="No se pudo cargar la información" texto={error}>
+          <button type="button" onClick={refresh}
+            className="mt-2 min-h-11 px-5 rounded-xl bg-tinta text-white text-sm font-bold flex items-center gap-2">
+            <span aria-hidden="true" className="material-symbols-outlined text-lg">refresh</span>
+            Reintentar
+          </button>
+        </Aviso>
+      </>
     );
   }
 
@@ -56,131 +67,76 @@ const AcudientePage = () => {
 
   if (!perfil.estudiantes.length) {
     return (
-      <div className="space-y-5">
-        <WelcomeBanner perfil={perfil} />
-        <div className="bg-white rounded-2xl border border-outline-variant shadow-sm py-20
-          flex flex-col items-center gap-4 text-stone-400">
-          <span className="material-symbols-outlined text-6xl">group_off</span>
-          <p className="font-semibold text-sm text-on-surface">Sin estudiantes vinculados</p>
-          <p className="text-xs">Contacta con el administrador del colegio</p>
-        </div>
-      </div>
+      <>
+        <PageHeader titulo="Mis pagos" />
+        <Aviso icono="group_off" titulo="Sin estudiantes vinculados" texto="Comunícate con la secretaría del colegio." />
+      </>
     );
   }
 
+  const cuotas  = resumen ? prepararCuotas(resumen.cuentas) : [];
+  const conteo  = resumirCuotas(cuotas);
+  const totales = resumen?.totales;
+  const pct     = totales && totales.deuda > 0 ? Math.round((totales.pagado / totales.deuda) * 100) : 0;
+
+  const chips: HeroChip[] = matricula ? [
+    { texto: matricula.grado.nombre },
+    { texto: `Jornada ${matricula.jornada === 'MAÑANA' ? 'mañana' : 'tarde'}` },
+    { texto: `Doc. ${selected!.numero_identidad}` },
+    { texto: ESTADOS[matricula.estado]?.texto ?? matricula.estado, destacado: matricula.estado === 'ACTIVO' },
+  ] : [{ texto: `Doc. ${selected!.numero_identidad}` }];
+
   return (
     <>
-      <WelcomeBanner perfil={perfil} />
+      <PageHeader titulo="Mis pagos" acciones={acciones} />
 
-      {/* Solo visible si hay más de un estudiante */}
-      <EstudianteSelector
-        estudiantes={perfil.estudiantes}
-        selected={selected}
-        onSelect={selectStudent}
-      />
+      <SelectorEstudiante estudiantes={perfil.estudiantes} seleccionado={selected} onSelect={selectStudent} />
 
       {selected && (
-        <div className="space-y-4">
+        <HeroBanner
+          etiqueta={matricula ? `Año escolar ${matricula.year} · Estudiante a cargo` : 'Estudiante a cargo'}
+          titulo={selected.nombre}
+          chips={chips}
+          escudo
+        />
+      )}
 
-          {/* Tarjeta de información del estudiante */}
-          <div className="bg-white rounded-xl border border-outline-variant shadow-sm p-5">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-orange-900 flex items-center justify-center flex-shrink-0">
-                  <span className="text-base font-black text-white">
-                    {iniciales(selected.nombre)}
-                  </span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-on-surface text-lg">{selected.nombre}</h3>
-                  <p className="text-xs text-stone-400 font-mono mt-0.5">
-                    ID: {selected.numero_identidad}
-                  </p>
-                  {selected.rh && (
-                    <span className="inline-block text-[10px] font-bold bg-red-100 text-red-700
-                      px-2 py-0.5 rounded mt-1">
-                      {selected.rh}
-                    </span>
-                  )}
-                </div>
+      {!matricula && <Aviso icono="event_busy" titulo="Este estudiante no tiene matrículas registradas" />}
+
+      {matricula && isLoadingResumen && <Cargando texto="Cargando pagos…" />}
+
+      {matricula && resumenError && !isLoadingResumen && (
+        <Aviso icono="error" titulo="No se pudieron cargar los pagos" texto={resumenError}>
+          <button type="button" onClick={refresh}
+            className="mt-2 min-h-11 px-5 rounded-xl bg-tinta text-white text-sm font-bold">Reintentar</button>
+        </Aviso>
+      )}
+
+      {matricula && resumen && totales && !isLoadingResumen && (
+        <>
+          <section aria-label={`Resumen de pagos ${matricula.year}`} className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
+            <StatCard icono="receipt_long" etiqueta="Total del año" valor={fmt(totales.deuda)}
+              tono="vino" chip={`${conteo.total} cuotas`} />
+            <StatCard icono="check_circle" etiqueta="Pagado" valor={fmt(totales.pagado)}
+              tono="verde" chip={`${conteo.pagadas} pagadas`} />
+            <StatCard icono="schedule" etiqueta="Saldo pendiente" valor={fmt(totales.pendiente)} tono="dorado"
+              chip={conteo.vencidas ? `${conteo.vencidas} vencidas` : `${conteo.pendientes} pendientes`}
+              chipTono={conteo.vencidas ? 'rojo' : 'dorado'} />
+            <StatCard icono="trending_up" etiqueta="Pagado del año" valor={`${pct}%`} tono="tinta" chip="Avance" chipTono="neutro" />
+          </section>
+
+          {cuotas.length > 0 && (
+            <div className="flex flex-wrap gap-5">
+              <div className="hidden md:flex flex-[999_1_520px] min-w-0 [&>*]:w-full"><PagosPorMes cuotas={cuotas} /></div>
+              <div className="flex flex-[1_1_300px] min-w-0 [&>*]:w-full">
+                <EstadoCuentaCard year={matricula.year} pct={pct} totales={totales} resumen={conteo}
+                  pension={resumen.tarifa ? Number(resumen.tarifa.valor_pension) : null} />
               </div>
-
-              <MatriculaSelector
-                matriculas={selected.matriculas}
-                selected={matricula}
-                onSelect={selectMatricula}
-              />
-            </div>
-
-            {/* Chips de info de la matrícula actual */}
-            {matricula && (
-              <div className="mt-4 pt-4 border-t border-stone-100 flex flex-wrap gap-2">
-                {[
-                  { icon: 'school',         label: 'Grado',   value: matricula.grado.nombre },
-                  { icon: 'wb_sunny',       label: 'Jornada', value: matricula.jornada === 'MAÑANA' ? 'Mañana' : 'Tarde' },
-                  { icon: 'calendar_today', label: 'Año',     value: String(matricula.year) },
-                ].map(({ icon, label, value }) => (
-                  <div key={label} className="flex items-center gap-2 bg-stone-50 rounded-lg px-3 py-2">
-                    <span className="material-symbols-outlined text-stone-400 text-base">{icon}</span>
-                    <div>
-                      <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wide">{label}</p>
-                      <p className="text-sm font-semibold text-on-surface">{value}</p>
-                    </div>
-                  </div>
-                ))}
-                <div className="flex items-center gap-2 bg-stone-50 rounded-lg px-3 py-2">
-                  <span className="material-symbols-outlined text-stone-400 text-base">flag</span>
-                  <div>
-                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wide">Estado</p>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full
-                      ${ESTADO_COLOR[matricula.estado] ?? 'bg-stone-100 text-stone-600'}`}>
-                      {matricula.estado}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Sección de pagos */}
-          {matricula && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-xl">payments</span>
-                Estado de pagos
-              </h3>
-
-              {isLoadingResumen && (
-                <div className="bg-white rounded-xl border border-outline-variant shadow-sm
-                  p-10 flex flex-col items-center gap-3 text-stone-400">
-                  <span className="material-symbols-outlined animate-spin text-primary text-3xl">
-                    progress_activity
-                  </span>
-                  <p className="text-sm">Cargando pagos…</p>
-                </div>
-              )}
-
-              {resumenError && !isLoadingResumen && (
-                <div className="flex items-center gap-3 p-4 bg-error-container rounded-xl border border-error/20">
-                  <span className="material-symbols-outlined text-error text-xl">error</span>
-                  <p className="text-sm text-error font-medium">{resumenError}</p>
-                </div>
-              )}
-
-              {resumen && !isLoadingResumen && (
-                <>
-                  <ResumenFinanciero
-                    totales={resumen.totales}
-                    tarifa={resumen.tarifa}
-                    year={matricula.year}
-                  />
-                  <CuentasLista cuentas={resumen.cuentas} />
-                </>
-              )}
             </div>
           )}
 
-        </div>
+          <DetalleCuotas cuotas={cuotas} year={matricula.year} />
+        </>
       )}
     </>
   );

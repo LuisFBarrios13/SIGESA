@@ -8,6 +8,7 @@ import { useAuth } from './hooks/useAuth';
 
 import LoginPage          from './pages/shared/LoginPage';
 import Layout             from './components/layout/Layout';
+import AppLayout          from './components/ds/AppLayout';
 import ProtectedRoute     from './components/ui/ProtectedRoute';
 
 const ChangePasswordPage = lazy(() => import('./pages/shared/ChangePasswordPage'));
@@ -101,7 +102,7 @@ const AppRoutes = () => {
       {/* ── Acudiente ── */}
       <Route path="/acudiente" element={
         <ProtectedRoute roles={['ACUDIENTE']}>
-          <Layout user={userProfile!}><Cargar><AcudientePage /></Cargar></Layout>
+          <AppLayout><Cargar><AcudientePage /></Cargar></AppLayout>
         </ProtectedRoute>
       } />
 
