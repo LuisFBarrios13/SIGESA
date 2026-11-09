@@ -1,5 +1,6 @@
 // src/matriculas/matricula.service.js
 import bcrypt from 'bcryptjs';
+import { Op } from 'sequelize';
 import { sequelize } from '../config/database.js';
 import {
   Estudiante,
@@ -10,6 +11,8 @@ import {
   RelacionEA,
   Rol,
   Grado,
+  CuentaCobro,
+  Pago,
 } from '../models/index.js';
 import { ROLES } from '../constants/roles.js';
 import { AppError } from '../utils/AppError.js';
@@ -27,7 +30,7 @@ export const crearMatriculaConAcudiente = async (dto) => {
     );
 
     if (estudianteExistente) {
-      throw new AppError(409, `Ya existe un estudiante registrado con el número de identidad ${estudiante.numero_identidad} (${estudianteExistente.nombre}). Si deseas re-matricularlo búscalo en la sección Estudiantes.`);
+      throw new AppError(409, `Ya existe un estudiante registrado con el número de identidad ${estudiante.numero_identidad} (${estudianteExistente.nombre}). Para matricularlo de nuevo usa el botón «Matricular» en la sección Estudiantes.`);
     }
 
     // ── 2. Crear el estudiante ────────────────────────────────────────────────
@@ -177,4 +180,72 @@ export const listarMatriculas = async () =>
       { model: Grado,      as: 'grado' },
     ],
     order: [['id_matricula', 'DESC']],
+  });
+
+/**
+ * Matricula a un estudiante que ya existe (p. ej. para el año siguiente).
+ * El acudiente sigue siendo el mismo; la jornada es la del grado elegido.
+ */
+export const rematricular = async ({ id_estudiante, id_grado, year }) => {
+  const estudiante = await Estudiante.findByPk(id_estudiante);
+  if (!estudiante) throw new AppError(404, 'Estudiante no encontrado');
+
+  const grado = await Grado.findByPk(id_grado);
+  if (!grado) throw new AppError(404, 'Grado no encontrado');
+
+  const existente = await Matricula.findOne({ where: { id_estudiante, year } });
+  if (existente) throw new AppError(409, `${estudiante.nombre} ya tiene una matrícula en ${year}`);
+
+  const creada = await Matricula.create({
+    id_grado,
+    id_estudiante,
+    year,
+    jornada:         grado.jornada,
+    fecha_matricula: new Date(),
+    estado:          'ACTIVO',
+  });
+  return Matricula.findByPk(creada.id_matricula, { include: [{ model: Grado, as: 'grado' }] });
+};
+
+/**
+ * Retira o reactiva una matrícula.
+ * Al retirar se eliminan las cuentas de cobro de meses FUTUROS que no tengan
+ * pagos (el estudiante ya no las debe). Las del mes en curso, las vencidas y
+ * las que tienen algún pago se conservan. Si se reactiva, las pensiones que
+ * falten se vuelven a generar desde Pagos.
+ */
+export const cambiarEstadoMatricula = async (id_matricula, estado) =>
+  sequelize.transaction(async (t) => {
+    const matricula = await Matricula.findByPk(id_matricula, { transaction: t });
+    if (!matricula) throw new AppError(404, 'Matrícula no encontrada');
+    if (matricula.estado === estado) {
+      throw new AppError(400, `La matrícula ya está ${estado === 'ACTIVO' ? 'activa' : 'retirada'}`);
+    }
+
+    let cuentasEliminadas = 0;
+    if (estado === 'RETIRADO') {
+      const hoy = new Date();
+      const yearActual = hoy.getFullYear();
+      const mesActual  = hoy.getMonth() + 1;
+      const futuras = await CuentaCobro.findAll({
+        where: {
+          id_matricula,
+          estado: 'PENDIENTE',
+          [Op.or]: [
+            { year: { [Op.gt]: yearActual } },
+            { year: yearActual, mes: { [Op.gt]: mesActual } },
+          ],
+        },
+        include: [{ model: Pago, as: 'pagos', attributes: ['id_pago'] }],
+        transaction: t,
+      });
+      const sinPagos = futuras.filter((c) => c.pagos.length === 0).map((c) => c.id_cuenta);
+      if (sinPagos.length) {
+        await CuentaCobro.destroy({ where: { id_cuenta: sinPagos }, transaction: t });
+      }
+      cuentasEliminadas = sinPagos.length;
+    }
+
+    await matricula.update({ estado }, { transaction: t });
+    return { matricula, cuentasEliminadas };
   });

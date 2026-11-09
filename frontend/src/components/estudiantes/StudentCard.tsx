@@ -1,6 +1,7 @@
 // src/components/estudiantes/StudentCard.tsx
 import type { EstudianteListItem } from '../../services/api';
-import { ESTADO_COLOR, ESTADO_ICON, JORNADA_COLOR, getMatriculaActiva } from '../../constants/estudiantes';
+import type { MatriculaListItem } from '../../types/matriculas';
+import { ESTADO_COLOR, ESTADO_ICON, JORNADA_COLOR, getMatriculaActiva, getMatriculaVigente } from '../../constants/estudiantes';
 import PillBadge from './PillBadge';
 import { iniciales } from '../../utils/iniciales';
 
@@ -8,11 +9,16 @@ interface StudentCardProps {
   estudiante:         EstudianteListItem;
   onEditarEstudiante: (e: EstudianteListItem) => void;
   onVerAcudientes:    (id: string, nombre: string) => void;
+  onMatricular:       (e: EstudianteListItem) => void;
+  onCambiarEstado:    (e: EstudianteListItem, m: MatriculaListItem) => void;
   panelAbierto:       boolean;
 }
 
-const StudentCard = ({ estudiante: e, onEditarEstudiante, onVerAcudientes, panelAbierto }: StudentCardProps) => {
+const StudentCard = ({
+  estudiante: e, onEditarEstudiante, onVerAcudientes, onMatricular, onCambiarEstado, panelAbierto,
+}: StudentCardProps) => {
   const matricula = getMatriculaActiva(e.matriculas);
+  const vigente   = getMatriculaVigente(e.matriculas);
   const initials  = iniciales(e.nombre);
 
   return (
@@ -50,7 +56,7 @@ const StudentCard = ({ estudiante: e, onEditarEstudiante, onVerAcudientes, panel
                 colorClass={JORNADA_COLOR[matricula.grado.jornada] ?? ''} />
             )}
           </div>
-          <div className="flex gap-2 mt-4 pt-3 border-t border-stone-100">
+          <div className="flex gap-2 mt-4 pt-3 border-t border-stone-100 flex-wrap">
             <button onClick={() => onEditarEstudiante(e)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold
                 bg-stone-100 text-stone-700 rounded-lg hover:bg-primary-fixed/30 hover:text-primary transition-colors">
@@ -67,6 +73,24 @@ const StudentCard = ({ estudiante: e, onEditarEstudiante, onVerAcudientes, panel
               <span className="material-symbols-outlined text-[15px]">family_restroom</span>
               Acudientes
             </button>
+            <button onClick={() => onMatricular(e)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold
+                bg-stone-100 text-stone-700 rounded-lg hover:bg-primary-fixed/30 hover:text-primary transition-colors">
+              <span className="material-symbols-outlined text-[15px]">how_to_reg</span>
+              Matricular
+            </button>
+            {vigente && vigente.estado !== 'GRADUADO' && (
+              <button onClick={() => onCambiarEstado(e, vigente)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors
+                  ${vigente.estado === 'ACTIVO'
+                    ? 'bg-stone-100 text-stone-700 hover:bg-red-50 hover:text-red-700'
+                    : 'bg-stone-100 text-stone-700 hover:bg-emerald-50 hover:text-emerald-700'}`}>
+                <span className="material-symbols-outlined text-[15px]">
+                  {vigente.estado === 'ACTIVO' ? 'person_remove' : 'person_check'}
+                </span>
+                {vigente.estado === 'ACTIVO' ? 'Retirar' : 'Reactivar'}
+              </button>
+            )}
           </div>
         </div>
       </div>

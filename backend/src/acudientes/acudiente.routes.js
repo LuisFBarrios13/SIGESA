@@ -1,6 +1,8 @@
 // src/acudientes/acudiente.routes.js
 import { Router } from 'express';
 import { actualizar, buscarPorCedula } from './acudiente.controller.js';
+import { restablecerClaveAcudiente } from '../usuarios/usuario.service.js';
+import { successResponse } from '../utils/responseHandler.js';
 import { authenticate, authorize } from '../middlewares/auth.middleware.js';
 import { ROLES } from '../constants/roles.js';
 import { validar, v } from '../middlewares/validar.middleware.js';
@@ -21,5 +23,10 @@ router.patch('/:cedula', authenticate, authorize(ROLES.ADMINISTRADOR), validar([
   v.textoOpcional('direccion_trabajo', 'La dirección del trabajo', 200),
   v.correo('correo'),
 ]), actualizar);
+
+// Restablece la contraseña del acudiente a su usuario (debe cambiarla al entrar)
+router.post('/:cedula/restablecer-clave', authenticate, authorize(ROLES.ADMINISTRADOR),
+  validar([v.documento('cedula', 'La cédula', 'param')]),
+  async (req, res) => successResponse(res, await restablecerClaveAcudiente(req.params.cedula), 'Contraseña restablecida'));
 
 export default router;

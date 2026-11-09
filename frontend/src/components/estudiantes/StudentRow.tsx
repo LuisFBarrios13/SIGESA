@@ -1,6 +1,7 @@
 // src/components/estudiantes/StudentRow.tsx
 import type { EstudianteListItem } from '../../services/api';
-import { ESTADO_COLOR, ESTADO_ICON, JORNADA_COLOR, getMatriculaActiva } from '../../constants/estudiantes';
+import type { MatriculaListItem } from '../../types/matriculas';
+import { ESTADO_COLOR, ESTADO_ICON, JORNADA_COLOR, getMatriculaActiva, getMatriculaVigente } from '../../constants/estudiantes';
 import PillBadge from './PillBadge';
 import { iniciales } from '../../utils/iniciales';
 
@@ -8,11 +9,16 @@ interface StudentRowProps {
   estudiante:         EstudianteListItem;
   onEditarEstudiante: (e: EstudianteListItem) => void;
   onVerAcudientes:    (id: string, nombre: string) => void;
+  onMatricular:       (e: EstudianteListItem) => void;
+  onCambiarEstado:    (e: EstudianteListItem, m: MatriculaListItem) => void;
   panelAbierto:       boolean;
 }
 
-const StudentRow = ({ estudiante: e, onEditarEstudiante, onVerAcudientes, panelAbierto }: StudentRowProps) => {
+const StudentRow = ({
+  estudiante: e, onEditarEstudiante, onVerAcudientes, onMatricular, onCambiarEstado, panelAbierto,
+}: StudentRowProps) => {
   const matricula = getMatriculaActiva(e.matriculas);
+  const vigente   = getMatriculaVigente(e.matriculas);
   return (
     <tr className={`transition-colors group ${panelAbierto ? 'bg-primary-fixed/10' : 'hover:bg-stone-50/70'}`}>
       <td className="px-5 py-3.5">
@@ -56,7 +62,7 @@ const StudentRow = ({ estudiante: e, onEditarEstudiante, onVerAcudientes, panelA
           : '—'}
       </td>
       <td className="px-4 py-3.5">
-        <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1">
           <button onClick={() => onEditarEstudiante(e)} title="Editar estudiante"
             className="p-1.5 rounded-lg text-stone-400 hover:text-primary hover:bg-primary-fixed/30 transition-all">
             <span className="material-symbols-outlined text-lg">edit</span>
@@ -69,6 +75,21 @@ const StudentRow = ({ estudiante: e, onEditarEstudiante, onVerAcudientes, panelA
                 : 'text-stone-400 hover:text-secondary hover:bg-secondary-container/20'}`}>
             <span className="material-symbols-outlined text-lg">family_restroom</span>
           </button>
+          <button onClick={() => onMatricular(e)} title="Matricular (otro año o grado)"
+            className="p-1.5 rounded-lg text-stone-400 hover:text-primary hover:bg-primary-fixed/30 transition-all">
+            <span className="material-symbols-outlined text-lg">how_to_reg</span>
+          </button>
+          {vigente && vigente.estado !== 'GRADUADO' && (
+            <button onClick={() => onCambiarEstado(e, vigente)}
+              title={vigente.estado === 'ACTIVO' ? `Retirar (${vigente.year})` : `Reactivar (${vigente.year})`}
+              className={`p-1.5 rounded-lg transition-all ${vigente.estado === 'ACTIVO'
+                ? 'text-stone-400 hover:text-red-700 hover:bg-red-50'
+                : 'text-stone-400 hover:text-emerald-700 hover:bg-emerald-50'}`}>
+              <span className="material-symbols-outlined text-lg">
+                {vigente.estado === 'ACTIVO' ? 'person_remove' : 'person_check'}
+              </span>
+            </button>
+          )}
         </div>
       </td>
     </tr>

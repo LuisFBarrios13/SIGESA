@@ -13,6 +13,10 @@ import StudentCard               from '../../components/estudiantes/StudentCard'
 import StudentRow                from '../../components/estudiantes/StudentRow';
 import { NOMBRES_GRADOS, getMatriculaActiva } from '../../constants/estudiantes';
 import { queryKeys } from '../../lib/queryKeys';
+import { useGestionMatricula } from '../../hooks/useGestionMatricula';
+import { useRestablecerClave } from '../../hooks/useRestablecerClave';
+import GestionMatriculaDialogos from '../../components/estudiantes/GestionMatriculaDialogos';
+import RestablecerClaveDialogos from '../../components/ui/RestablecerClaveDialogos';
 
 const SIN_ESTUDIANTES: EstudianteListItem[] = [];
 
@@ -51,6 +55,11 @@ const EstudiantesPage = () => {
     abrirEdicion: abrirEdicionAcudiente, cerrarEdicion: cerrarEdicionAcudiente,
     confirmarEdicion: confirmarEdicionAcudiente,
   } = useEditarAcudiente();
+
+  const gestion = useGestionMatricula();
+  const clave   = useRestablecerClave();
+  const restablecerAcudiente = (a: { cedula: string; nombre: string }) =>
+    clave.pedir({ tipo: 'acudiente', cedula: a.cedula, nombre: a.nombre });
 
   const years = useMemo(() => {
     const set = new Set<string>();
@@ -106,6 +115,8 @@ const EstudiantesPage = () => {
         />
       )}
 
+      <RestablecerClaveDialogos clave={clave} />
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
@@ -120,6 +131,8 @@ const EstudiantesPage = () => {
           <span className="material-symbols-outlined text-lg">refresh</span>Actualizar
         </button>
       </div>
+
+      <GestionMatriculaDialogos gestion={gestion} />
 
       {!isLoading && !error && <StatsBar estudiantes={estudiantes} />}
 
@@ -227,6 +240,8 @@ const EstudiantesPage = () => {
             <StudentCard key={e.numero_identidad} estudiante={e}
               onEditarEstudiante={abrirEdicionEstudiante}
               onVerAcudientes={abrirPanel}
+              onMatricular={gestion.abrirMatricular}
+              onCambiarEstado={gestion.abrirCambioEstado}
               panelAbierto={panel.idEstudiante === e.numero_identidad} />
           ))}
         </div>
@@ -263,6 +278,8 @@ const EstudiantesPage = () => {
                       estudiante={e}
                       onEditarEstudiante={abrirEdicionEstudiante}
                       onVerAcudientes={abrirPanel}
+                      onMatricular={gestion.abrirMatricular}
+                      onCambiarEstado={gestion.abrirCambioEstado}
                       panelAbierto={panel.idEstudiante === e.numero_identidad}
                     />
                     {panel.idEstudiante === e.numero_identidad && (
@@ -271,6 +288,7 @@ const EstudiantesPage = () => {
                         isLoading={panel.isLoading}
                         error={panel.error}
                         onEditar={abrirEdicionAcudiente}
+                        onRestablecerClave={restablecerAcudiente}
                         colSpan={8}
                       />
                     )}

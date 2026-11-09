@@ -69,15 +69,15 @@ export const api = {
 
 // ── Imports desde types/ ──────────────────────────────────────
 
-import type { LoginResult, Grado }                 from '../types/shared';
-import type { MatriculaPayload, MatriculaResult }  from '../types/matriculas';
+import type { LoginResult, Grado, Credenciales }   from '../types/shared';
+import type { MatriculaPayload, MatriculaResult, MatriculaListItem }  from '../types/matriculas';
 import type { DocentePayload, DocenteResult, DocenteListItem, GradoDisponibilidad } from '../types/docentes';
 import type { EstudianteListItem, EstudianteDetalle, ActualizarEstudiantePayload }  from '../types/estudiantes';
 
 // ── Re-exports ────────────────────────────────────────────────
 // Las páginas siguen importando desde este archivo sin necesidad de cambios.
 
-export type { LoginResult, JornadaEstudiante, JornadaDocente, Grado } from '../types/shared';
+export type { LoginResult, JornadaEstudiante, JornadaDocente, Grado, Credenciales } from '../types/shared';
 export type { MatriculaPayload, MatriculaResult, MatriculaListItem }   from '../types/matriculas';
 export type { DocentePayload, GradoAsignado, DocenteResult, DocenteListItem, GradoDisponibilidad } from '../types/docentes';
 export type { GradoResumen, EstudianteListItem, EstudianteDetalle, ActualizarEstudiantePayload }    from '../types/estudiantes';
@@ -101,6 +101,20 @@ export const gradosApi = {
 
 export const matriculasApi = {
   crear: (p: MatriculaPayload) => api.post<MatriculaResult>('/matriculas', p),
+  /** Matricular a un estudiante que ya existe. */
+  rematricular: (p: { id_estudiante: string; id_grado: number; year: number }) =>
+    api.post<MatriculaListItem>('/matriculas/rematricula', p),
+  /** Retirar o reactivar. */
+  cambiarEstado: (id_matricula: number, estado: 'ACTIVO' | 'RETIRADO') =>
+    api.patch<{ matricula: MatriculaListItem; cuentasEliminadas: number }>(`/matriculas/${id_matricula}/estado`, { estado }),
+};
+
+// ── Contraseñas ───────────────────────────────────────────────
+
+export const clavesApi = {
+  /** Restablece la contraseña de un docente o acudiente a su usuario. */
+  restablecer: (tipo: 'docente' | 'acudiente', cedula: string) =>
+    api.post<Credenciales>(`/${tipo === 'docente' ? 'docentes' : 'acudientes'}/${cedula}/restablecer-clave`, {}),
 };
 
 // ── Docentes ──────────────────────────────────────────────────

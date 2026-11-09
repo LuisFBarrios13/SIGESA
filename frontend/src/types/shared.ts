@@ -21,3 +21,10 @@ export interface LoginResult {
   token: string;
   user:  import('./auth').AuthUser;
 }
+
+/** Usuario y contraseña temporal que se le entregan a alguien. */
+export interface Credenciales {
+  username:         string;
+  passwordTemporal: string;
+  nota:             string;
+}

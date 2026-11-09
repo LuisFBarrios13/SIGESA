@@ -7,10 +7,11 @@ interface AcudientesPanelProps {
   isLoading:  boolean;
   error:      string;
   onEditar:   (a: AcudienteDetalle) => void;
+  onRestablecerClave: (a: AcudienteDetalle) => void;
   colSpan:    number;
 }
 
-const AcudientesPanel = ({ acudientes, isLoading, error, onEditar, colSpan }: AcudientesPanelProps) => (
+const AcudientesPanel = ({ acudientes, isLoading, error, onEditar, onRestablecerClave, colSpan }: AcudientesPanelProps) => (
   <tr>
     <td colSpan={colSpan} className="px-0 py-0">
       <div className="bg-stone-50 border-y border-stone-200 px-8 py-4">
@@ -78,12 +79,16 @@ const AcudientesPanel = ({ acudientes, isLoading, error, onEditar, colSpan }: Ac
                       )}
                     </div>
                   </div>
-                  <button onClick={() => onEditar(a)} title="Editar acudiente"
-                    className="p-1.5 rounded-lg text-stone-300 hover:text-primary
-                      hover:bg-primary-fixed/30 transition-all flex-shrink-0
-                      opacity-0 group-hover:opacity-100">
-                    <span className="material-symbols-outlined text-lg">edit</span>
-                  </button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={() => onRestablecerClave(a)} title="Restablecer contraseña"
+                      className="p-1.5 rounded-lg text-stone-400 hover:text-primary hover:bg-primary-fixed/30 transition-all">
+                      <span className="material-symbols-outlined text-lg">key</span>
+                    </button>
+                    <button onClick={() => onEditar(a)} title="Editar acudiente"
+                      className="p-1.5 rounded-lg text-stone-400 hover:text-primary hover:bg-primary-fixed/30 transition-all">
+                      <span className="material-symbols-outlined text-lg">edit</span>
+                    </button>
+                  </div>
                 </div>
               );
             })}

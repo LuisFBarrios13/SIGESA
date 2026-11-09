@@ -2,6 +2,8 @@
 import { useState, type FormEvent, type ChangeEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryKeys';
+import { useRestablecerClave } from '../../hooks/useRestablecerClave';
+import RestablecerClaveDialogos from '../../components/ui/RestablecerClaveDialogos';
 import {
   docentesApi,
   type DocentePayload,
@@ -50,6 +52,8 @@ const DocentesPage = () => {
     cerrarEdicion,
     confirmarEdicion,
   } = useEditarDocente();
+
+  const clave = useRestablecerClave();
 
   const queryClient = useQueryClient();
   const disponibilidadQuery = useQuery({
@@ -145,6 +149,7 @@ const DocentesPage = () => {
       {successData && (
         <SuccessModal data={successData} onClose={() => setSuccessData(null)} />
       )}
+      <RestablecerClaveDialogos clave={clave} />
       {editando && (
         <EditarDocenteModal
           key={editando.cedula}
@@ -310,7 +315,8 @@ const DocentesPage = () => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {docentes.map((d) => (
-                <DocenteCard key={d.cedula} docente={d} onEditar={abrirEdicion} />
+                <DocenteCard key={d.cedula} docente={d} onEditar={abrirEdicion}
+                  onRestablecerClave={(doc) => clave.pedir({ tipo: 'docente', cedula: doc.cedula, nombre: doc.nombre })} />
               ))}
             </div>
           )}

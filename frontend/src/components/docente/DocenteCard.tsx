@@ -5,9 +5,10 @@ import JornadaBadge from './JornadaBadge';
 interface DocenteCardProps {
   docente:   DocenteListItem;
   onEditar:  (d: DocenteListItem) => void;
+  onRestablecerClave: (d: DocenteListItem) => void;
 }
 
-const DocenteCard = ({ docente, onEditar }: DocenteCardProps) => (
+const DocenteCard = ({ docente, onEditar, onRestablecerClave }: DocenteCardProps) => (
   <div className="bg-white rounded-xl border border-outline-variant shadow-sm p-5
     flex flex-col gap-3 hover:border-primary/30 hover:shadow-md transition-all">
 
@@ -23,6 +24,14 @@ const DocenteCard = ({ docente, onEditar }: DocenteCardProps) => (
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
         <JornadaBadge jornada={docente.jornada} />
+        <button
+          onClick={() => onRestablecerClave(docente)}
+          title="Restablecer contraseña"
+          aria-label={`Restablecer la contraseña de ${docente.nombre}`}
+          className="p-1.5 rounded-lg text-stone-400 hover:text-primary hover:bg-primary-fixed/30 transition-all"
+        >
+          <span className="material-symbols-outlined text-lg">key</span>
+        </button>
         <button
           onClick={() => onEditar(docente)}
           title="Editar docente"

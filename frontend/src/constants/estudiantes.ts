@@ -29,3 +29,7 @@ export const JORNADA_COLOR: Record<string, string> = {
 
 export const getMatriculaActiva = (matriculas: MatriculaListItem[]): MatriculaListItem | undefined =>
   [...matriculas].sort((a, b) => b.year - a.year)[0];
+
+/** Matrícula sobre la que se retira o reactiva: la del año en curso, o la más reciente. */
+export const getMatriculaVigente = (matriculas: MatriculaListItem[]): MatriculaListItem | undefined =>
+  matriculas.find((m) => m.year === new Date().getFullYear()) ?? getMatriculaActiva(matriculas);
