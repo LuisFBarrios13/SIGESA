@@ -11,9 +11,11 @@ interface Props {
   /** Chip arriba a la derecha (se oculta en pantallas muy pequeñas). */
   chip?:    string;
   chipTono?: Tono;
+  /** Línea pequeña bajo el valor. */
+  detalle?: string;
 }
 
-const StatCard = ({ icono, etiqueta, valor, tono = 'vino', chip, chipTono }: Props) => (
+const StatCard = ({ icono, etiqueta, valor, tono = 'vino', chip, chipTono, detalle }: Props) => (
   <div className="bg-tarjeta rounded-[20px] sm:rounded-card p-4 sm:p-[22px] flex flex-col gap-3.5 sm:gap-5 min-w-0">
     <div className="flex justify-between items-start gap-2">
       <span aria-hidden="true"
@@ -29,7 +31,8 @@ const StatCard = ({ icono, etiqueta, valor, tono = 'vino', chip, chipTono }: Pro
     </div>
     <div className="flex flex-col gap-0.5 sm:gap-1.5 min-w-0">
       <span className="text-xs sm:text-sm text-tinta-suave">{etiqueta}</span>
-      <span className="text-lg sm:text-[26px] font-semibold tracking-tight leading-tight break-words">{valor}</span>
+      <span className={`text-lg sm:text-[26px] font-semibold tracking-tight leading-tight break-words ${tono === 'alerta' ? 'text-rojo' : ''}`}>{valor}</span>
+      {detalle && <span className="text-xs sm:text-[13px] text-tinta-suave">{detalle}</span>}
     </div>
   </div>
 );

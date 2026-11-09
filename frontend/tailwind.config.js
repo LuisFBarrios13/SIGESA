@@ -10,6 +10,7 @@ export default {
         verde:  { DEFAULT: 'rgb(var(--verde) / <alpha-value>)', texto: 'rgb(var(--verde-texto) / <alpha-value>)', suave: 'rgb(var(--verde-suave) / <alpha-value>)' },
         dorado: { DEFAULT: 'rgb(var(--dorado) / <alpha-value>)', texto: 'rgb(var(--dorado-texto) / <alpha-value>)', suave: 'rgb(var(--dorado-suave) / <alpha-value>)' },
         rojo:   { DEFAULT: 'rgb(var(--rojo) / <alpha-value>)', suave: 'rgb(var(--rojo-suave) / <alpha-value>)' },
+        azul:   { DEFAULT: 'rgb(var(--azul) / <alpha-value>)', texto: 'rgb(var(--azul-texto) / <alpha-value>)', suave: 'rgb(var(--azul-suave) / <alpha-value>)' },
         crema:  { DEFAULT: 'rgb(var(--crema) / <alpha-value>)', oscuro: 'rgb(var(--crema-oscuro) / <alpha-value>)' },
         tarjeta: 'rgb(var(--tarjeta) / <alpha-value>)',
         linea:   'rgb(var(--linea) / <alpha-value>)',

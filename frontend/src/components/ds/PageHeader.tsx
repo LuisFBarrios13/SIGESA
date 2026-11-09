@@ -8,8 +8,10 @@ import { iniciales } from '../../utils/iniciales';
 import { NOMBRE_ROL } from '../../constants/navigation';
 
 interface Props {
-  titulo:    string;
-  acciones?: ReactNode;
+  titulo:     string;
+  /** Se muestra antes de la fecha: «Resumen académico · lunes, 9 de noviembre». */
+  subtitulo?: string;
+  acciones?:  ReactNode;
 }
 
 const capitalizar = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -18,7 +20,7 @@ const fechaLarga = () =>
 const fechaCorta = () =>
   new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
 
-const PageHeader = ({ titulo, acciones }: Props) => {
+const PageHeader = ({ titulo, subtitulo, acciones }: Props) => {
   const { user } = useAuth();
   const nombre = user?.nombre || user?.username || '';
   const rol    = NOMBRE_ROL[user?.roles[0] ?? ''] ?? '';
@@ -32,8 +34,9 @@ const PageHeader = ({ titulo, acciones }: Props) => {
           <div className="flex flex-col min-w-0">
             <h1 className="m-0 text-lg lg:text-[26px] font-semibold tracking-tight text-tinta truncate">{titulo}</h1>
             <span className="text-xs lg:text-[15px] text-tinta-suave">
+              {subtitulo && <span className="block lg:inline">{subtitulo}<span className="hidden lg:inline"> · </span></span>}
               <span className="lg:hidden">{fechaCorta()}</span>
-              <span className="hidden lg:inline">{fechaLarga()}</span>
+              <span className="hidden lg:inline">{subtitulo ? fechaLarga().toLowerCase() : fechaLarga()}</span>
             </span>
           </div>
         </div>

@@ -22,6 +22,9 @@
   --dorado-suave:  251 240 210;  /* #FBF0D2 */
   --rojo:          179 38 30;    /* #B3261E  vencido / error */
   --rojo-suave:    251 228 225;  /* #FBE4E1 */
+  --azul:          46 110 142;   /* #2E6E8E  tarde, pagos parciales */
+  --azul-texto:    31 92 128;    /* #1F5C80 */
+  --azul-suave:    227 238 246;  /* #E3EEF6 */
 
   /* Superficies */
   --crema:         247 245 242;  /* #F7F5F2  fondo de la app */
