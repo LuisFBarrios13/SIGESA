@@ -1,14 +1,15 @@
 // src/components/pagos/PagosSection.tsx
+// Cuenta del estudiante elegido: acciones (generar cuentas), filtro por estado,
+// lista de cuotas y, al lado, el estado de cuenta del año.
 import { useRef, useState } from 'react';
-import TotalsBar from './TotalsBar';
 import CuentaCard from './CuentaCard';
-import { ESTADO_META, CONCEPTO_META, fmt } from './pagos.constants';
-import type {
-  ResumenPagos,
-  CuentaCobro,
-  Tarifa,
-  EstadoCuenta,
-} from '../../services/pagosApi';
+import { ESTADO_META, fmt } from './pagos.constants';
+import type { ResumenPagos, CuentaCobro, Tarifa, EstadoCuenta } from '../../services/pagosApi';
+import Tarjeta from '../ds/Tarjeta';
+import ProgressBar from '../ds/ProgressBar';
+import EstadoBadge from '../ds/EstadoBadge';
+import { Avatar, Boton, Icono } from '../ds/Controles';
+import { Aviso, Mensaje } from '../ds/Estados';
 
 interface PagosSectionProps {
   resumen:          ResumenPagos;
@@ -26,6 +27,8 @@ interface PagosSectionProps {
   onEditTarifa:     () => void;
 }
 
+const FILTROS = ['TODOS', 'PENDIENTE', 'PAGADO', 'VENCIDO'] as const;
+
 const PagosSection = ({
   resumen, cuentasFiltradas, estadoFilter, setEstadoFilter,
   onPagar, onPension, onMatricula, onVolver, year,
@@ -42,176 +45,106 @@ const PagosSection = ({
     setEstadoFilter(f);
   };
 
-  const tieneMatricula  = cuentas.some((c) => c.concepto.nombre === 'MATRÍCULA');
-  const tienePension    = cuentas.some((c) => c.concepto.nombre === 'PENSIÓN');
-  const pagadasCount    = cuentas.filter((c) => c.estado === 'PAGADO').length;
-  const pendienteCount  = cuentas.filter((c) => c.estado === 'PENDIENTE').length;
+  const tieneMatricula = cuentas.some((c) => c.concepto.nombre === 'MATRÍCULA');
+  const tienePension   = cuentas.some((c) => c.concepto.nombre === 'PENSIÓN');
+  const pct = totales.deuda > 0 ? Math.round((totales.pagado / totales.deuda) * 100) : 0;
+  const primerNombre = matricula.estudiante.nombre.split(' ')[0];
+
+  // Matrícula primero y luego pensiones por mes
+  const ordenadas = [...cuentasFiltradas].sort((a, b) =>
+    Number(b.concepto.nombre === 'MATRÍCULA') - Number(a.concepto.nombre === 'MATRÍCULA') || a.mes - b.mes);
+
+  const acciones = (
+    <>
+      {!tarifa && (
+        <Boton icono="warning" variante="suave" onClick={onEditTarifa}>Configurar tarifas {year}</Boton>
+      )}
+      {!tieneMatricula && tarifa && (
+        <Boton icono={opLoading ? 'progress_activity' : 'how_to_reg'} variante="suave" onClick={onMatricula} disabled={opLoading}>
+          Crear matrícula · {fmt(tarifa.valor_matricula)}
+        </Boton>
+      )}
+      {!tienePension && tarifa && (
+        <Boton icono={opLoading ? 'progress_activity' : 'playlist_add'} variante="vino" onClick={onPension} disabled={opLoading}>
+          Generar pensiones · {fmt(tarifa.valor_pension)}/mes
+        </Boton>
+      )}
+    </>
+  );
 
   return (
-    <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
-      {/* Student header */}
-      <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onVolver}
-            className="p-2 hover:bg-stone-100 rounded-lg transition-colors text-on-surface-variant"
-            title="Volver a la búsqueda"
-          >
-            <span className="material-symbols-outlined text-xl">arrow_back</span>
-          </button>
-          <div className="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center
-            text-xs font-black text-on-primary-fixed-variant">
-            {matricula.estudiante.nombre.split(' ').map((n) => n[0]).slice(0, 2).join('')}
-          </div>
-          <div>
-            <h3 className="font-semibold text-on-surface">{matricula.estudiante.nombre}</h3>
-            <p className="text-xs text-stone-400">
-              CC {matricula.estudiante.numero_identidad} · {matricula.grado.nombre} · {year}
-            </p>
-          </div>
-        </div>
-
-        {/* Action buttons */}
-        <div className="flex gap-2 flex-wrap">
-          {!tarifa && (
-            <button onClick={onEditTarifa}
-              className="flex items-center gap-1.5 px-3 py-2 bg-orange-100 text-orange-700
-                border border-orange-200 rounded-lg text-xs font-bold hover:bg-orange-200 transition-all"
-            >
-              <span className="material-symbols-outlined text-base">warning</span>
-              Configurar tarifas {year}
-            </button>
-          )}
-          {!tieneMatricula && tarifa && (
-            <button onClick={onMatricula} disabled={opLoading}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white border border-outline-variant
-                text-on-surface-variant rounded-lg text-xs font-semibold hover:bg-stone-50
-                transition-all disabled:opacity-60"
-            >
-              {opLoading
-                ? <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>
-                : <span className="material-symbols-outlined text-base text-blue-600">how_to_reg</span>
-              }
-              Crear matrícula · {fmt(tarifa.valor_matricula)}
-            </button>
-          )}
-          {!tienePension && tarifa && (
-            <button onClick={onPension} disabled={opLoading}
-              className="flex items-center gap-1.5 px-3 py-2 bg-secondary text-on-secondary
-                rounded-lg text-xs font-semibold hover:opacity-90 transition-all shadow-sm disabled:opacity-60"
-            >
-              {opLoading
-                ? <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>
-                : <span className="material-symbols-outlined text-base">playlist_add</span>
-              }
-              Generar pensiones · {fmt(tarifa.valor_pension)}/mes
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Op error */}
-      {opError && (
-        <div className="mx-6 mt-4 flex items-start gap-3 p-3 bg-error-container rounded-lg border border-error/20">
-          <span className="material-symbols-outlined text-error text-xl flex-shrink-0">error</span>
-          <p className="text-sm text-error font-medium">{opError}</p>
-        </div>
-      )}
-
-      <div className="p-6 space-y-5">
-        {/* Mini stats */}
-        <div className="grid grid-cols-4 gap-3">
-          {[
-            { label: 'Total cuentas', value: cuentas.length, icon: 'receipt',       color: 'text-on-surface-variant' },
-            { label: 'Pensiones',     value: cuentas.filter((c) => c.concepto.nombre === 'PENSIÓN').length, icon: 'payments', color: 'text-tertiary' },
-            { label: 'Pagadas',       value: pagadasCount,   icon: 'check_circle',  color: 'text-secondary' },
-            { label: 'Pendientes',    value: pendienteCount, icon: 'schedule',      color: 'text-primary' },
-          ].map(({ label, value, icon, color }) => (
-            <div key={label} className="bg-stone-50 border border-stone-100 rounded-xl px-4 py-3 flex items-center gap-3">
-              <span className={`material-symbols-outlined text-xl ${color}`}>{icon}</span>
-              <div>
-                <p className="text-lg font-bold text-on-surface leading-none">{value}</p>
-                <p className="text-[11px] text-stone-400 mt-0.5">{label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Totals */}
-        <TotalsBar totales={totales} />
-
-        {/* Estado filter chips */}
-        <div className="flex gap-2 flex-wrap items-center">
-          {(['TODOS', 'PENDIENTE', 'PAGADO', 'VENCIDO'] as const).map((f) => {
-            const isActive = estadoFilter === f;
-            const meta     = f === 'TODOS' ? null : ESTADO_META[f];
-            return (
-              <button
-                key={f}
-                onClick={() => cambiarFiltro(f)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all
-                  ${isActive
-                    ? 'bg-primary text-on-primary border-primary shadow-sm'
-                    : 'bg-white text-on-surface-variant border-outline-variant hover:border-primary/40'
-                  }`}
-              >
-                {meta && <span className="material-symbols-outlined text-[13px]">{meta.icon}</span>}
-                {f === 'TODOS' ? 'Todas' : meta!.label}
-                {f !== 'TODOS' && (
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black
-                    ${isActive ? 'bg-white/20' : 'bg-stone-100 text-stone-500'}`}>
-                    {cuentas.filter((c) => c.estado === f).length}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-          <span className="ml-auto text-xs text-stone-400">
-            {cuentasFiltradas.length} de {cuentas.length}
+    <>
+      {/* Estudiante elegido */}
+      <section aria-label="Estudiante seleccionado"
+        className="flex flex-wrap items-center gap-3 rounded-[22px] bg-vino-suave px-4 py-3.5">
+        <Avatar nombre={matricula.estudiante.nombre} tamano={44} tono="neutro" />
+        <div className="flex-1 min-w-[180px] flex flex-col">
+          <span className="text-[15px] font-semibold text-tinta break-words">{matricula.estudiante.nombre}</span>
+          <span className="text-[13px] text-tinta-media">
+            Doc. {matricula.estudiante.numero_identidad} · {matricula.grado.nombre} · {matricula.grado.jornada === 'MAÑANA' ? 'Mañana' : 'Tarde'} · {year}
           </span>
         </div>
+        <Boton icono="arrow_back" onClick={onVolver}>Cambiar estudiante</Boton>
+      </section>
 
-        {/* Cuenta list */}
-        <div ref={listaRef} style={{ minHeight: alturaMin || undefined }}>
-        {cuentas.length === 0 ? (
-          <div className="bg-stone-50 border border-stone-100 rounded-xl p-10 flex flex-col items-center gap-3 text-stone-400">
-            <span className="material-symbols-outlined text-5xl">receipt_long</span>
-            <p className="text-sm font-medium">No hay cuentas de cobro generadas</p>
-            {!tarifa
-              ? <p className="text-xs text-primary font-semibold">Configura las tarifas del año para poder generar cuentas</p>
-              : <p className="text-xs">Usa los botones de arriba para crear la matrícula y/o generar las pensiones</p>
-            }
+      {opError && <Mensaje tipo="error">{opError}</Mensaje>}
+
+      <div className="flex flex-wrap items-start gap-5">
+        <Tarjeta titulo={`Cuenta ${year} · ${primerNombre}`} subtitulo={`${cuentas.length} cuota${cuentas.length !== 1 ? 's' : ''}`}
+          acciones={acciones} className="flex-[999_1_520px]">
+
+          {cuentas.length > 0 && (
+            <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap items-center gap-2">
+              {FILTROS.map((f) => {
+                const activo = estadoFilter === f;
+                const n = f === 'TODOS' ? cuentas.length : cuentas.filter((c) => c.estado === f).length;
+                return (
+                  <button key={f} type="button" onClick={() => cambiarFiltro(f)} aria-pressed={activo}
+                    className={`inline-flex items-center gap-1.5 min-h-10 px-3.5 rounded-full text-[13px] font-semibold transition-colors
+                      ${activo ? 'bg-tinta text-white' : 'bg-crema text-tinta-media hover:bg-linea'}`}>
+                    {f === 'TODOS' ? 'Todas' : ESTADO_META[f].label}
+                    <span className={`px-1.5 rounded-full text-[11px] ${activo ? 'bg-white/20' : 'bg-tarjeta'}`}>{n}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div ref={listaRef} style={{ minHeight: alturaMin || undefined }}>
+            {cuentas.length === 0 ? (
+              <Aviso enTarjeta={false} icono="receipt_long" titulo="Aún no hay cuentas de cobro"
+                texto={tarifa
+                  ? 'Usa los botones de arriba para crear la matrícula o generar las pensiones.'
+                  : `Configura las tarifas de ${year} para poder generar cuentas.`} />
+            ) : ordenadas.length === 0 ? (
+              <Aviso enTarjeta={false} icono="filter_alt_off" titulo="No hay cuotas con ese estado" />
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {ordenadas.map((c) => <CuentaCard key={c.id_cuenta} cuenta={c} onPagar={onPagar} />)}
+              </ul>
+            )}
           </div>
-        ) : cuentasFiltradas.length === 0 ? (
-          <div className="bg-stone-50 border border-stone-100 rounded-xl p-8 flex flex-col items-center gap-2 text-stone-400">
-            <span className="material-symbols-outlined text-4xl">filter_alt_off</span>
-            <p className="text-sm">No hay cuentas con ese estado</p>
+        </Tarjeta>
+
+        <Tarjeta titulo="Estado de cuenta" className="flex-[1_1_300px] lg:sticky lg:top-[3.25rem]">
+          <div className="flex items-center gap-3">
+            <span className="text-[30px] font-semibold">{pct}%</span>
+            <EstadoBadge tono="verde">pagado</EstadoBadge>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {(['MATRÍCULA', 'PENSIÓN'] as const).map((concepto) => {
-              const grupo = cuentasFiltradas.filter((c) => c.concepto.nombre === concepto);
-              if (grupo.length === 0) return null;
-              const cm = CONCEPTO_META[concepto];
-              return (
-                <div key={concepto}>
-                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${cm.bg} mb-2`}>
-                    <span className={`material-symbols-outlined text-base ${cm.text}`}>{cm.icon}</span>
-                    <span className={`text-xs font-bold uppercase tracking-wider ${cm.text}`}>{concepto}</span>
-                  </div>
-                  <div className="space-y-2">
-                    {grupo.map((c) => (
-                      <CuentaCard key={c.id_cuenta} cuenta={c} onPagar={onPagar} />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+          <ProgressBar valor={pct} tono="verde" />
+          <div className="flex justify-between text-sm"><span className="text-tinta-suave">Total del año</span><span className="font-semibold tabular-nums">{fmt(totales.deuda)}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-tinta-suave">Pagado</span><span className="font-semibold tabular-nums">{fmt(totales.pagado)}</span></div>
+          <div className={`flex justify-between gap-3 rounded-[14px] px-4 py-3 text-[15px]
+            ${totales.pendiente > 0 ? 'bg-dorado-suave text-dorado-texto' : 'bg-verde-suave text-verde-texto'}`}>
+            <span className="font-semibold flex items-center gap-1.5">
+              {totales.pendiente === 0 && <Icono nombre="check_circle" className="text-lg" />}
+              {totales.pendiente > 0 ? 'Saldo pendiente' : 'Al día'}
+            </span>
+            <span className="font-semibold tabular-nums">{fmt(totales.pendiente)}</span>
           </div>
-        )}
-        </div>
+        </Tarjeta>
       </div>
-    </div>
+    </>
   );
 };
 

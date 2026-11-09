@@ -27,11 +27,6 @@ export const METODO_ICONS: Record<string, string> = {
   TARJETA:       'credit_card',
 };
 
-export const yearOptions = Array.from(
-  { length: 5 },
-  (_, i) => new Date().getFullYear() - 1 + i,
-);
-
 export const fmt = (n: number | string) =>
   new Intl.NumberFormat('es-CO', {
     style: 'currency',

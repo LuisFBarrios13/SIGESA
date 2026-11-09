@@ -1,110 +1,61 @@
 // src/components/pagos/TarifaSection.tsx
-import { fmt, yearOptions } from './pagos.constants';
+// Banner con las tarifas del año (pensión y matrícula) y el botón para editarlas.
+// El año se elige en el encabezado de la página.
+import { fmt } from './pagos.constants';
 import type { Tarifa } from '../../services/pagosApi';
+import { Icono } from '../ds/Controles';
 
 interface TarifaSectionProps {
   tarifa:    Tarifa | null;
   year:      number;
-  setYear:   (v: number) => void;
   isLoading: boolean;
   onEdit:    () => void;
 }
 
-const TarifaSection = ({ tarifa, year, setYear, isLoading, onEdit }: TarifaSectionProps) => (
-  <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
-    {/* Header */}
-    <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between gap-4">
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-stone-100 rounded-lg">
-          <span className="material-symbols-outlined text-xl text-on-surface-variant">price_change</span>
-        </div>
-        <div>
-          <h3 className="font-semibold text-on-surface">Tarifas del año</h3>
-          <p className="text-xs text-stone-500">Valores que aplican a todos los estudiantes</p>
-        </div>
-      </div>
+const Valor = ({ etiqueta, valor, detalle }: { etiqueta: string; valor: string; detalle: string }) => (
+  <div className="flex flex-col gap-0.5 rounded-[18px] bg-white/15 px-[18px] py-3.5 flex-[1_1_160px] min-w-0">
+    <span className="text-[13px] text-[#FBEFE6]">{etiqueta}</span>
+    <span className="text-[22px] sm:text-[26px] font-semibold tabular-nums">{valor}</span>
+    <span className="text-xs text-[#FBEFE6]">{detalle}</span>
+  </div>
+);
 
-      <select
-        value={year}
-        onChange={(e) => setYear(Number(e.target.value))}
-        className="px-3 py-2 rounded-lg border border-outline-variant bg-white text-sm
-          focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer font-medium"
-      >
-        {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
-      </select>
-    </div>
-
-    <div className="p-6">
-      {isLoading ? (
-        <div className="flex items-center gap-3 text-stone-400">
-          <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
-          <span className="text-sm">Cargando tarifas…</span>
-        </div>
-      ) : tarifa ? (
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
-            {/* Pensión */}
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <span className="material-symbols-outlined text-purple-700 text-lg">payments</span>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wide">Pensión mensual</p>
-                <p className="text-xl font-semibold text-on-surface">{fmt(tarifa.valor_pension)}</p>
-                <p className="text-[11px] text-stone-400">
-                  × 10 meses = {fmt(Number(tarifa.valor_pension) * 10)}
-                </p>
-              </div>
-            </div>
-            <div className="hidden sm:block w-px bg-stone-100" />
-            {/* Matrícula */}
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <span className="material-symbols-outlined text-blue-700 text-lg">how_to_reg</span>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wide">Matrícula</p>
-                <p className="text-xl font-semibold text-on-surface">{fmt(tarifa.valor_matricula)}</p>
-                <p className="text-[11px] text-stone-400">Pago único al inicio</p>
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={onEdit}
-            className="flex items-center gap-2 px-4 py-2 border border-outline-variant
-              text-on-surface-variant rounded-lg text-sm font-semibold hover:bg-stone-50 transition-all"
-          >
-            <span className="material-symbols-outlined text-lg">edit</span>
-            Editar tarifas
-          </button>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-50 rounded-lg">
-              <span className="material-symbols-outlined text-orange-500 text-xl">warning</span>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-on-surface">
-                Sin tarifas configuradas para {year}
-              </p>
-              <p className="text-xs text-stone-400">
-                Debes configurarlas antes de generar cuentas de cobro
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onEdit}
-            className="flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary
-              rounded-lg text-sm font-semibold hover:opacity-90 transition-all shadow-sm"
-          >
-            <span className="material-symbols-outlined text-lg">add</span>
-            Configurar tarifas {year}
-          </button>
-        </div>
+const TarifaSection = ({ tarifa, year, isLoading, onEdit }: TarifaSectionProps) => (
+  <section aria-label={`Tarifas ${year}`}
+    className="relative overflow-hidden rounded-[24px] sm:rounded-card-lg bg-hero text-white p-[22px] sm:px-8 sm:py-7
+      flex flex-wrap items-center gap-4 sm:gap-5">
+    <div className="flex flex-col gap-1 flex-[1_1_220px] min-w-0">
+      <span className="text-sm text-[#FBEFE6]">Tarifas {year}</span>
+      <span className="text-lg sm:text-[22px] font-semibold leading-tight">
+        {tarifa || isLoading ? 'Valores para todos los estudiantes' : `Sin tarifas configuradas para ${year}`}
+      </span>
+      {!tarifa && !isLoading && (
+        <span className="text-sm text-[#FBEFE6]">Configúralas antes de generar cuentas de cobro.</span>
       )}
     </div>
-  </div>
+
+    {isLoading && (
+      <p role="status" className="flex items-center gap-2 text-sm text-[#FBEFE6]">
+        <Icono nombre="progress_activity" className="animate-spin text-xl" />Cargando tarifas…
+      </p>
+    )}
+
+    {tarifa && (
+      <>
+        <Valor etiqueta="Pensión mensual" valor={fmt(tarifa.valor_pension)}
+          detalle={`× 10 meses = ${fmt(Number(tarifa.valor_pension) * 10)}`} />
+        <Valor etiqueta="Matrícula" valor={fmt(tarifa.valor_matricula)} detalle="Pago único al inicio" />
+      </>
+    )}
+
+    {!isLoading && (
+      <button type="button" onClick={onEdit}
+        className="inline-flex items-center gap-2 min-h-11 px-4 rounded-[14px] bg-white text-tinta text-sm font-semibold hover:bg-white/90">
+        <Icono nombre={tarifa ? 'edit' : 'add'} className="text-[19px]" />
+        {tarifa ? 'Editar tarifas' : `Configurar tarifas ${year}`}
+      </button>
+    )}
+  </section>
 );
 
 export default TarifaSection;
