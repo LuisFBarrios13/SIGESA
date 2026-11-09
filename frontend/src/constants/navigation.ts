@@ -30,12 +30,6 @@ export const navegacionDe = (rol: string | undefined): NavItem[] =>
   rol === 'ACUDIENTE' ? NAV_ITEMS_ACUDIENTE :
                         NAV_ITEMS;
 
-// Menú anterior (components/layout/Sidebar); se elimina al pasar todo a AppLayout.
-export const NAV_FOOTER_ITEMS: NavItem[] = [
-  { id: 'help',   label: 'Ayuda',         icon: 'help',   href: '#'       },
-  { id: 'logout', label: 'Cerrar Sesión', icon: 'logout', href: '/logout' },
-];
-
 /** Rutas raíz: solo se marcan activas en su ruta exacta. */
 export const RUTAS_EXACTAS = new Set(['/', '/docente', '/acudiente']);
 

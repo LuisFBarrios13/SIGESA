@@ -7,7 +7,6 @@ import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './hooks/useAuth';
 
 import LoginPage          from './pages/shared/LoginPage';
-import Layout             from './components/layout/Layout';
 import AppLayout          from './components/ds/AppLayout';
 import ProtectedRoute     from './components/ui/ProtectedRoute';
 
@@ -48,10 +47,6 @@ const HomeRedirect = () => {
 const AppRoutes = () => {
   const { user, isAuthenticated } = useAuth();
 
-  const userProfile = user
-    ? { name: user.nombre ?? user.username, role: user.roles[0] ?? '', avatarUrl: '' }
-    : null;
-
   if (isAuthenticated && user?.primerLogin) {
     return (
       <Routes>
@@ -68,34 +63,34 @@ const AppRoutes = () => {
       {/* ── Inicio ── */}
       <Route path="/" element={
         <ProtectedRoute>
-          <Layout user={userProfile!}><Cargar><HomeRedirect /></Cargar></Layout>
+          <AppLayout><Cargar><HomeRedirect /></Cargar></AppLayout>
         </ProtectedRoute>
       } />
 
       {/* ── Admin ── */}
       <Route path="/matricula" element={
         <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <Layout user={userProfile!}><Cargar><MatriculaPage /></Cargar></Layout>
+          <AppLayout><Cargar><MatriculaPage /></Cargar></AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/docentes" element={
         <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <Layout user={userProfile!}><Cargar><DocentesPage /></Cargar></Layout>
+          <AppLayout><Cargar><DocentesPage /></Cargar></AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/pagos" element={
         <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <Layout user={userProfile!}><Cargar><PagosPage /></Cargar></Layout>
+          <AppLayout><Cargar><PagosPage /></Cargar></AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/deudores" element={
         <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <Layout user={userProfile!}><Cargar><DeudoresPage /></Cargar></Layout>
+          <AppLayout><Cargar><DeudoresPage /></Cargar></AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/estudiantes" element={
         <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <Layout user={userProfile!}><Cargar><EstudiantesPage /></Cargar></Layout>
+          <AppLayout><Cargar><EstudiantesPage /></Cargar></AppLayout>
         </ProtectedRoute>
       } />
 
@@ -109,12 +104,12 @@ const AppRoutes = () => {
       {/* ── Docente ── */}
       <Route path="/docente" element={
         <ProtectedRoute roles={['DOCENTE']}>
-          <Layout user={userProfile!}><Cargar><MiGradoPage /></Cargar></Layout>
+          <AppLayout><Cargar><MiGradoPage /></Cargar></AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/docente/notas" element={
         <ProtectedRoute roles={['DOCENTE']}>
-          <Layout user={userProfile!}><Cargar><NotasPage /></Cargar></Layout>
+          <AppLayout><Cargar><NotasPage /></Cargar></AppLayout>
         </ProtectedRoute>
       } />
 
