@@ -14,6 +14,7 @@ import {
   type MatriculaResumen,
   type CuentaCobro,
   type EstadoCuenta,
+  type RegistrarPagoPayload,
 } from '../services/pagosApi';
 
 export type ModalKind =
@@ -132,7 +133,7 @@ export const usePagos = (): UsePagosReturn => {
   ]);
 
   const pagoMutation = useMutation({
-    mutationFn: pagosApi.registrarPago,
+    mutationFn: (pago: RegistrarPagoPayload) => pagosApi.registrarPago(pago),
     onSuccess:  async () => { await invalidarDeudas(); setModal(null); },
   });
 

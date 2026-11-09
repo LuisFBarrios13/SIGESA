@@ -211,7 +211,8 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
   // ── Navegación ──────────────────────────────────────────────────────────────
   const limpiarMensajes = () => { guardarMutation.reset(); setErrorValidacion(''); };
 
-  const setPeriodo = (p: number) => { setPeriodoState(p); limpiarMensajes(); };
+  // Cambiar de periodo o de estudiante descarta lo no guardado.
+  const setPeriodo = (p: number) => { setPeriodoState(p); setBorrador(null); limpiarMensajes(); };
 
   const clearSelected = () => {
     setSelected(null);
@@ -225,6 +226,7 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
   const selectStudent = async (m: MatriculaDocente) => {
     setSelected(m);
     setSearch('');
+    setBorrador(null);
     limpiarMensajes();
   };
 
