@@ -1,3 +1,5 @@
-node_modules/# Variables de entorno con contraseñas: nunca al repositorio
+node_modules/
+
+# Variables de entorno con contraseñas: nunca al repositorio
 .env
 !.env.example
