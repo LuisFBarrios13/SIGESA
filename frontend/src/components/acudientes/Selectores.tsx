@@ -5,7 +5,7 @@ import { matriculasPorAnio } from './cuotas';
 
 const pildora = (activa: boolean) =>
   `min-h-11 px-[18px] rounded-full text-sm transition-colors whitespace-nowrap ${
-    activa ? 'bg-verde text-white font-bold' : 'text-tinta-media font-semibold hover:bg-crema'
+    activa ? 'bg-verde text-white font-semibold' : 'text-tinta-media font-semibold hover:bg-crema'
   }`;
 
 export const SelectorAnio = ({ matriculas, seleccionada, onSelect }: {
@@ -44,7 +44,7 @@ export const SelectorEstudiante = ({ estudiantes, seleccionado, onSelect }: {
         return (
           <button key={e.numero_identidad} type="button" onClick={() => onSelect(e)} aria-pressed={activo}
             className={`min-h-11 px-4 rounded-full text-sm max-w-full truncate transition-colors ${
-              activo ? 'bg-vino text-white font-bold' : 'bg-tarjeta text-tinta-media font-semibold hover:text-tinta'
+              activo ? 'bg-vino text-white font-semibold' : 'bg-tarjeta text-tinta-media font-semibold hover:text-tinta'
             }`}>
             {e.nombre}
           </button>

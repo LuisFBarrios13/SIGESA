@@ -20,11 +20,11 @@ const EstadoCuentaCard = ({ year, pct, totales, pension, resumen }: Props) => {
   return (
     <section className="bg-tarjeta rounded-[22px] md:rounded-[24px] p-[18px] md:p-[26px] flex flex-col gap-5 min-w-0">
       <div className="flex flex-col gap-2">
-        <h2 className="m-0 text-base md:text-[15px] font-bold md:font-normal text-tinta md:text-tinta-suave">
+        <h2 className="m-0 text-base md:text-[15px] font-semibold md:font-normal text-tinta md:text-tinta-suave">
           Estado de cuenta {year}
         </h2>
         <div className="hidden md:flex items-center gap-3">
-          <span className="text-[30px] font-extrabold">{pct}%</span>
+          <span className="text-[30px] font-semibold">{pct}%</span>
           <EstadoBadge tono="verde" tamano="md">pagado</EstadoBadge>
         </div>
         {pension !== null && <span className="hidden md:block text-sm text-tinta-suave">Pensión {fmt(pension)} / mes</span>}
@@ -50,16 +50,16 @@ const EstadoCuentaCard = ({ year, pct, totales, pension, resumen }: Props) => {
               <span className="text-xs text-tinta-suave">
                 {proxima.cuenta.estado === 'VENCIDO' ? 'Pago vencido' : 'Próximo pago'}
               </span>
-              <span className="text-sm md:text-[15px] font-bold">
+              <span className="text-sm md:text-[15px] font-semibold">
                 {proxima.nombre} · <span className="whitespace-nowrap">{fmt(proxima.saldo)}</span>
               </span>
             </div>
-            <span className="px-3 py-1.5 rounded-lg bg-tinta text-white text-xs font-bold whitespace-nowrap shrink-0">
+            <span className="px-3 py-1.5 rounded-lg bg-tinta text-white text-xs font-semibold whitespace-nowrap shrink-0">
               {proxima.cuenta.estado === 'VENCIDO' ? 'Vencido' : 'Pendiente'}
             </span>
           </>
         ) : (
-          <div className="flex items-center gap-2 text-sm font-bold text-verde-texto">
+          <div className="flex items-center gap-2 text-sm font-semibold text-verde-texto">
             <span aria-hidden="true" className="material-symbols-outlined text-xl">check_circle</span>
             Todo al día
           </div>

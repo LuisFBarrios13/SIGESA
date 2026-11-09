@@ -18,7 +18,7 @@ const Icono = ({ nombre, className = '' }: { nombre: string; className?: string 
 
 const claseLateral = (activo: boolean) =>
   `flex items-center gap-3 min-h-12 px-3.5 rounded-[14px] text-[15px] transition-colors ${
-    activo ? 'bg-vino-suave text-vino font-bold' : 'text-tinta-media font-medium hover:bg-crema hover:text-tinta'
+    activo ? 'bg-vino-suave text-vino font-semibold' : 'text-tinta-media font-medium hover:bg-crema hover:text-tinta'
   }`;
 
 const MenuLateral = ({ items, onSalir }: { items: NavItem[]; onSalir: () => void }) => (
@@ -28,7 +28,7 @@ const MenuLateral = ({ items, onSalir }: { items: NavItem[]; onSalir: () => void
       <img src="/escudo-128.png" alt="Escudo Colegio Pedagógico San Agustín" width={44} height={44}
         className="w-11 h-11 rounded-full object-cover" />
       <div className="flex flex-col">
-        <span className="text-[19px] font-extrabold tracking-tight text-tinta">SIGESA</span>
+        <span className="text-[19px] font-semibold tracking-tight text-tinta">SIGESA</span>
         <span className="text-xs text-tinta-suave">San Agustín</span>
       </div>
     </div>
@@ -56,7 +56,7 @@ const MenuLateral = ({ items, onSalir }: { items: NavItem[]; onSalir: () => void
 
 const claseBarra = (activo: boolean) =>
   `min-h-14 rounded-[18px] flex flex-col items-center justify-center gap-0.5 px-1 text-[11px] leading-tight
-   text-center transition-colors ${activo ? 'bg-vino-suave text-vino font-bold' : 'text-tinta-media font-semibold'}`;
+   text-center transition-colors ${activo ? 'bg-vino-suave text-vino font-semibold' : 'text-tinta-media font-semibold'}`;
 
 const BarraMovil = ({ items, onSalir }: { items: NavItem[]; onSalir: () => void }) => {
   const [masAbierto, setMasAbierto] = useState(false);

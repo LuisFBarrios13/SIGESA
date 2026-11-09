@@ -127,7 +127,7 @@ function DataTable<T>({
               <div className="flex items-center justify-between gap-3">
                 <div className="flex flex-col gap-0.5 min-w-0">
                   {porRol('titulo').map((c) => (
-                    <span key={c.id} className="text-sm font-bold text-tinta break-words">{textoDe(c, f)}</span>
+                    <span key={c.id} className="text-sm font-semibold text-tinta break-words">{textoDe(c, f)}</span>
                   ))}
                   {subtitulos.length > 0 && (
                     <span className="text-xs text-tinta-suave break-words">

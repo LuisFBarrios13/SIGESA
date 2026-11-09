@@ -13,7 +13,7 @@ const PagosPorMes = ({ cuotas }: { cuotas: Cuota[] }) => {
   return (
     <section className="bg-tarjeta rounded-[24px] p-[26px] flex flex-col gap-5 min-w-0">
       <div className="flex flex-wrap justify-between items-center gap-3">
-        <h2 className="m-0 text-xl font-bold">Pagos por mes</h2>
+        <h2 className="m-0 text-xl font-semibold">Pagos por mes</h2>
         <ul className="flex gap-4 text-[13px] text-tinta-suave">
           <li className="flex items-center gap-1.5"><span aria-hidden="true" className="w-2.5 h-2.5 rounded-[3px] bg-verde" />Pagado</li>
           <li className="flex items-center gap-1.5"><span aria-hidden="true" className="w-2.5 h-2.5 rounded-[3px] bg-dorado" />Pendiente</li>
@@ -37,7 +37,7 @@ const PagosPorMes = ({ cuotas }: { cuotas: Cuota[] }) => {
                   <div role="tooltip"
                     className={`absolute bottom-full mb-1 z-10 w-max max-w-[200px] bg-tinta text-white text-xs rounded-lg px-3 py-2
                       ${i > cuotas.length / 2 ? 'right-0' : 'left-0'}`}>
-                    <p className="font-bold">{c.nombre}</p>
+                    <p className="font-semibold">{c.nombre}</p>
                     <p>Pagado: {fmt(c.pagado)}</p>
                     {c.saldo > 0 && <p>Pendiente: {fmt(c.saldo)}</p>}
                   </div>

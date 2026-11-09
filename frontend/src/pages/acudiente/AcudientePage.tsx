@@ -18,7 +18,7 @@ const Aviso = ({ icono, titulo, texto, children }: {
 }) => (
   <div className="bg-tarjeta rounded-card py-14 px-6 flex flex-col items-center gap-3 text-center">
     <span aria-hidden="true" className="material-symbols-outlined text-5xl text-tinta-suave">{icono}</span>
-    <p className="text-sm font-bold text-tinta">{titulo}</p>
+    <p className="text-sm font-semibold text-tinta">{titulo}</p>
     {texto && <p className="text-sm text-tinta-suave max-w-sm">{texto}</p>}
     {children}
   </div>
@@ -54,7 +54,7 @@ const AcudientePage = () => {
         <PageHeader titulo="Mis pagos" />
         <Aviso icono="error" titulo="No se pudo cargar la información" texto={error}>
           <button type="button" onClick={refresh}
-            className="mt-2 min-h-11 px-5 rounded-xl bg-tinta text-white text-sm font-bold flex items-center gap-2">
+            className="mt-2 min-h-11 px-5 rounded-xl bg-tinta text-white text-sm font-semibold flex items-center gap-2">
             <span aria-hidden="true" className="material-symbols-outlined text-lg">refresh</span>
             Reintentar
           </button>
@@ -108,7 +108,7 @@ const AcudientePage = () => {
       {matricula && resumenError && !isLoadingResumen && (
         <Aviso icono="error" titulo="No se pudieron cargar los pagos" texto={resumenError}>
           <button type="button" onClick={refresh}
-            className="mt-2 min-h-11 px-5 rounded-xl bg-tinta text-white text-sm font-bold">Reintentar</button>
+            className="mt-2 min-h-11 px-5 rounded-xl bg-tinta text-white text-sm font-semibold">Reintentar</button>
         </Aviso>
       )}
 

@@ -30,7 +30,7 @@ const PageHeader = ({ titulo, acciones }: Props) => {
           <img src="/escudo-128.png" alt="" width={42} height={42}
             className="lg:hidden w-[42px] h-[42px] rounded-full object-cover shrink-0" />
           <div className="flex flex-col min-w-0">
-            <h1 className="m-0 text-lg lg:text-[26px] font-extrabold tracking-tight text-tinta truncate">{titulo}</h1>
+            <h1 className="m-0 text-lg lg:text-[26px] font-semibold tracking-tight text-tinta truncate">{titulo}</h1>
             <span className="text-xs lg:text-[15px] text-tinta-suave">
               <span className="lg:hidden">{fechaCorta()}</span>
               <span className="hidden lg:inline">{fechaLarga()}</span>
@@ -39,7 +39,7 @@ const PageHeader = ({ titulo, acciones }: Props) => {
         </div>
         {/* Celular: solo iniciales */}
         <span title={`${nombre} · ${rol}`} aria-label={`${nombre}, ${rol}`} role="img"
-          className="lg:hidden w-11 h-11 rounded-full bg-vino-suave text-vino font-extrabold text-[13px]
+          className="lg:hidden w-11 h-11 rounded-full bg-vino-suave text-vino font-semibold text-[13px]
             flex items-center justify-center shrink-0">
           {iniciales(nombre)}
         </span>
@@ -50,11 +50,11 @@ const PageHeader = ({ titulo, acciones }: Props) => {
         {/* Escritorio: iniciales + nombre + rol */}
         <div className="hidden lg:flex items-center gap-2.5 min-h-[52px] pl-1.5 pr-[18px] py-1.5 rounded-full bg-tarjeta">
           <span aria-hidden="true"
-            className="w-10 h-10 rounded-full bg-vino-suave text-vino font-extrabold text-sm flex items-center justify-center">
+            className="w-10 h-10 rounded-full bg-vino-suave text-vino font-semibold text-sm flex items-center justify-center">
             {iniciales(nombre)}
           </span>
           <span className="flex flex-col">
-            <span className="text-sm font-bold text-tinta max-w-[200px] truncate">{nombre}</span>
+            <span className="text-sm font-semibold text-tinta max-w-[200px] truncate">{nombre}</span>
             <span className="text-xs text-tinta-suave">{rol}</span>
           </span>
         </div>

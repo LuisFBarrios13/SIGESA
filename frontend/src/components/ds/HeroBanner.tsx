@@ -25,13 +25,13 @@ const HeroBanner = ({ etiqueta, titulo, chips = [], escudo = false, children }: 
 
     <div className="relative flex flex-col gap-2.5 min-w-0 max-w-[620px]">
       {etiqueta && <span className="text-[13px] sm:text-sm font-medium text-[#FBEFE6]">{etiqueta}</span>}
-      <h2 className="m-0 text-[22px] sm:text-[32px] font-bold tracking-tight leading-tight break-words">{titulo}</h2>
+      <h2 className="m-0 text-[22px] sm:text-[32px] font-semibold tracking-tight leading-tight break-words">{titulo}</h2>
       {chips.length > 0 && (
         <ul className="flex flex-wrap gap-1.5 sm:gap-2 mt-1 sm:mt-1.5">
           {chips.map((c) => (
             <li key={c.texto}
               className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full text-xs sm:text-[13px]
-                ${c.destacado ? 'bg-white text-verde-texto font-bold' : 'bg-white/20 font-semibold'}`}>
+                ${c.destacado ? 'bg-white text-verde-texto font-semibold' : 'bg-white/20 font-semibold'}`}>
               {c.destacado && <span aria-hidden="true">● </span>}
               {c.texto}
             </li>

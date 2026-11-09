@@ -29,7 +29,7 @@ const StatCard = ({ icono, etiqueta, valor, tono = 'vino', chip, chipTono }: Pro
     </div>
     <div className="flex flex-col gap-0.5 sm:gap-1.5 min-w-0">
       <span className="text-xs sm:text-sm text-tinta-suave">{etiqueta}</span>
-      <span className="text-lg sm:text-[26px] font-extrabold tracking-tight leading-tight break-words">{valor}</span>
+      <span className="text-lg sm:text-[26px] font-semibold tracking-tight leading-tight break-words">{valor}</span>
     </div>
   </div>
 );

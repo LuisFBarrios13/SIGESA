@@ -81,7 +81,7 @@ export default {
         barra: '0 8px 24px rgba(36, 32, 30, 0.10)',
       },
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        sans: ['Poppins', 'system-ui', 'sans-serif'],
       },
     },
   },

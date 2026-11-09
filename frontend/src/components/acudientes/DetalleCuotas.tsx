@@ -27,7 +27,7 @@ const PagosDeCuota = ({ cuota }: { cuota: Cuota }) => (
           <span className="text-tinta-media">
             {fecha(p.fecha_pago)} · <span className="text-tinta-suave">{p.metodo.nombre.toLowerCase()}</span>
           </span>
-          <span className="font-bold text-verde-texto tabular-nums">{fmt(Number(p.monto_pago))}</span>
+          <span className="font-semibold text-verde-texto tabular-nums">{fmt(Number(p.monto_pago))}</span>
         </li>
       ))}
     </ul>
@@ -37,7 +37,7 @@ const PagosDeCuota = ({ cuota }: { cuota: Cuota }) => (
 const DetalleCuotas = ({ cuotas, year }: { cuotas: Cuota[]; year: number }) => (
   <section className="bg-tarjeta rounded-[22px] md:rounded-[24px] px-[18px] pt-[18px] pb-1.5 md:px-[26px] md:pt-[26px] md:pb-2.5 flex flex-col gap-3 md:gap-4">
     <div className="flex flex-wrap justify-between items-center gap-3">
-      <h2 className="m-0 text-base md:text-xl font-bold">Detalle de cuotas</h2>
+      <h2 className="m-0 text-base md:text-xl font-semibold">Detalle de cuotas</h2>
       <span className="hidden md:inline-block px-[18px] py-2.5 rounded-full bg-vino-suave text-vino text-sm font-semibold">
         Año {year}
       </span>
