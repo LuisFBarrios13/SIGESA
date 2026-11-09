@@ -72,6 +72,11 @@ export default {
         card:      '22px',
         'card-lg': '26px',
       },
+      backgroundImage: {
+        // Banner principal y fondo general del nuevo diseño
+        hero:       'linear-gradient(100deg, rgb(var(--vino)) 0%, #94604A 40%, #8E9E78 72%, rgb(var(--verde)) 100%)',
+        'fondo-app': 'linear-gradient(180deg, #F2EAE2 0%, #F4F2EE 45%, #E3ECE5 100%)',
+      },
       boxShadow: {
         barra: '0 8px 24px rgba(36, 32, 30, 0.10)',
       },

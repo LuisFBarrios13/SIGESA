@@ -8,6 +8,10 @@ export interface NavItem {
   icon: string;
   href: string;
   isActive?: boolean;
+  /** Texto corto para la barra inferior del celular. */
+  corto?: string;
+  /** Aparece directamente en la barra inferior del celular (el resto va en «Más»). */
+  enBarraMovil?: boolean;
 }
 
 // ── Metric Cards ──────────────────────────────────────────────
