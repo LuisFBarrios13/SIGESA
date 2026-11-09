@@ -1,7 +1,8 @@
 // src/components/docente/DisponibilidadGrid.tsx
+// Qué grados tienen director en cada jornada, y elegir uno libre para el docente.
 import type { GradoDisponibilidad, JornadaDocente } from '../../services/api';
 import { NOMBRES_GRADOS, type NombreGrado } from '../../constants/docentes';
-import JornadaBadge from './JornadaBadge';
+import { Icono } from '../ds/Controles';
 
 interface DisponibilidadGridProps {
   grados: GradoDisponibilidad[];
@@ -9,6 +10,16 @@ interface DisponibilidadGridProps {
   jornadaSeleccionada: JornadaDocente | '';
   onSelect: (nombre: NombreGrado) => void;
 }
+
+const CeldaDocente = ({ g }: { g: GradoDisponibilidad | undefined }) =>
+  g?.docente ? (
+    <span className="text-[13px] font-semibold text-tinta break-words">{g.docente.nombre}</span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-[13px] font-medium text-verde-texto">
+      <Icono nombre="check_circle" className="text-base" />Libre
+    </span>
+  );
+
 const DisponibilidadGrid = ({
   grados, gradoSeleccionado, jornadaSeleccionada, onSelect,
 }: DisponibilidadGridProps) => {
@@ -30,51 +41,37 @@ const DisponibilidadGrid = ({
   };
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-outline-variant">
-      <table className="w-full text-sm">
+    <div className="relative overflow-x-auto">
+      <table className="w-full min-w-[420px] border-collapse text-sm">
+        <caption className="sr-only">Directores de grupo por grado y jornada</caption>
         <thead>
-          <tr className="bg-stone-50 border-b border-stone-200">
-            <th className="px-4 py-3 text-left text-xs font-bold text-stone-500 uppercase tracking-wider">Grado</th>
-            <th className="px-4 py-3 text-center text-xs font-bold text-amber-600 uppercase tracking-wider w-44">
-              <span className="material-symbols-outlined text-base align-middle mr-1">wb_sunny</span>Mañana
-            </th>
-            <th className="px-4 py-3 text-center text-xs font-bold text-indigo-600 uppercase tracking-wider w-44">
-              <span className="material-symbols-outlined text-base align-middle mr-1">wb_twilight</span>Tarde
-            </th>
-            <th className="px-4 py-3 text-center text-xs font-bold text-stone-400 uppercase tracking-wider w-24">Seleccionar</th>
+          <tr className="bg-crema text-left">
+            <th scope="col" className="px-3 py-3 font-semibold text-tinta rounded-l-xl">Grado</th>
+            <th scope="col" className="px-3 py-3 font-semibold text-tinta">Mañana</th>
+            <th scope="col" className="px-3 py-3 font-semibold text-tinta">Tarde</th>
+            <th scope="col" className="px-3 py-3 rounded-r-xl"><span className="sr-only">Elegir</span></th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-stone-100">
+        <tbody>
           {porNombre.map(({ nombre, manana, tarde }) => {
             const disponible = estaDisponible(nombre);
-            const selected   = gradoSeleccionado === nombre;
-
-            const CeldaDocente = ({ g }: { g: GradoDisponibilidad | undefined }) =>
-              g?.docente ? (
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-xs font-semibold text-on-surface truncate max-w-[130px]">{g.docente.nombre}</span>
-                  <JornadaBadge jornada={g.docente.jornada} />
-                </div>
-              ) : (
-                <span className="inline-flex items-center gap-1 text-xs text-secondary font-medium">
-                  <span className="material-symbols-outlined text-base">check_circle</span>Libre
-                </span>
-              );
-
+            const elegido    = gradoSeleccionado === nombre;
             return (
-              <tr key={nombre}
-                className={`transition-colors ${selected ? 'bg-primary-fixed/10' : disponible ? 'hover:bg-stone-50' : 'opacity-50'}`}>
-                <td className="px-4 py-3 font-semibold text-on-surface">{nombre}</td>
-                <td className="px-4 py-3 text-center"><CeldaDocente g={manana} /></td>
-                <td className="px-4 py-3 text-center"><CeldaDocente g={tarde} /></td>
-                <td className="px-4 py-3 text-center">
-                  <button type="button" disabled={!disponible} onClick={() => disponible && onSelect(nombre)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all
-                      ${selected    ? 'bg-primary text-white shadow'
-                      : disponible ? 'bg-white border border-primary text-primary hover:bg-primary-fixed/20'
-                      :              'bg-stone-100 text-stone-400 cursor-not-allowed'}`}>
-                    {selected ? '✓ Elegido' : disponible ? 'Elegir' : 'Ocupado'}
-                  </button>
+              <tr key={nombre} className={`border-b border-linea ${elegido ? 'bg-vino-suave/50' : ''}`}>
+                <td className="px-3 py-2.5 font-semibold text-tinta whitespace-nowrap">{nombre}</td>
+                <td className="px-3 py-2.5"><CeldaDocente g={manana} /></td>
+                <td className="px-3 py-2.5"><CeldaDocente g={tarde} /></td>
+                <td className="px-3 py-2.5 text-right">
+                  {disponible ? (
+                    <button type="button" onClick={() => onSelect(nombre)} aria-pressed={elegido}
+                      aria-label={`${elegido ? 'Elegido' : 'Elegir'}: ${nombre}`}
+                      className={`min-h-9 px-3.5 rounded-xl text-[13px] font-semibold transition-colors
+                        ${elegido ? 'bg-vino text-white' : 'bg-crema text-vino hover:bg-vino-suave'}`}>
+                      {elegido ? 'Elegido' : 'Elegir'}
+                    </button>
+                  ) : (
+                    <span className="text-[13px] text-tinta-suave">Ocupado</span>
+                  )}
                 </td>
               </tr>
             );

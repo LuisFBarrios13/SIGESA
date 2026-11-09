@@ -62,7 +62,7 @@ function DataTable<T>({
   return (
     <>
       {/* ── Tabla (≥ md) ── */}
-      <div className="hidden md:block overflow-x-auto">
+      <div className="relative hidden md:block overflow-x-auto">
         <table className="w-full border-collapse text-sm">
           {descripcion && <caption className="sr-only">{descripcion}</caption>}
           <thead>

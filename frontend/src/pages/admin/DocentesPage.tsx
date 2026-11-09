@@ -1,4 +1,6 @@
 // src/pages/admin/DocentesPage.tsx
+// Registrar docentes (con jornada y grado a dirigir) y ver los registrados.
+// El estado, la validación y las llamadas a la API no cambian; solo el diseño.
 import { useState, type FormEvent, type ChangeEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryKeys';
@@ -13,7 +15,13 @@ import {
 } from '../../services/api';
 import { useEditarDocente }   from '../../hooks/useEditarDocente';
 import EditarDocenteModal     from '../../components/docente/EditarDocenteModal';
-import FormField, { inputClass } from '../../components/ui/FormField';
+import PageHeader from '../../components/ds/PageHeader';
+import StatCard   from '../../components/ds/StatCard';
+import Tarjeta    from '../../components/ds/Tarjeta';
+import { Campo } from '../../components/ds/Campo';
+import { claseInput, claseInputError } from '../../components/ds/campo-estilos';
+import { Boton, Icono } from '../../components/ds/Controles';
+import { Aviso, Cargando, Mensaje } from '../../components/ds/Estados';
 import JornadaBtn             from '../../components/docente/JornadaBtn';
 import DisponibilidadGrid     from '../../components/docente/DisponibilidadGrid';
 import DocenteCard            from '../../components/docente/DocenteCard';
@@ -143,12 +151,16 @@ const DocentesPage = () => {
     );
   };
 
+  // Resumen
+  const enManana   = docentes.filter((d) => d.jornada === 'MAÑANA').length;
+  const tardeOComp = docentes.length - enManana;
+  const libres     = grados.filter((g) => !g.docente).length;
+  const err = (campo: keyof FormState) => (errors[campo] ? claseInputError : claseInput);
+  const limpiar = () => { setForm(EMPTY_FORM); setErrors({}); setSubmitError(''); };
+
   return (
     <>
-      {/* Modales */}
-      {successData && (
-        <SuccessModal data={successData} onClose={() => setSuccessData(null)} />
-      )}
+      {successData && <SuccessModal data={successData} onClose={() => setSuccessData(null)} />}
       <RestablecerClaveDialogos clave={clave} />
       {editando && (
         <EditarDocenteModal
@@ -161,167 +173,107 @@ const DocentesPage = () => {
         />
       )}
 
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-semibold text-primary">Gestión de Docentes</h1>
-        <p className="text-base text-stone-500 mt-1">
-          Registra docentes, asigna jornada y grado a cargo. Pasa el cursor sobre una tarjeta para editar.
-        </p>
-      </div>
+      <PageHeader titulo="Docentes" subtitulo="Registra docentes y asigna su jornada y el grado que dirigen"
+        acciones={<Boton icono="refresh" onClick={cargarDatos} className="min-h-[52px] rounded-full w-full lg:w-auto">Actualizar</Boton>} />
 
-      <div className="space-y-8">
+      <section aria-label="Resumen de docentes" className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
+        <StatCard icono="person_book" etiqueta="Docentes" valor={docentes.length} tono="vino" chip="Registrados" />
+        <StatCard icono="wb_sunny" etiqueta="Mañana" valor={enManana} tono="dorado" chip="Jornada" />
+        <StatCard icono="wb_twilight" etiqueta="Tarde / completa" valor={tardeOComp} tono="azul" chip="Jornada" />
+        <StatCard icono="school" etiqueta="Grupos libres" valor={`${libres} de ${grados.length}`} tono="verde" chip="Por asignar" />
+      </section>
 
-        {/* ── Formulario de registro ───────────────────────── */}
-        <div className="bg-white rounded-2xl border border-outline-variant shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-stone-100 bg-primary-fixed/10 flex items-center gap-3">
-            <div className="p-2 bg-primary-fixed rounded-lg">
-              <span className="material-symbols-outlined text-on-primary-fixed-variant text-xl">person_add</span>
-            </div>
-            <h2 className="font-semibold text-on-surface">Registrar nuevo docente</h2>
+      <form onSubmit={handleSubmit} className="flex flex-wrap items-start gap-5">
+        <Tarjeta titulo="Registrar docente" subtitulo="Los campos con * son obligatorios" className="flex-[1_1_440px]">
+          {submitError && <Mensaje tipo="error">{submitError}</Mensaje>}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Campo etiqueta="Cédula" id="cedula" requerido error={errors.cedula}>
+              <input id="cedula" name="cedula" value={form.cedula} onChange={handleChange}
+                placeholder="Número de cédula" inputMode="numeric" className={err('cedula')} />
+            </Campo>
+            <Campo etiqueta="Nombre completo" id="nombre" requerido error={errors.nombre}>
+              <input id="nombre" name="nombre" value={form.nombre} onChange={handleChange}
+                placeholder="Nombres y apellidos" className={err('nombre')} />
+            </Campo>
+            <Campo etiqueta="Teléfono" id="telefono">
+              <input id="telefono" name="telefono" type="tel" value={form.telefono} onChange={handleChange}
+                placeholder="300 000 0000" className={claseInput} />
+            </Campo>
+            <Campo etiqueta="Correo electrónico" id="correo">
+              <input id="correo" name="correo" type="email" value={form.correo} onChange={handleChange}
+                placeholder="correo@ejemplo.com" className={claseInput} />
+            </Campo>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-5">
-            {submitError && (
-              <div className="flex items-center gap-3 p-4 bg-error-container rounded-xl border border-error/20">
-                <span className="material-symbols-outlined text-error text-xl">error</span>
-                <p className="text-sm text-error font-medium">{submitError}</p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField label="Cédula" id="cedula" required error={errors.cedula}>
-                <input id="cedula" name="cedula" value={form.cedula} onChange={handleChange}
-                  placeholder="Número de cédula" className={inputClass} />
-              </FormField>
-              <FormField label="Nombre completo" id="nombre" required error={errors.nombre}>
-                <input id="nombre" name="nombre" value={form.nombre} onChange={handleChange}
-                  placeholder="Nombre y apellidos" className={inputClass} />
-              </FormField>
-              <FormField label="Teléfono" id="telefono">
-                <input id="telefono" name="telefono" type="tel" value={form.telefono} onChange={handleChange}
-                  placeholder="ej. 3001234567" className={inputClass} />
-              </FormField>
-              <FormField label="Correo electrónico" id="correo">
-                <input id="correo" name="correo" type="email" value={form.correo} onChange={handleChange}
-                  placeholder="correo@escuela.edu.co" className={inputClass} />
-              </FormField>
+          <div className="flex flex-col gap-2">
+            <p className="text-[13px] font-semibold text-tinta-media">Jornada laboral<span className="text-rojo" aria-hidden="true"> *</span></p>
+            <div role="group" aria-label="Jornada laboral" className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2.5">
+              <JornadaBtn value="MAÑANA"   icon="wb_sunny"     desc="6:00 a.m. – 12:00 m."
+                selected={form.jornada === 'MAÑANA'}   disabled={false} onSelect={handleJornada} />
+              <JornadaBtn value="TARDE"    icon="wb_twilight"  desc="12:00 m. – 6:00 p.m."
+                selected={form.jornada === 'TARDE'}    disabled={false} onSelect={handleJornada} />
+              <JornadaBtn value="COMPLETA" icon="brightness_5" desc="6:00 a.m. – 6:00 p.m."
+                selected={form.jornada === 'COMPLETA'} disabled={false} onSelect={handleJornada} />
             </div>
-
-            {/* Jornada */}
-            <div>
-              <p className="text-xs font-semibold tracking-wide text-on-surface-variant uppercase mb-3">
-                Jornada laboral <span className="text-error ml-1">*</span>
+            {errors.jornada && (
+              <p className="text-xs font-medium text-rojo flex items-center gap-1" role="alert">
+                <Icono nombre="error" className="text-[15px]" />{errors.jornada}
               </p>
-              <div className="grid grid-cols-1 min-[400px]:grid-cols-3 gap-3">
-                <JornadaBtn value="MAÑANA"   icon="wb_sunny"     desc="6:00 a.m. – 12:00 m."
-                  selected={form.jornada === 'MAÑANA'}   disabled={false} onSelect={handleJornada} />
-                <JornadaBtn value="TARDE"    icon="wb_twilight"  desc="12:00 m. – 6:00 p.m."
-                  selected={form.jornada === 'TARDE'}    disabled={false} onSelect={handleJornada} />
-                <JornadaBtn value="COMPLETA" icon="brightness_5" desc="6:00 a.m. – 6:00 p.m."
-                  selected={form.jornada === 'COMPLETA'} disabled={false} onSelect={handleJornada} />
-              </div>
-              {errors.jornada && (
-                <p className="text-xs text-error flex items-center gap-1 mt-2">
-                  <span className="material-symbols-outlined text-[14px]">error</span>{errors.jornada}
-                </p>
-              )}
-            </div>
-
-            {/* Grado */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold tracking-wide text-on-surface-variant uppercase">
-                  Grado a dirigir <span className="text-error ml-1">*</span>
-                </p>
-                {!form.jornada && (
-                  <span className="text-xs text-stone-400 italic">Selecciona la jornada primero</span>
-                )}
-              </div>
-              {loadingGrados ? (
-                <div className="flex items-center justify-center h-24 rounded-xl border border-outline-variant bg-stone-50">
-                  <span className="material-symbols-outlined text-primary animate-spin">progress_activity</span>
-                </div>
-              ) : (
-                <DisponibilidadGrid
-                  grados={grados}
-                  gradoSeleccionado={form.nombreGrado}
-                  jornadaSeleccionada={form.jornada}
-                  onSelect={handleGrado}
-                />
-              )}
-              {errors.nombreGrado && (
-                <p className="text-xs text-error flex items-center gap-1 mt-2">
-                  <span className="material-symbols-outlined text-[14px]">error</span>{errors.nombreGrado}
-                </p>
-              )}
-            </div>
-
-            {form.jornada && form.nombreGrado && (
-              <div className="flex gap-3 p-4 bg-secondary-container/20 rounded-xl border border-secondary/20">
-                <span className="material-symbols-outlined text-secondary text-xl flex-shrink-0">info</span>
-                <p className="text-sm text-on-surface-variant">
-                  <strong className="text-on-surface">{form.nombre || 'El docente'}</strong> será director del grado{' '}
-                  <strong className="text-secondary">{form.nombreGrado}</strong> en jornada{' '}
-                  <strong className="text-secondary">{JORNADA_LABEL[form.jornada as JornadaDocente]}</strong>.
-                  {form.jornada === 'COMPLETA' && ' Se asignará a las dos filas del grado (mañana y tarde).'}
-                </p>
-              </div>
             )}
+          </div>
 
-            <div className="flex gap-3 pt-1">
-              <button type="button"
-                onClick={() => { setForm(EMPTY_FORM); setErrors({}); setSubmitError(''); }}
-                className="px-5 py-2.5 border border-outline-variant bg-white text-on-surface-variant
-                  rounded-lg font-semibold hover:bg-stone-50 transition-all text-sm">
-                Limpiar
-              </button>
-              <button type="submit" disabled={isSubmitting}
-                className="flex-1 py-2.5 bg-orange-900 text-white rounded-lg font-semibold hover:bg-primary
-                  transition-all shadow-md disabled:opacity-60 disabled:cursor-not-allowed
-                  flex items-center justify-center gap-2 text-sm">
-                {isSubmitting ? (
-                  <><span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>Guardando...</>
-                ) : (
-                  <><span className="material-symbols-outlined text-lg">person_add</span>Registrar Docente</>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
+          {form.jornada && form.nombreGrado && (
+            <Mensaje tipo="exito">
+              <strong>{form.nombre || 'El docente'}</strong> será director de <strong>{form.nombreGrado}</strong> en
+              jornada {JORNADA_LABEL[form.jornada as JornadaDocente].toLowerCase()}.
+              {form.jornada === 'COMPLETA' && ' Se asignará a los dos grupos del grado (mañana y tarde).'}
+            </Mensaje>
+          )}
 
-        {/* ── Lista de docentes ────────────────────────────── */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-on-surface">
-              Docentes registrados
-              <span className="ml-2 px-2 py-0.5 bg-secondary-container/30 text-secondary
-                text-sm rounded-full font-bold">
-                {docentes.length}
-              </span>
-            </h2>
-            <button onClick={cargarDatos}
-              className="p-2 text-stone-400 hover:text-primary hover:bg-stone-50
-                rounded-lg transition-colors">
-              <span className="material-symbols-outlined">refresh</span>
+          <div className="flex gap-2.5">
+            <Boton onClick={limpiar} className="border border-linea">Limpiar</Boton>
+            <button type="submit" disabled={isSubmitting}
+              className="flex-1 inline-flex items-center justify-center gap-2 min-h-11 px-5 rounded-[14px] bg-vino text-white text-sm font-semibold
+                hover:bg-vino-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+              <Icono nombre={isSubmitting ? 'progress_activity' : 'person_add'} className={`text-[19px] ${isSubmitting ? 'animate-spin' : ''}`} />
+              {isSubmitting ? 'Guardando…' : 'Registrar docente'}
             </button>
           </div>
+        </Tarjeta>
 
-          {docentes.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-outline-variant shadow-sm
-              p-12 flex flex-col items-center gap-3 text-stone-400">
-              <span className="material-symbols-outlined text-5xl">person_off</span>
-              <p className="text-sm font-medium">No hay docentes registrados aún</p>
-            </div>
+        <Tarjeta titulo="Grado a dirigir"
+          subtitulo={form.jornada ? 'Elige un grado libre en la jornada del docente' : 'Primero elige la jornada del docente'}
+          className="flex-[1_1_440px]">
+          {loadingGrados ? (
+            <Cargando texto="Cargando grados…" />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {docentes.map((d) => (
-                <DocenteCard key={d.cedula} docente={d} onEditar={abrirEdicion}
-                  onRestablecerClave={(doc) => clave.pedir({ tipo: 'docente', cedula: doc.cedula, nombre: doc.nombre })} />
-              ))}
-            </div>
+            <DisponibilidadGrid grados={grados} gradoSeleccionado={form.nombreGrado}
+              jornadaSeleccionada={form.jornada} onSelect={handleGrado} />
           )}
-        </div>
+          {errors.nombreGrado && (
+            <p className="text-xs font-medium text-rojo flex items-center gap-1" role="alert">
+              <Icono nombre="error" className="text-[15px]" />{errors.nombreGrado}
+            </p>
+          )}
+        </Tarjeta>
+      </form>
+
+      <div className="flex flex-col">
+        <h2 className="m-0 text-base md:text-xl font-semibold">Docentes registrados</h2>
+        <span className="text-sm text-tinta-suave">{docentes.length} docente{docentes.length !== 1 ? 's' : ''}</span>
       </div>
+
+      {docentes.length === 0 ? (
+        <Aviso icono="person_off" titulo="Aún no hay docentes registrados" />
+      ) : (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3 sm:gap-4">
+          {docentes.map((d, i) => (
+            <DocenteCard key={d.cedula} docente={d} indice={i} onEditar={abrirEdicion}
+              onRestablecerClave={(doc) => clave.pedir({ tipo: 'docente', cedula: doc.cedula, nombre: doc.nombre })} />
+          ))}
+        </div>
+      )}
     </>
   );
 };

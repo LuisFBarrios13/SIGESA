@@ -265,7 +265,7 @@ const EstudiantesPage = () => {
             <div className={viewMode === 'cards' ? '' : 'md:hidden'}>{tarjetas}</div>
 
             {viewMode === 'table' && (
-              <div className="hidden md:block overflow-x-auto">
+              <div className="relative hidden md:block overflow-x-auto">
                 <table className="w-full border-collapse text-sm text-left">
                   <caption className="sr-only">Estudiantes</caption>
                   <thead>

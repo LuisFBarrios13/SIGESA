@@ -1,11 +1,8 @@
 // src/components/docente/JornadaBadge.tsx
+// Jornada del docente (mañana, tarde o completa) con los colores del diseño.
 import type { JornadaDocente } from '../../services/api';
-import { JORNADA_COLOR, JORNADA_LABEL } from '../../constants/docentes';
+import EstadoBadge from '../ds/EstadoBadge';
 
-const JornadaBadge = ({ jornada }: { jornada: JornadaDocente }) => (
-  <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${JORNADA_COLOR[jornada]}`}>
-    {JORNADA_LABEL[jornada]}
-  </span>
-);
+const JornadaBadge = ({ jornada }: { jornada: JornadaDocente }) => <EstadoBadge estado={jornada} />;
 
 export default JornadaBadge;
