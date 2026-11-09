@@ -27,7 +27,7 @@ const PageHeader = ({ titulo, subtitulo, acciones }: Props) => {
 
   return (
     <header className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 lg:flex-1 lg:min-w-[280px]">
         <div className="flex items-center gap-2.5 min-w-0">
           <img src="/escudo-128.png" alt="" width={42} height={42}
             className="lg:hidden w-[42px] h-[42px] rounded-full object-cover shrink-0" />

@@ -1,185 +1,122 @@
 // src/components/deudores/DeudorCard.tsx
-// Single Responsibility: muestra un deudor con sus cuentas vencidas e historial.
-
+// Un deudor con su saldo vencido. Al desplegarlo muestra cada cuenta vencida
+// con su saldo y el historial de pagos (mismo contenido de antes, diseño nuevo).
 import { useState } from 'react';
-import { fmt, NOMBRE_MES, CONCEPTO_META } from '../pagos/pagos.constants';
+import { fmt, NOMBRE_MES } from '../pagos/pagos.constants';
 import type { DeudorAgrupado } from '../../types/deudores';
 import type { CuentaCobro } from '../../services/pagosApi';
+import EstadoBadge from '../ds/EstadoBadge';
+import { Avatar, Icono } from '../ds/Controles';
+import type { Tono } from '../ds/tonos';
 
-// ── Historial de pagos de una cuenta ─────────────────────────
+const TONOS_AVATAR: Tono[] = ['vino', 'verde', 'dorado', 'azul'];
+
+const fecha = (iso: string) =>
+  new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
+
+// ── Una cuenta vencida con su historial ───────────────────────
 
 const HistorialCuenta = ({ cuenta }: { cuenta: CuentaCobro }) => {
   const pagado = cuenta.pagos.reduce((s, p) => s + Number(p.monto_pago), 0);
   const saldo  = Math.max(0, Number(cuenta.valor_deuda) - pagado);
-  const cm     = CONCEPTO_META[cuenta.concepto.nombre] ?? CONCEPTO_META['PENSIÓN'];
+  const nombre = cuenta.concepto.nombre === 'MATRÍCULA'
+    ? `Matrícula ${cuenta.year}`
+    : `${NOMBRE_MES[cuenta.mes]} ${cuenta.year}`;
 
   return (
-    <div className="rounded-lg border border-red-100 overflow-hidden">
-      {/* Cuenta header */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-red-50">
-        <div className="flex items-center gap-2">
-          <div className={`w-7 h-7 rounded-md flex items-center justify-center ${cm.bg}`}>
-            <span className={`material-symbols-outlined text-[14px] ${cm.text}`}>{cm.icon}</span>
-          </div>
-          <span className="text-sm font-semibold text-on-surface">
-            {cuenta.concepto.nombre === 'MATRÍCULA'
-              ? `Matrícula ${cuenta.year}`
-              : `${NOMBRE_MES[cuenta.mes]} ${cuenta.year}`}
-          </span>
+    <li className="rounded-2xl bg-crema p-3.5 flex flex-col gap-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-semibold text-tinta">{nombre}</span>
+          <span className="text-xs text-tinta-suave">{cuenta.concepto.nombre === 'MATRÍCULA' ? 'Matrícula' : 'Pensión'}</span>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-stone-400">Deuda total</p>
-          <p className="text-sm font-bold text-red-700">{fmt(cuenta.valor_deuda)}</p>
+        <div className="flex items-center gap-3 text-sm tabular-nums">
+          <span className="text-tinta-suave">Valor {fmt(cuenta.valor_deuda)}</span>
+          <span className="font-semibold text-rojo">Saldo {fmt(saldo)}</span>
         </div>
       </div>
 
-      {/* Saldo pendiente */}
-      <div className="px-4 py-2 bg-white flex items-center justify-between border-b border-stone-100">
-        <span className="text-xs text-stone-500">Saldo pendiente</span>
-        <span className="text-sm font-black text-red-600">{fmt(saldo)}</span>
-      </div>
-
-      {/* Historial de pagos */}
       {cuenta.pagos.length > 0 ? (
-        <div className="px-4 py-2 bg-white space-y-1.5">
-          <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider pt-1">
-            Pagos realizados
-          </p>
-          {cuenta.pagos.map((p) => (
-            <div
-              key={p.id_pago}
-              className="flex items-center justify-between text-xs bg-stone-50
-                rounded-lg px-3 py-2 border border-stone-100"
-            >
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-secondary text-sm">
-                  check_circle
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs font-semibold text-tinta-suave">Pagos realizados</p>
+          <ul className="flex flex-col gap-1.5">
+            {cuenta.pagos.map((p) => (
+              <li key={p.id_pago}
+                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm bg-tarjeta rounded-xl px-3 py-2">
+                <span className="flex items-center gap-2 text-tinta-media">
+                  <Icono nombre="check_circle" className="text-verde text-base" />
+                  {fecha(p.fecha_pago)}
+                  <span className="text-tinta-suave">· {p.metodo.nombre.toLowerCase()}</span>
                 </span>
-                <span className="text-stone-600">
-                  {new Date(p.fecha_pago).toLocaleDateString('es-CO', {
-                    day: '2-digit', month: 'short', year: 'numeric',
-                  })}
-                </span>
-                <span className="px-2 py-0.5 bg-stone-200 text-stone-600 rounded font-medium text-[10px]">
-                  {p.metodo.nombre}
-                </span>
-              </div>
-              <span className="font-bold text-secondary">{fmt(p.monto_pago)}</span>
-            </div>
-          ))}
+                <span className="font-semibold text-verde-texto tabular-nums">{fmt(p.monto_pago)}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : (
-        <div className="px-4 py-2.5 bg-white">
-          <p className="text-xs text-stone-400 italic">Sin pagos registrados</p>
-        </div>
+        <p className="text-xs text-tinta-suave">Sin pagos registrados</p>
       )}
-    </div>
+    </li>
   );
 };
 
-// ── Tarjeta principal del deudor ──────────────────────────────
+// ── Tarjeta del deudor ────────────────────────────────────────
 
-interface DeudorCardProps {
-  deudor: DeudorAgrupado;
-  rank:   number;
-}
-
-const DeudorCard = ({ deudor, rank }: DeudorCardProps) => {
+const DeudorCard = ({ deudor, rank }: { deudor: DeudorAgrupado; rank: number }) => {
   const [expanded, setExpanded] = useState(false);
-
-  const initials = deudor.estudiante.nombre
-    .split(' ')
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
-
-  const conPagosParciales = deudor.cuentas_vencidas.some((c) => c.pagos.length > 0);
+  const { estudiante, grado, cuentas_vencidas: cuentas } = deudor;
+  const conPagosParciales = cuentas.some((c) => c.pagos.length > 0);
+  const idDetalle = `deudor-${estudiante.numero_identidad}`;
 
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-sm overflow-hidden transition-all
-      ${expanded ? 'border-red-300' : 'border-red-100 hover:border-red-200'}`}>
-
-      {/* Header del deudor — clic en todo el área para expandir */}
-      <div
-        onClick={() => setExpanded((v) => !v)}
-        className="px-4 sm:px-5 py-4 flex flex-wrap sm:flex-nowrap items-center gap-3 sm:gap-4 cursor-pointer select-none"
-      >
-        {/* Ranking */}
-        <div className="hidden sm:flex w-7 h-7 rounded-full bg-red-100 items-center justify-center
-          flex-shrink-0 text-xs font-black text-red-600">
+    <article className="bg-tarjeta rounded-[22px] p-4 sm:p-[22px] flex flex-col">
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 sm:gap-4">
+        <span className="hidden sm:flex w-8 h-8 rounded-[10px] bg-crema items-center justify-center text-sm font-semibold text-tinta-media shrink-0">
           {rank}
-        </div>
+        </span>
+        <Avatar nombre={estudiante.nombre} tono={TONOS_AVATAR[(rank - 1) % TONOS_AVATAR.length]} tamano={48} />
 
-        {/* Avatar */}
-        <div className="w-11 h-11 rounded-full bg-red-50 border-2 border-red-200
-          flex items-center justify-center flex-shrink-0">
-          <span className="text-sm font-black text-red-700">{initials}</span>
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-bold text-on-surface text-sm truncate">
-              {deudor.estudiante.nombre}
-            </p>
-            {conPagosParciales && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full
-                text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
-                <span className="material-symbols-outlined text-[10px]">payments</span>
-                Pagos parciales
-              </span>
-            )}
+        <div className="flex-1 min-w-0 flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="m-0 text-base font-semibold text-tinta break-words">{estudiante.nombre}</h3>
+            {conPagosParciales && <EstadoBadge tono="azul">Pagos parciales</EstadoBadge>}
           </div>
-          <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <span className="text-xs text-stone-400 font-mono">
-              DNI {deudor.estudiante.numero_identidad}
-            </span>
-            <span className="text-stone-300">·</span>
-            <span className="text-xs text-stone-500">
-              {deudor.grado.nombre}
-            </span>
-            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium
-              bg-stone-100 text-stone-600">
-              {deudor.grado.jornada === 'MAÑANA' ? 'Mañana' : 'Tarde'}
-            </span>
-            <span className="text-stone-300">·</span>
-            <span className="text-xs text-stone-400">{deudor.year}</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-tinta-suave">
+            <span>Doc. {estudiante.numero_identidad}</span>
+            <span aria-hidden="true">·</span>
+            <span>{grado.nombre}</span>
+            <EstadoBadge estado={grado.jornada} />
+            <span>· {deudor.year}</span>
           </div>
         </div>
 
-        {/* Deuda + toggle */}
-        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-3 flex-shrink-0
-          border-t border-red-50 pt-3 sm:border-0 sm:pt-0">
-          <div className="sm:text-right">
-            <p className="text-[10px] text-stone-400 uppercase tracking-wide font-bold">
-              Saldo vencido
-            </p>
-            <p className="text-lg font-black text-red-600">{fmt(deudor.saldo_total)}</p>
-            <p className="text-[10px] text-stone-400">
-              {deudor.cuentas_vencidas.length} cuenta{deudor.cuentas_vencidas.length !== 1 ? 's' : ''}
-            </p>
+        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-4
+          border-t border-linea pt-3 sm:border-0 sm:pt-0">
+          <div className="flex flex-col sm:items-end">
+            <span className="text-[11px] font-semibold text-tinta-suave">Saldo vencido</span>
+            <span className="text-xl font-semibold text-rojo tabular-nums">{fmt(deudor.saldo_total)}</span>
+            <span className="text-xs text-tinta-suave">
+              {cuentas.length} cuenta{cuentas.length !== 1 ? 's' : ''}
+            </span>
           </div>
-          <span className={`material-symbols-outlined text-xl transition-colors ${
-            expanded ? 'text-red-400' : 'text-stone-300'
-          }`}>
-            {expanded ? 'expand_less' : 'expand_more'}
-          </span>
+          <button type="button" onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded} aria-controls={idDetalle}
+            aria-label={`${expanded ? 'Ocultar' : 'Ver'} cuentas vencidas de ${estudiante.nombre}`}
+            className="w-11 h-11 shrink-0 rounded-xl bg-crema text-tinta-media flex items-center justify-center hover:bg-linea transition-colors">
+            <Icono nombre="expand_more" className={`text-xl transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          </button>
         </div>
       </div>
 
-      {/* Historial expandido */}
       {expanded && (
-        <div className="border-t border-red-100 px-5 py-4 bg-red-50/30 space-y-3">
-          <p className="text-xs font-bold text-stone-500 uppercase tracking-wider">
-            Cuentas vencidas e historial de pagos
-          </p>
-          {deudor.cuentas_vencidas.map((cuenta) => (
-            <HistorialCuenta key={cuenta.id_cuenta} cuenta={cuenta} />
-          ))}
+        <div id={idDetalle} className="mt-4 pt-4 border-t border-linea flex flex-col gap-3">
+          <p className="text-[13px] font-semibold text-tinta-suave">Cuentas vencidas e historial de pagos</p>
+          <ul className="flex flex-col gap-2.5">
+            {cuentas.map((c) => <HistorialCuenta key={c.id_cuenta} cuenta={c} />)}
+          </ul>
         </div>
       )}
-    </div>
+    </article>
   );
 };
 
