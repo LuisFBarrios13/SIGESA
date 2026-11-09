@@ -57,6 +57,21 @@ test('segundo hijo con el mismo acudiente lo reutiliza', async () => {
   assert.equal(body.data.credenciales.username, null);
 });
 
+test('buscar acudiente: por cédula, por su usuario o null si no existe', async () => {
+  const porCedula = await s.api('GET', '/acudientes/5001', { token: admin });
+  assert.equal(porCedula.status, 200);
+  assert.equal(porCedula.body.data.nombre, 'Acudiente 5001');
+
+  // El usuario del acudiente es el documento del primer estudiante (1001)
+  const porUsuario = await s.api('GET', '/acudientes/1001', { token: admin });
+  assert.equal(porUsuario.status, 200);
+  assert.equal(porUsuario.body.data.cedula, '5001');
+
+  const nuevo = await s.api('GET', '/acudientes/99999', { token: admin });
+  assert.equal(nuevo.status, 200);
+  assert.equal(nuevo.body.data, null);
+});
+
 test('estudiante repetido → 409; datos incompletos → 400', async () => {
   const repetido = await s.api('POST', '/matriculas', { token: admin, body: nuevaMatricula('1001', '5002') });
   assert.equal(repetido.status, 409);
@@ -195,11 +210,11 @@ test('notas: el docente guarda notas, puesto y observaciones del periodo', async
     body: { id_matricula: idMatricula, numero_periodo: 1, year: YEAR, ...extra },
   });
 
-  const fuera = await guardar({ materias: [{ id_materia: mate.id_materia, nota: 11, fallas: 0 }] });
+  const fuera = await guardar({ materias: [{ id_materia: mate.id_materia, nota: 5.5, fallas: 0 }] });
   assert.equal(fuera.status, 400);
 
   const ok = await guardar({
-    materias: [{ id_materia: mate.id_materia, nota: 8.5, fallas: 2, intensidad_horaria: 4, observacion: null }],
+    materias: [{ id_materia: mate.id_materia, nota: 4.5, fallas: 2, intensidad_horaria: 4, observacion: null }],
     puesto: 3,
     observaciones: 'Buen desempeño en el periodo',
   });
@@ -210,7 +225,7 @@ test('notas: el docente guarda notas, puesto y observaciones del periodo', async
   assert.equal(leido.body.data.puesto, 3);
   assert.equal(leido.body.data.observaciones, 'Buen desempeño en el periodo');
   const m = leido.body.data.materias.find((x) => x.id_materia === mate.id_materia);
-  assert.equal(m.nota, 8.5);
+  assert.equal(m.nota, 4.5);
   assert.equal(m.fallas, 2);
 
   // Solo observaciones (sin materias cambiadas) también se guarda

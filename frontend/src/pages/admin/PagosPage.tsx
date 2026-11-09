@@ -87,6 +87,7 @@ const PagosPage = () => {
 
         {resumen && (
           <PagosSection
+            key={resumen.matricula.id_matricula}
             resumen={resumen}
             cuentasFiltradas={cuentasFiltradas}
             estadoFilter={estadoFilter}

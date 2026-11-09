@@ -1,4 +1,5 @@
 // src/components/pagos/PagosSection.tsx
+import { useRef, useState } from 'react';
 import TotalsBar from './TotalsBar';
 import CuentaCard from './CuentaCard';
 import { ESTADO_META, CONCEPTO_META, fmt } from './pagos.constants';
@@ -31,6 +32,15 @@ const PagosSection = ({
   opLoading, opError, tarifa, onEditTarifa,
 }: PagosSectionProps) => {
   const { matricula, totales, cuentas } = resumen;
+
+  // Al filtrar, la lista puede quedar mucho más corta y el navegador sube la
+  // página. Se conserva la altura máxima que tuvo la lista para que no salte.
+  const listaRef = useRef<HTMLDivElement>(null);
+  const [alturaMin, setAlturaMin] = useState(0);
+  const cambiarFiltro = (f: 'TODOS' | EstadoCuenta) => {
+    setAlturaMin((h) => Math.max(h, listaRef.current?.offsetHeight ?? 0));
+    setEstadoFilter(f);
+  };
 
   const tieneMatricula  = cuentas.some((c) => c.concepto.nombre === 'MATRÍCULA');
   const tienePension    = cuentas.some((c) => c.concepto.nombre === 'PENSIÓN');
@@ -138,7 +148,7 @@ const PagosSection = ({
             return (
               <button
                 key={f}
-                onClick={() => setEstadoFilter(f)}
+                onClick={() => cambiarFiltro(f)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all
                   ${isActive
                     ? 'bg-primary text-on-primary border-primary shadow-sm'
@@ -162,6 +172,7 @@ const PagosSection = ({
         </div>
 
         {/* Cuenta list */}
+        <div ref={listaRef} style={{ minHeight: alturaMin || undefined }}>
         {cuentas.length === 0 ? (
           <div className="bg-stone-50 border border-stone-100 rounded-xl p-10 flex flex-col items-center gap-3 text-stone-400">
             <span className="material-symbols-outlined text-5xl">receipt_long</span>
@@ -198,6 +209,7 @@ const PagosSection = ({
             })}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

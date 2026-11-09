@@ -1,6 +1,7 @@
 // src/components/docente/EstudianteNotasPanel.tsx
 
 import type { MateriaEdit } from '../../hooks/useNotasDocente';
+import { NOTA_MIN, NOTA_MAX } from '../../constants/notas';
 
 // ── Utilidades ─────────────────────────────────────────────────────────────────
 
@@ -143,8 +144,8 @@ const MateriaRow = ({ m, onNota, onFallas, onIH }: MateriaRowProps) => {
       <div className="flex flex-col items-end flex-shrink-0">
         <input
           type="number"
-          min={0}
-          max={10}
+          min={NOTA_MIN}
+          max={NOTA_MAX}
           step={0.1}
           value={m.nota === '' ? '' : m.nota}
           onChange={(e) => handleNota(e.target.value)}

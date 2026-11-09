@@ -9,16 +9,19 @@ import {
 } from './nota.controller.js';
 import { authenticate, authorize } from '../middlewares/auth.middleware.js';
 import { ROLES }                   from '../constants/roles.js';
+import { NOTA_MIN, NOTA_MAX }      from '../constants/notas.js';
 import { validar, v } from '../middlewares/validar.middleware.js';
 
 const router = Router();
 
 const auth = [authenticate, authorize(ROLES.DOCENTE, ROLES.ADMINISTRADOR)];
 
-/** Nota vacía ('' o null = sin nota) o número entre 0 y 10. */
+/** Nota vacía ('' o null = sin nota) o número dentro de la escala. */
 const nota = (campo) => body(campo).optional({ values: 'falsy' }).custom((val) => {
   const n = Number(val);
-  if (Number.isNaN(n) || n < 0 || n > 10) throw new Error('Las notas deben estar entre 0 y 10');
+  if (Number.isNaN(n) || n < NOTA_MIN || n > NOTA_MAX) {
+    throw new Error(`Las notas deben estar entre ${NOTA_MIN.toFixed(1)} y ${NOTA_MAX.toFixed(1)}`);
+  }
   return true;
 });
 const enteroOpcional = (campo, etiqueta) => body(campo)

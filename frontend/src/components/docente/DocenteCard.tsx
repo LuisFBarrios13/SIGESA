@@ -9,21 +9,10 @@ interface DocenteCardProps {
 
 const DocenteCard = ({ docente, onEditar }: DocenteCardProps) => (
   <div className="bg-white rounded-xl border border-outline-variant shadow-sm p-5
-    flex flex-col gap-3 group hover:border-primary/30 hover:shadow-md transition-all relative">
-
-    {/* Botón editar — visible en hover */}
-    <button
-      onClick={() => onEditar(docente)}
-      title="Editar docente"
-      className="absolute top-4 right-4 p-1.5 rounded-lg text-stone-300
-        hover:text-primary hover:bg-primary-fixed/30 transition-all
-        opacity-0 group-hover:opacity-100"
-    >
-      <span className="material-symbols-outlined text-lg">edit</span>
-    </button>
+    flex flex-col gap-3 hover:border-primary/30 hover:shadow-md transition-all">
 
     <div className="flex items-start justify-between gap-3">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0">
         <div className="w-11 h-11 rounded-full bg-primary-fixed flex items-center justify-center flex-shrink-0">
           <span className="material-symbols-outlined text-on-primary-fixed-variant text-2xl">person</span>
         </div>
@@ -32,7 +21,17 @@ const DocenteCard = ({ docente, onEditar }: DocenteCardProps) => (
           <p className="text-xs text-stone-500">CC {docente.cedula}</p>
         </div>
       </div>
-      <JornadaBadge jornada={docente.jornada} />
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <JornadaBadge jornada={docente.jornada} />
+        <button
+          onClick={() => onEditar(docente)}
+          title="Editar docente"
+          aria-label={`Editar a ${docente.nombre}`}
+          className="p-1.5 rounded-lg text-stone-400 hover:text-primary hover:bg-primary-fixed/30 transition-all"
+        >
+          <span className="material-symbols-outlined text-lg">edit</span>
+        </button>
+      </div>
     </div>
 
     {docente.grados.length > 0 && (

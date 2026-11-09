@@ -100,19 +100,22 @@ export const useMatriculaForm = () => {
     cedulaTimer.current = setTimeout(async () => {
       setBuscandoAcudiente(true);
       try {
-        const data = await api.get<AcudienteEncontrado>(`/acudientes/${cedula}`);
+        const data = await api.get<AcudienteEncontrado | null>(`/acudientes/${cedula}`);
         if (cancelado) return;
-        // Acudiente encontrado — auto-completar campos
+        if (!data) { setAcudienteEncontrado(null); return; } // acudiente nuevo
+        // Acudiente encontrado — auto-completar campos. Si se buscó por su
+        // usuario (documento del estudiante), se pone su cédula real.
         setAcudienteEncontrado(data);
         setForm((prev) => ({
           ...prev,
+          cedula_acudiente:    data.cedula,
           nombre_acudiente:    data.nombre,
           telefono_acudiente:  data.telefono  ?? '',
           correo_acudiente:    data.correo    ?? '',
           direccion_acudiente: data.direccion ?? '',
         }));
       } catch {
-        // 404 = acudiente nuevo, no es un error
+        // Error de red o del servidor: se deja registrar como acudiente nuevo
         if (!cancelado) setAcudienteEncontrado(null);
       } finally {
         if (!cancelado) setBuscandoAcudiente(false);

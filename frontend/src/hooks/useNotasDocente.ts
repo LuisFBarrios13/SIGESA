@@ -8,6 +8,7 @@
 // - Guardar es un useMutation que, al terminar, actualiza la caché de notas.
 
 import { useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   docenteApi,
@@ -18,6 +19,7 @@ import {
   type GuardarNotaEstudiantePayload,
 } from '../services/docenteApi';
 import { queryKeys } from '../lib/queryKeys';
+import { NOTA_MIN, NOTA_MAX } from '../constants/notas';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -141,11 +143,25 @@ interface UseNotasDocenteReturn {
 export const useNotasDocente = (): UseNotasDocenteReturn => {
   const queryClient = useQueryClient();
 
-  const [periodo,     setPeriodoState] = useState(1);
-  const [year,        setYearState]    = useState(new Date().getFullYear());
+  // Periodo, año y estudiante viven en la URL (?periodo=2&year=2026&matricula=10):
+  // así al recargar (F5) o compartir el enlace se vuelve al mismo lugar.
+  const [params, setParams] = useSearchParams();
+  const periodoUrl  = Number(params.get('periodo'));
+  const periodo     = periodoUrl >= 1 && periodoUrl <= 4 ? periodoUrl : 1;
+  const year        = Number(params.get('year')) || new Date().getFullYear();
+  const idSeleccion = Number(params.get('matricula')) || null;
+
+  const actualizarUrl = (cambios: Record<string, number | null>) =>
+    setParams((prev) => {
+      const nuevos = new URLSearchParams(prev);
+      for (const [k, v] of Object.entries(cambios)) {
+        if (v === null) nuevos.delete(k); else nuevos.set(k, String(v));
+      }
+      return nuevos;
+    }, { replace: true });
+
   const [search,      setSearch]       = useState('');
   const [gradoFilter, setGradoFilter]  = useState<number | 'TODOS'>('TODOS');
-  const [selected,    setSelected]     = useState<MatriculaDocente | null>(null);
   const [errorValidacion, setErrorValidacion] = useState('');
 
   // ── Lecturas ────────────────────────────────────────────────────────────────
@@ -159,6 +175,8 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
     queryFn:  () => docenteApi.getEstudiantes(year),
     enabled:  !!perfilQuery.data,
   });
+  const estudiantes = estudiantesQuery.data ?? SIN_ESTUDIANTES;
+  const selected    = estudiantes.find((m) => m.id_matricula === idSeleccion) ?? null;
 
   const claveNotas = queryKeys.notas.porEstudiante(selected?.id_matricula ?? 0, periodo, year);
   const notasQuery = useQuery({
@@ -212,19 +230,23 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
   const limpiarMensajes = () => { guardarMutation.reset(); setErrorValidacion(''); };
 
   // Cambiar de periodo o de estudiante descarta lo no guardado.
-  const setPeriodo = (p: number) => { setPeriodoState(p); setBorrador(null); limpiarMensajes(); };
+  const setPeriodo = (p: number) => { actualizarUrl({ periodo: p }); setBorrador(null); limpiarMensajes(); };
 
   const clearSelected = () => {
-    setSelected(null);
+    actualizarUrl({ matricula: null });
     setBorrador(null);
     limpiarMensajes();
   };
 
   // Cambiar de año cambia la lista de estudiantes: se suelta la selección.
-  const setYear = (y: number) => { setYearState(y); clearSelected(); };
+  const setYear = (y: number) => {
+    actualizarUrl({ year: y, matricula: null });
+    setBorrador(null);
+    limpiarMensajes();
+  };
 
   const selectStudent = async (m: MatriculaDocente) => {
-    setSelected(m);
+    actualizarUrl({ matricula: m.id_matricula });
     setSearch('');
     setBorrador(null);
     limpiarMensajes();
@@ -233,8 +255,8 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
   // ── Edición ─────────────────────────────────────────────────────────────────
   const updateNota = (id_materia: number, val: number | '') =>
     editarMateria(id_materia, (m) => {
-      const isValid = val === '' || (typeof val === 'number' && val >= 0 && val <= 10);
-      return { ...m, nota: val, error: isValid ? '' : 'Debe ser entre 0 y 10' };
+      const isValid = val === '' || (typeof val === 'number' && val >= NOTA_MIN && val <= NOTA_MAX);
+      return { ...m, nota: val, error: isValid ? '' : `Debe ser entre ${NOTA_MIN.toFixed(1)} y ${NOTA_MAX.toFixed(1)}` };
     });
 
   const updateFallas = (id_materia: number, val: number) =>
@@ -289,8 +311,6 @@ export const useNotasDocente = (): UseNotasDocenteReturn => {
   };
 
   // ── Derivados ───────────────────────────────────────────────────────────────
-  const estudiantes = estudiantesQuery.data ?? SIN_ESTUDIANTES;
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return estudiantes.filter((m) => {

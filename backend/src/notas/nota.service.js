@@ -5,6 +5,7 @@ import {
   Nota, Materia, Periodo, Matricula, Docente, Grado, Estudiante, ResumenPeriodo,
 } from '../models/index.js';
 import { AppError } from '../utils/AppError.js';
+import { NOTA_MIN, NOTA_MAX } from '../constants/notas.js';
 
 // ── Helpers privados ───────────────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ export const guardarNotasBulk = async (id_usuario, { notas: items, id_materia, n
     const results = [];
     for (const item of filledItems) {
       const value = parseFloat(item.nota);
-      if (isNaN(value) || value < 0 || value > 10) continue;
+      if (isNaN(value) || value < NOTA_MIN || value > NOTA_MAX) continue;
       const fallas = parseFallas(item.fallas);
       const ih     = parseIH(item.intensidad_horaria);
       const [registro, created] = await Nota.findOrCreate({
@@ -164,7 +165,7 @@ export const guardarNotasEstudiante = async (
 
       if (hasNota) {
         const value = parseFloat(item.nota);
-        if (isNaN(value) || value < 0 || value > 10) continue;
+        if (isNaN(value) || value < NOTA_MIN || value > NOTA_MAX) continue;
 
         const [registro, created] = await Nota.findOrCreate({
           where:    { id_matricula, id_materia: item.id_materia, id_periodo: periodo.id_periodo },

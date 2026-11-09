@@ -1,5 +1,5 @@
 // src/acudientes/acudiente.service.js
-import { Acudiente } from '../models/index.js';
+import { Acudiente, Usuario } from '../models/index.js';
 import { AppError } from '../utils/AppError.js';
 
 /**
@@ -15,18 +15,21 @@ const CAMPOS_PERMITIDOS = [
   'direccion_trabajo',
 ];
 
+const ATRIBUTOS = ['cedula', 'nombre', 'telefono', 'correo', 'direccion', 'telefono_trabajo', 'direccion_trabajo'];
+
 /**
- * Busca un acudiente por cédula.
- * @param {string} cedula
- * @returns {Promise<Acudiente>}
+ * Busca un acudiente por su cédula o por su usuario de acceso (que es el
+ * documento del primer estudiante que matriculó). Devuelve null si no existe:
+ * en el formulario de matrícula eso significa "acudiente nuevo", no un error.
+ * @param {string} documento
+ * @returns {Promise<Acudiente|null>}
  */
-export const obtenerAcudiente = async (cedula) => {
-  const acudiente = await Acudiente.findByPk(cedula, {
-    attributes: ['cedula', 'nombre', 'telefono', 'correo', 'direccion', 'telefono_trabajo', 'direccion_trabajo'],
+export const buscarAcudiente = async (documento) =>
+  (await Acudiente.findByPk(documento, { attributes: ATRIBUTOS })) ??
+  Acudiente.findOne({
+    attributes: ATRIBUTOS,
+    include: [{ model: Usuario, as: 'usuario', attributes: [], where: { username: documento } }],
   });
-  if (!acudiente) throw new AppError(404, 'Acudiente no encontrado');
-  return acudiente;
-};
 
 /**
  * Actualiza los datos editables de un acudiente.
