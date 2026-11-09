@@ -1,11 +1,31 @@
 // src/pages/admin/MatriculaPage.tsx
-import FormField, { inputClass, selectClass } from '../../components/ui/FormField';
-import SectionCard           from '../../components/ui/SectionCard';
-import JornadaOption         from '../../components/matricula/JornadaOption';
-import SuccessModal          from '../../components/matricula/MatriculaSuccessModal';
-import { useMatriculaForm }  from '../../hooks/useMatriculaForm';
+// Formulario de matrícula nueva en tres pasos y un resumen lateral.
+// El estado, la validación y el envío viven en useMatriculaForm (sin cambios).
+// El resumen solo lee la tarifa del año elegido para mostrar el total.
+import { useQuery } from '@tanstack/react-query';
+import JornadaOption        from '../../components/matricula/JornadaOption';
+import SuccessModal         from '../../components/matricula/MatriculaSuccessModal';
+import { useMatriculaForm } from '../../hooks/useMatriculaForm';
+import { pagosApi }         from '../../services/pagosApi';
+import { queryKeys }        from '../../lib/queryKeys';
+import PageHeader from '../../components/ds/PageHeader';
+import { Campo, PasoFormulario } from '../../components/ds/Campo';
+import { claseInput, claseInputError, claseSelect } from '../../components/ds/campo-estilos';
+import { Boton, Icono } from '../../components/ds/Controles';
+import { Mensaje } from '../../components/ds/Estados';
 
-// ── Main Page ─────────────────────────────────────────────────
+const RH = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+const PARENTESCOS = ['Padre', 'Madre', 'Abuelo/a', 'Tío/a', 'Hermano/a', 'Tutor legal', 'Otro'];
+
+const fmt = (n: number) =>
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
+
+const Fila = ({ etiqueta, valor }: { etiqueta: string; valor: string }) => (
+  <div className="flex justify-between gap-3 text-sm">
+    <span className="text-tinta-suave">{etiqueta}</span>
+    <span className="font-semibold text-tinta text-right break-words min-w-0">{valor || '—'}</span>
+  </div>
+);
 
 const MatriculaPage = () => {
   const {
@@ -19,247 +39,201 @@ const MatriculaPage = () => {
     limpiarAcudiente, resetForm,
   } = useMatriculaForm();
 
+  const year = Number(form.year);
+  const tarifaQuery = useQuery({
+    queryKey: queryKeys.pagos.tarifa(year),
+    queryFn:  () => pagosApi.getTarifa(year),
+    enabled:  !!year,
+  });
+  const tarifa = tarifaQuery.data ?? null;
+  const pension   = tarifa ? Number(tarifa.valor_pension) : 0;
+  const matricula = tarifa ? Number(tarifa.valor_matricula) : 0;
+
+  const grado = grados.find((g) => String(g.id_grado) === String(form.id_grado));
+  const clase = (campo: keyof typeof errors) => (errors[campo] ? claseInputError : claseInput);
+  const soloLectura = camposAcudienteReadonly ? ' text-tinta-media' : '';
+
   return (
     <>
       {successData && (
-        <SuccessModal
-          credenciales={successData.credenciales}
-          acudienteNuevo={successData.acudienteNuevo}
-          onClose={cerrarExito}
-        />
+        <SuccessModal credenciales={successData.credenciales} acudienteNuevo={successData.acudienteNuevo} onClose={cerrarExito} />
       )}
 
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-semibold text-primary">Nueva Matrícula</h1>
-          <p className="text-base text-stone-500 mt-1">
-            Registra al estudiante, asigna el grado y configura el acceso del acudiente
-          </p>
-        </div>
-      </div>
+      <PageHeader titulo="Nueva matrícula" subtitulo="Registra al estudiante, asigna el grado y configura el acceso del acudiente" />
 
-      {submitError && (
-        <div className="flex items-start gap-3 p-4 bg-error-container rounded-xl border border-error/20">
-          <span className="material-symbols-outlined text-error text-xl flex-shrink-0">error</span>
-          <p className="text-sm text-error font-medium">{submitError}</p>
-        </div>
-      )}
+      {submitError && <Mensaje tipo="error">{submitError}</Mensaje>}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="flex flex-wrap items-start gap-5">
+        <div className="flex-[999_1_560px] min-w-0 flex flex-col gap-5">
 
-        {/* ── Sección 1: Estudiante ─────────────────────────── */}
-        <SectionCard title="Datos del Estudiante" icon="person" iconBg="bg-primary-fixed" iconColor="text-on-primary-fixed-variant">
-          <FormField label="Número de Identidad" id="numero_identidad" required error={errors.numero_identidad}>
-            <input id="numero_identidad" name="numero_identidad" value={form.numero_identidad}
-              onChange={handleChange} placeholder="ej. 1007123456" className={inputClass} />
-          </FormField>
-
-          <FormField label="Nombre Completo" id="nombre_estudiante" required error={errors.nombre_estudiante}>
-            <input id="nombre_estudiante" name="nombre_estudiante" value={form.nombre_estudiante}
-              onChange={handleChange} placeholder="Nombre y apellidos" className={inputClass} />
-          </FormField>
-
-          <FormField label="Fecha de Nacimiento" id="fecha_nacimiento" required error={errors.fecha_nacimiento}>
-            <input id="fecha_nacimiento" name="fecha_nacimiento" type="date"
-              value={form.fecha_nacimiento} onChange={handleChange} className={inputClass} />
-          </FormField>
-
-          <FormField label="Tipo de Sangre (RH)" id="rh">
-            <select id="rh" name="rh" value={form.rh} onChange={handleChange} className={selectClass}>
-              <option value="">Seleccionar</option>
-              {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          </FormField>
-
-          <div className="md:col-span-2">
-            <FormField label="Dirección" id="direccion_estudiante">
-              <input id="direccion_estudiante" name="direccion_estudiante"
-                value={form.direccion_estudiante} onChange={handleChange}
-                placeholder="Dirección de residencia" className={inputClass} />
-            </FormField>
-          </div>
-
-          <div className="md:col-span-2">
-            <FormField label="Observaciones" id="observaciones">
-              <textarea id="observaciones" name="observaciones" value={form.observaciones}
-                onChange={handleChange} rows={2}
-                placeholder="Condiciones médicas, necesidades especiales, etc."
-                className={inputClass + ' resize-none'} />
-            </FormField>
-          </div>
-        </SectionCard>
-
-        {/* ── Sección 2: Matrícula ──────────────────────────── */}
-        <SectionCard title="Datos de Matrícula" icon="school" iconBg="bg-tertiary-fixed" iconColor="text-tertiary">
-          <div className="md:col-span-2">
-            <p className="text-xs font-semibold tracking-wide text-on-surface-variant uppercase mb-3">
-              Jornada del Estudiante <span className="text-error ml-1">*</span>
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <JornadaOption value="MAÑANA" label="Jornada Mañana"
-                description="Preescolar 7:00 a.m. – 11:30 m. / Primaria 6:30 a.m. – 11:45 a.m."
-                icon="wb_sunny" selected={form.jornada === 'MAÑANA'} onSelect={handleJornadaSelect} />
-              <JornadaOption value="TARDE" label="Jornada Tarde"
-                description="Preescolar 1:00 p.m. – 5:30 p.m. / Primaria 12:40 p.m. – 5:40 p.m."
-                icon="wb_twilight" selected={form.jornada === 'TARDE'} onSelect={handleJornadaSelect} />
+          {/* ── Paso 1: estudiante ── */}
+          <PasoFormulario paso={1} titulo="Datos del estudiante" icono="person" nota="* obligatorio">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Campo etiqueta="Número de identidad" id="numero_identidad" requerido error={errors.numero_identidad}>
+                <input id="numero_identidad" name="numero_identidad" value={form.numero_identidad} onChange={handleChange}
+                  placeholder="Ej. 1122918322" inputMode="numeric" className={clase('numero_identidad')} />
+              </Campo>
+              <Campo etiqueta="Nombre completo" id="nombre_estudiante" requerido error={errors.nombre_estudiante}>
+                <input id="nombre_estudiante" name="nombre_estudiante" value={form.nombre_estudiante} onChange={handleChange}
+                  placeholder="Nombres y apellidos" className={clase('nombre_estudiante')} />
+              </Campo>
+              <Campo etiqueta="Fecha de nacimiento" id="fecha_nacimiento" requerido error={errors.fecha_nacimiento}>
+                <input id="fecha_nacimiento" name="fecha_nacimiento" type="date" value={form.fecha_nacimiento}
+                  onChange={handleChange} className={clase('fecha_nacimiento')} />
+              </Campo>
+              <Campo etiqueta="Tipo de sangre (RH)" id="rh">
+                <select id="rh" name="rh" value={form.rh} onChange={handleChange} className={claseSelect}>
+                  <option value="">Seleccionar</option>
+                  {RH.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </Campo>
+              <Campo etiqueta="Dirección" id="direccion_estudiante" ancho>
+                <input id="direccion_estudiante" name="direccion_estudiante" value={form.direccion_estudiante}
+                  onChange={handleChange} placeholder="Dirección de residencia" className={claseInput} />
+              </Campo>
+              <Campo etiqueta="Observaciones" id="observaciones" ancho>
+                <textarea id="observaciones" name="observaciones" value={form.observaciones} onChange={handleChange} rows={2}
+                  placeholder="Condiciones médicas, necesidades especiales…" className={`${claseInput} py-3 resize-none`} />
+              </Campo>
             </div>
-            {errors.jornada && (
-              <p className="text-xs text-error font-medium flex items-center gap-1 mt-2">
-                <span className="material-symbols-outlined text-[14px]">error</span>{errors.jornada}
-              </p>
-            )}
-          </div>
+          </PasoFormulario>
 
-          <FormField label="Grado" id="id_grado" required error={errors.id_grado || gradosLoadError}>
-            <select id="id_grado" name="id_grado" value={form.id_grado} onChange={handleChange}
-              className={selectClass} disabled={!form.jornada || isLoadingGrados}>
-              <option value="" disabled>
-                {isLoadingGrados ? 'Cargando grados...' : form.jornada ? 'Selecciona un grado' : 'Primero selecciona la jornada'}
-              </option>
-              {grados
-                .filter((g) => !form.jornada || g.jornada === form.jornada)
-                .map((g) => (
-                  <option key={g.id_grado} value={g.id_grado}>{g.nombre}</option>
-                ))}
-            </select>
-          </FormField>
+          {/* ── Paso 2: matrícula ── */}
+          <PasoFormulario paso={2} titulo="Datos de matrícula" icono="school">
+            <div className="flex flex-col gap-2">
+              <p className="text-[13px] font-semibold text-tinta-media">Jornada<span className="text-rojo" aria-hidden="true"> *</span></p>
+              <div role="group" aria-label="Jornada" className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <JornadaOption value="MAÑANA" label="Jornada mañana" icon="wb_sunny"
+                  horarios={['Preescolar 7:00 a.m. – 11:30 a.m.', 'Primaria 6:30 a.m. – 11:45 a.m.']}
+                  selected={form.jornada === 'MAÑANA'} onSelect={handleJornadaSelect} />
+                <JornadaOption value="TARDE" label="Jornada tarde" icon="wb_twilight"
+                  horarios={['Preescolar 1:00 p.m. – 5:30 p.m.', 'Primaria 12:40 p.m. – 5:40 p.m.']}
+                  selected={form.jornada === 'TARDE'} onSelect={handleJornadaSelect} />
+              </div>
+              {errors.jornada && (
+                <p className="text-xs font-medium text-rojo flex items-center gap-1" role="alert">
+                  <Icono nombre="error" className="text-[15px]" />{errors.jornada}
+                </p>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Campo etiqueta="Grado" id="id_grado" requerido error={errors.id_grado || gradosLoadError}>
+                <select id="id_grado" name="id_grado" value={form.id_grado} onChange={handleChange}
+                  className={errors.id_grado ? `${claseInputError} cursor-pointer` : claseSelect}
+                  disabled={!form.jornada || isLoadingGrados}>
+                  <option value="" disabled>
+                    {isLoadingGrados ? 'Cargando grados…' : form.jornada ? 'Seleccionar grado' : 'Primero elige la jornada'}
+                  </option>
+                  {grados.filter((g) => !form.jornada || g.jornada === form.jornada)
+                    .map((g) => <option key={g.id_grado} value={g.id_grado}>{g.nombre}</option>)}
+                </select>
+              </Campo>
+              <Campo etiqueta="Año lectivo" id="year" requerido error={errors.year}>
+                <select id="year" name="year" value={form.year} onChange={handleChange} className={claseSelect}>
+                  {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </Campo>
+            </div>
+          </PasoFormulario>
 
-          <FormField label="Año Lectivo" id="year" required error={errors.year}>
-            <select id="year" name="year" value={form.year} onChange={handleChange} className={selectClass}>
-              {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </FormField>
-        </SectionCard>
-
-        {/* ── Sección 3: Acudiente ──────────────────────────── */}
-        <SectionCard title="Datos del Acudiente" icon="family_restroom" iconBg="bg-secondary-fixed" iconColor="text-on-secondary-container">
-
-          {/* Aviso de credenciales / acudiente existente */}
-          <div className="md:col-span-2">
+          {/* ── Paso 3: acudiente ── */}
+          <PasoFormulario paso={3} titulo="Datos del acudiente" icono="family_restroom">
             {acudienteEncontrado ? (
-              <div className="flex gap-3 p-4 bg-secondary-container/20 rounded-xl border border-secondary/20">
-                <span className="material-symbols-outlined text-secondary text-xl flex-shrink-0">link</span>
-                <div>
-                  <p className="text-xs font-bold text-secondary">Acudiente encontrado en el sistema</p>
-                  <p className="text-xs text-on-surface-variant mt-0.5">
-                    Los datos se auto-completaron. Este acudiente ya tiene acceso al sistema y se vinculará
-                    automáticamente al nuevo estudiante con sus credenciales actuales.
-                  </p>
-                </div>
-              </div>
+              <Mensaje tipo="exito">
+                <strong>Acudiente encontrado.</strong> Sus datos se completaron solos; se vinculará al estudiante
+                y conserva su usuario y contraseña actuales.
+              </Mensaje>
             ) : (
-              <div className="flex gap-3 p-4 bg-orange-50 rounded-xl border border-orange-200">
-                <span className="material-symbols-outlined text-orange-700 text-xl flex-shrink-0">key</span>
-                <div>
-                  <p className="text-xs font-semibold text-orange-900">Credenciales automáticas</p>
-                  <p className="text-xs text-orange-700 mt-0.5">
-                    Si el acudiente es nuevo, se creará su acceso automáticamente. El usuario y contraseña
-                    temporal serán el <strong>número de identidad del estudiante</strong>.
-                  </p>
-                </div>
-              </div>
+              <Mensaje tipo="info">
+                <strong>Acceso automático.</strong> Si el acudiente es nuevo, su usuario y contraseña temporal serán el
+                número de identidad del estudiante.
+              </Mensaje>
             )}
-          </div>
-
-          {/* Cédula con indicador de búsqueda */}
-          <FormField label="Cédula del Acudiente" id="cedula_acudiente" required error={errors.cedula_acudiente}>
-            <div className="relative">
-              <input id="cedula_acudiente" name="cedula_acudiente" value={form.cedula_acudiente}
-                onChange={handleChange} placeholder="Número de cédula"
-                className={inputClass + ' pr-10'} />
-              {buscandoAcudiente && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined
-                  text-primary animate-spin text-xl">progress_activity</span>
-              )}
-              {acudienteEncontrado && !buscandoAcudiente && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined
-                  text-secondary text-xl">check_circle</span>
-              )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Campo etiqueta="Cédula del acudiente" id="cedula_acudiente" requerido error={errors.cedula_acudiente}>
+                <div className="relative">
+                  <input id="cedula_acudiente" name="cedula_acudiente" value={form.cedula_acudiente} onChange={handleChange}
+                    placeholder="Número de cédula" inputMode="numeric" className={`${clase('cedula_acudiente')} pr-11`} />
+                  {buscandoAcudiente && (
+                    <Icono nombre="progress_activity" className="absolute right-3.5 top-1/2 -translate-y-1/2 animate-spin text-vino text-xl" />
+                  )}
+                  {acudienteEncontrado && !buscandoAcudiente && (
+                    <Icono nombre="check_circle" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-verde text-xl" />
+                  )}
+                </div>
+              </Campo>
+              <Campo etiqueta="Nombre completo" id="nombre_acudiente" requerido error={errors.nombre_acudiente}>
+                <input id="nombre_acudiente" name="nombre_acudiente" value={form.nombre_acudiente} onChange={handleChange}
+                  placeholder="Nombres y apellidos" readOnly={camposAcudienteReadonly}
+                  className={clase('nombre_acudiente') + soloLectura} />
+              </Campo>
+              <Campo etiqueta="Teléfono" id="telefono_acudiente">
+                <input id="telefono_acudiente" name="telefono_acudiente" type="tel" value={form.telefono_acudiente}
+                  onChange={handleChange} placeholder="300 000 0000" readOnly={camposAcudienteReadonly}
+                  className={claseInput + soloLectura} />
+              </Campo>
+              <Campo etiqueta="Correo electrónico" id="correo_acudiente">
+                <input id="correo_acudiente" name="correo_acudiente" type="email" value={form.correo_acudiente}
+                  onChange={handleChange} placeholder="correo@ejemplo.com" readOnly={camposAcudienteReadonly}
+                  className={claseInput + soloLectura} />
+              </Campo>
+              <Campo etiqueta="Dirección" id="direccion_acudiente">
+                <input id="direccion_acudiente" name="direccion_acudiente" value={form.direccion_acudiente}
+                  onChange={handleChange} placeholder="Dirección" readOnly={camposAcudienteReadonly}
+                  className={claseInput + soloLectura} />
+              </Campo>
+              <Campo etiqueta="Parentesco" id="parentesco">
+                <select id="parentesco" name="parentesco" value={form.parentesco} onChange={handleChange} className={claseSelect}>
+                  <option value="">Seleccionar</option>
+                  {PARENTESCOS.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </Campo>
             </div>
-          </FormField>
-
-          <FormField label="Nombre Completo" id="nombre_acudiente" required error={errors.nombre_acudiente}>
-            <input id="nombre_acudiente" name="nombre_acudiente" value={form.nombre_acudiente}
-              onChange={handleChange} placeholder="Nombre y apellidos del acudiente"
-              className={inputClass + (camposAcudienteReadonly ? ' bg-stone-50 text-stone-500' : '')}
-              readOnly={camposAcudienteReadonly} />
-          </FormField>
-
-          <FormField label="Teléfono" id="telefono_acudiente">
-            <input id="telefono_acudiente" name="telefono_acudiente" type="tel"
-              value={form.telefono_acudiente} onChange={handleChange}
-              placeholder="ej. 3001234567"
-              className={inputClass + (camposAcudienteReadonly ? ' bg-stone-50 text-stone-500' : '')}
-              readOnly={camposAcudienteReadonly} />
-          </FormField>
-
-          <FormField label="Correo Electrónico" id="correo_acudiente">
-            <input id="correo_acudiente" name="correo_acudiente" type="email"
-              value={form.correo_acudiente} onChange={handleChange}
-              placeholder="correo@ejemplo.com"
-              className={inputClass + (camposAcudienteReadonly ? ' bg-stone-50 text-stone-500' : '')}
-              readOnly={camposAcudienteReadonly} />
-          </FormField>
-
-          <FormField label="Dirección" id="direccion_acudiente">
-            <input id="direccion_acudiente" name="direccion_acudiente"
-              value={form.direccion_acudiente} onChange={handleChange}
-              placeholder="Dirección del acudiente"
-              className={inputClass + (camposAcudienteReadonly ? ' bg-stone-50 text-stone-500' : '')}
-              readOnly={camposAcudienteReadonly} />
-          </FormField>
-
-          <FormField label="Parentesco" id="parentesco">
-            <select id="parentesco" name="parentesco" value={form.parentesco}
-              onChange={handleChange} className={selectClass}>
-              <option value="">Seleccionar</option>
-              {['Padre', 'Madre', 'Abuelo/a', 'Tío/a', 'Hermano/a', 'Tutor legal', 'Otro'].map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </FormField>
-
-          {/* Botón para limpiar el acudiente encontrado */}
-          {acudienteEncontrado && (
-            <div className="md:col-span-2">
-              <button type="button"
-                onClick={limpiarAcudiente}
-                className="text-xs text-stone-400 hover:text-error transition-colors flex items-center gap-1"
-              >
-                <span className="material-symbols-outlined text-[14px]">close</span>
-                Limpiar y usar otro acudiente
+            {acudienteEncontrado && (
+              <button type="button" onClick={limpiarAcudiente}
+                className="self-start text-sm font-semibold text-tinta-suave hover:text-rojo flex items-center gap-1">
+                <Icono nombre="close" className="text-base" />Usar otro acudiente
               </button>
-            </div>
-          )}
-        </SectionCard>
+            )}
+          </PasoFormulario>
+        </div>
 
-        {/* ── Submit ────────────────────────────────────────── */}
-        <div className="flex gap-4 justify-end pb-6">
-          <button type="button"
-            onClick={resetForm}
-            className="px-6 py-3 bg-white border border-outline-variant text-on-surface-variant
-              rounded-lg font-semibold hover:bg-stone-50 transition-all">
-            Limpiar formulario
-          </button>
-          <button type="submit" disabled={isSubmitting}
-            className="px-8 py-3 bg-orange-900 text-white rounded-lg font-semibold
-              hover:bg-primary transition-all shadow-md hover:shadow-lg
-              disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
-            {isSubmitting ? (
+        {/* ── Resumen lateral ── */}
+        <aside className="flex-[1_1_300px] min-w-0 lg:sticky lg:top-[3.25rem]">
+          <section aria-label="Resumen de la matrícula" className="bg-tarjeta rounded-[22px] md:rounded-[24px] p-[18px] md:p-[26px] flex flex-col gap-3.5">
+            <h2 className="m-0 text-lg font-semibold">Resumen</h2>
+            <Fila etiqueta="Estudiante" valor={form.nombre_estudiante.trim()} />
+            <Fila etiqueta="Jornada" valor={form.jornada === 'MAÑANA' ? 'Mañana' : form.jornada === 'TARDE' ? 'Tarde' : ''} />
+            <Fila etiqueta="Grado" valor={grado?.nombre ?? ''} />
+            <Fila etiqueta="Año lectivo" valor={String(form.year)} />
+            <Fila etiqueta="Acudiente" valor={form.nombre_acudiente.trim()} />
+
+            <div className="h-px bg-linea my-1" />
+            <span className="text-[13px] font-semibold text-tinta-suave">Tarifas {form.year}</span>
+            {tarifaQuery.isLoading && <p className="text-sm text-tinta-suave">Cargando tarifas…</p>}
+            {!tarifaQuery.isLoading && !tarifa && (
+              <p className="text-sm text-tinta-suave">Aún no hay tarifas para {form.year}. Configúralas en Pagos.</p>
+            )}
+            {tarifa && (
               <>
-                <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
-                Guardando...
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined text-lg">how_to_reg</span>
-                Crear Matrícula
+                <Fila etiqueta="Matrícula" valor={fmt(matricula)} />
+                <Fila etiqueta="Pensión" valor={`${fmt(pension)} × 10`} />
+                <div className="flex justify-between gap-3 rounded-[14px] bg-crema px-4 py-3 text-[15px]">
+                  <span className="font-semibold">Total del año</span>
+                  <span className="font-semibold tabular-nums">{fmt(matricula + pension * 10)}</span>
+                </div>
               </>
             )}
-          </button>
-        </div>
+
+            <button type="submit" disabled={isSubmitting}
+              className="mt-1 min-h-[52px] rounded-[14px] bg-vino text-white text-[15px] font-semibold flex items-center justify-center gap-2
+                hover:bg-vino-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+              <Icono nombre={isSubmitting ? 'progress_activity' : 'how_to_reg'} className={`text-xl ${isSubmitting ? 'animate-spin' : ''}`} />
+              {isSubmitting ? 'Guardando…' : 'Crear matrícula'}
+            </button>
+            <Boton onClick={resetForm} className="border border-linea">Limpiar formulario</Boton>
+          </section>
+        </aside>
       </form>
     </>
   );
