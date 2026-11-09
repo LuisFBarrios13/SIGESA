@@ -212,7 +212,7 @@ const DocentesPage = () => {
               <p className="text-xs font-semibold tracking-wide text-on-surface-variant uppercase mb-3">
                 Jornada laboral <span className="text-error ml-1">*</span>
               </p>
-              <div className="flex gap-3">
+              <div className="grid grid-cols-1 min-[400px]:grid-cols-3 gap-3">
                 <JornadaBtn value="MAÑANA"   icon="wb_sunny"     desc="6:00 a.m. – 12:00 m."
                   selected={form.jornada === 'MAÑANA'}   disabled={false} onSelect={handleJornada} />
                 <JornadaBtn value="TARDE"    icon="wb_twilight"  desc="12:00 m. – 6:00 p.m."

@@ -42,7 +42,7 @@ const TarifaSection = ({ tarifa, year, setYear, isLoading, onEdit }: TarifaSecti
         </div>
       ) : tarifa ? (
         <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex gap-6">
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
             {/* Pensión */}
             <div className="flex items-center gap-3">
               <div className="p-2 bg-purple-100 rounded-lg">
@@ -56,7 +56,7 @@ const TarifaSection = ({ tarifa, year, setYear, isLoading, onEdit }: TarifaSecti
                 </p>
               </div>
             </div>
-            <div className="w-px bg-stone-100" />
+            <div className="hidden sm:block w-px bg-stone-100" />
             {/* Matrícula */}
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">

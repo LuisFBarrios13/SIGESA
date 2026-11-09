@@ -103,10 +103,10 @@ const DeudorCard = ({ deudor, rank }: DeudorCardProps) => {
       {/* Header del deudor — clic en todo el área para expandir */}
       <div
         onClick={() => setExpanded((v) => !v)}
-        className="px-5 py-4 flex items-center gap-4 cursor-pointer select-none"
+        className="px-4 sm:px-5 py-4 flex flex-wrap sm:flex-nowrap items-center gap-3 sm:gap-4 cursor-pointer select-none"
       >
         {/* Ranking */}
-        <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center
+        <div className="hidden sm:flex w-7 h-7 rounded-full bg-red-100 items-center justify-center
           flex-shrink-0 text-xs font-black text-red-600">
           {rank}
         </div>
@@ -149,8 +149,9 @@ const DeudorCard = ({ deudor, rank }: DeudorCardProps) => {
         </div>
 
         {/* Deuda + toggle */}
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <div className="text-right">
+        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-3 flex-shrink-0
+          border-t border-red-50 pt-3 sm:border-0 sm:pt-0">
+          <div className="sm:text-right">
             <p className="text-[10px] text-stone-400 uppercase tracking-wide font-bold">
               Saldo vencido
             </p>

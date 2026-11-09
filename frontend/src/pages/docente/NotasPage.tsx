@@ -92,7 +92,7 @@ const NotasPage = () => {
       </div>
 
       {/* ── Layout: lista | panel ───────────────────────────────────────────── */}
-      <div className="flex gap-5" style={{ minHeight: 'calc(100vh - 220px)' }}>
+      <div className="flex flex-col md:flex-row gap-5 md:min-h-[calc(100vh-220px)]">
 
         {/* ── Columna izquierda: lista de estudiantes ── */}
         <ListaEstudiantesNotas
@@ -110,8 +110,8 @@ const NotasPage = () => {
         {/* ── Columna derecha: panel de notas ── */}
         <div className="flex-1 min-w-0">
           {!selected ? (
-            <div className="bg-white rounded-xl border border-outline-variant shadow-sm
-              h-full flex flex-col items-center justify-center gap-4 text-stone-400 py-20">
+            <div className="hidden md:flex bg-white rounded-xl border border-outline-variant shadow-sm
+              h-full flex-col items-center justify-center gap-4 text-stone-400 py-20">
               <span className="material-symbols-outlined text-6xl">touch_app</span>
               <div className="text-center">
                 <p className="font-semibold text-sm text-on-surface">

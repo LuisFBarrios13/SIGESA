@@ -236,7 +236,7 @@ const EstudianteNotasPanel = ({
         <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider flex-1">Materia</span>
         <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-14 text-center flex-shrink-0" title="Intensidad Horaria">I.H.</span>
         <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-14 text-center flex-shrink-0">Fallas</span>
-        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-20 text-center flex-shrink-0">Nota (0–10)</span>
+        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider w-20 text-center flex-shrink-0">Nota ({NOTA_MIN}–{NOTA_MAX})</span>
       </div>
 
       {/* Áreas y materias */}

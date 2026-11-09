@@ -44,10 +44,10 @@ const EstudianteGradoCard = ({ matricula, index }: EstudianteGradoCardProps) => 
   return (
     <div className="bg-white rounded-xl border border-outline-variant shadow-sm p-4
       hover:border-primary/40 hover:shadow-md transition-all group">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 sm:gap-4">
 
         {/* Número */}
-        <span className="text-xs font-bold text-stone-300 w-5 text-right flex-shrink-0">
+        <span className="hidden sm:inline text-xs font-bold text-stone-300 w-5 text-right flex-shrink-0">
           {String(index).padStart(2, '0')}
         </span>
 
@@ -74,7 +74,7 @@ const EstudianteGradoCard = ({ matricula, index }: EstudianteGradoCardProps) => 
         </div>
 
         {/* Edad + Jornada + Grado */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="order-last sm:order-none w-full sm:w-auto pl-[52px] sm:pl-0 flex items-center gap-2 flex-shrink-0">
           <span className="text-xs text-stone-400">{age} años</span>
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${JORNADA_COLORS[jornada] ?? 'bg-stone-100 text-stone-600'}`}>
             {JORNADA_LABEL[jornada] ?? jornada}
@@ -86,12 +86,13 @@ const EstudianteGradoCard = ({ matricula, index }: EstudianteGradoCardProps) => 
         <button
           onClick={handleBoletin}
           title="Ver boletín"
+          aria-label={`Ver boletín de ${estudiante.nombre}`}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold
             bg-green-50 text-green-800 border border-green-200 rounded-lg
             hover:bg-green-100 transition-colors flex-shrink-0"
         >
           <span className="material-symbols-outlined text-[14px]">description</span>
-          Boletín
+          <span className="hidden sm:inline">Boletín</span>
         </button>
 
       </div>

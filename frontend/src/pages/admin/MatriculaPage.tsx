@@ -97,7 +97,7 @@ const MatriculaPage = () => {
             <p className="text-xs font-semibold tracking-wide text-on-surface-variant uppercase mb-3">
               Jornada del Estudiante <span className="text-error ml-1">*</span>
             </p>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <JornadaOption value="MAÑANA" label="Jornada Mañana"
                 description="Preescolar 7:00 a.m. – 11:30 m. / Primaria 6:30 a.m. – 11:45 a.m."
                 icon="wb_sunny" selected={form.jornada === 'MAÑANA'} onSelect={handleJornadaSelect} />

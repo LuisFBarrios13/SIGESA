@@ -24,7 +24,7 @@ const ListaEstudiantesNotas = ({
   perfil, estudiantes, isLoading, selected, onSelect,
   search, onSearch, gradoFilter, onGradoFilter,
 }: Props) => (
-  <div className="w-72 flex-shrink-0 flex flex-col gap-3">
+  <div className="w-full md:w-72 flex-shrink-0 flex flex-col gap-3">
 
     {/* Buscador */}
     <div className="relative">
