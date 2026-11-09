@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400..700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
 @tailwind base;
@@ -40,7 +40,7 @@
     -webkit-text-size-adjust: 100%;
   }
   body {
-    font-family: 'Poppins', system-ui, sans-serif;
+    font-family: 'DM Sans', system-ui, sans-serif;
     background-color: rgb(var(--crema));
     color: rgb(var(--tinta));
     -webkit-font-smoothing: antialiased;
