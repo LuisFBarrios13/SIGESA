@@ -41,6 +41,8 @@ export const Grado = sequelize.define(
   },
   {
     tableName: 'grados',
+    // Creada por la migración 20261109-01-restricciones-unicas
+    indexes: [{ unique: true, name: 'uq_grados_nombre_jornada', fields: ['nombre','jornada'] }],
     timestamps: false,
   }
 );

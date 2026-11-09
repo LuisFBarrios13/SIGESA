@@ -54,6 +54,8 @@ export const Matricula = sequelize.define(
   },
   {
     tableName: 'matriculas',
+    // Creada por la migración 20261109-01-restricciones-unicas
+    indexes: [{ unique: true, name: 'uq_matriculas_estudiante_year', fields: ['id_estudiante','year'] }],
     timestamps: false,
   }
 );

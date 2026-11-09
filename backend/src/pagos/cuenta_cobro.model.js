@@ -53,6 +53,8 @@ export const CuentaCobro = sequelize.define(
   },
   {
     tableName: 'cuenta_cobros',
+    // Creada por la migración 20261109-01-restricciones-unicas
+    indexes: [{ unique: true, name: 'uq_cuentas_matricula_concepto_mes', fields: ['id_matricula','id_concepto_pago','mes','year'] }],
     timestamps: false,
   }
 );

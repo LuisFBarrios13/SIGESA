@@ -28,6 +28,8 @@ export const Periodo = sequelize.define(
   },
   {
     tableName: 'periodos',
+    // Creada por la migración 20261109-01-restricciones-unicas
+    indexes: [{ unique: true, name: 'uq_periodos_numero_year', fields: ['numero_periodo','year'] }],
     timestamps: false,
   }
 );

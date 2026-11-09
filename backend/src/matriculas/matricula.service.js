@@ -43,18 +43,17 @@ export const crearMatriculaConAcudiente = async (dto) => {
       { transaction: t },
     );
 
-    // ── 3. Validar matrícula duplicada ────────────────────────────────────────
+    // ── 3. Validar matrícula duplicada (una por estudiante y año) ─────────────
     const matriculaExistente = await Matricula.findOne({
       where: {
         id_estudiante: estudianteRecord.numero_identidad,
-        id_grado:      matricula.id_grado,
         year:          matricula.year,
       },
       transaction: t,
     });
 
     if (matriculaExistente) {
-      throw new AppError(409, `El estudiante ya está matriculado en este grado para el año ${matricula.year}`);
+      throw new AppError(409, `El estudiante ya tiene una matrícula en el año ${matricula.year}`);
     }
 
     // ── 4. Crear la matrícula ─────────────────────────────────────────────────

@@ -234,3 +234,32 @@ test('notas: el docente guarda notas, puesto y observaciones del periodo', async
   assert.equal(otra.body.data.observaciones, 'Actualizada');
   assert.equal(otra.body.data.puesto, 3);
 });
+
+test('la base de datos impide duplicados aunque el código no los revise', async () => {
+  const { Matricula, Periodo, Nota, Materia } = s.modelos;
+
+  // Una matrícula por estudiante y año (1001 ya está matriculado en YEAR)
+  await assert.rejects(
+    Matricula.create({ id_grado: idGrado, id_estudiante: '1001', year: YEAR, jornada: 'MAÑANA', fecha_matricula: new Date() }),
+    { name: 'SequelizeUniqueConstraintError' },
+  );
+
+  // Periodo repetido
+  await Periodo.findOrCreate({ where: { numero_periodo: 3, year: YEAR } });
+  await assert.rejects(Periodo.create({ numero_periodo: 3, year: YEAR }), { name: 'SequelizeUniqueConstraintError' });
+
+  // Nota repetida (misma matrícula, materia y periodo)
+  const periodo = await Periodo.findOne({ where: { numero_periodo: 3, year: YEAR } });
+  const materia = await Materia.findOne();
+  const nota = { id_matricula: idMatricula, id_materia: materia.id_materia, id_periodo: periodo.id_periodo, nota: 3 };
+  await Nota.create(nota);
+  await assert.rejects(Nota.create(nota), { name: 'SequelizeUniqueConstraintError' });
+});
+
+test('roles conserva una sola restricción UNIQUE', async () => {
+  const filas = await s.modelos.Rol.sequelize.query(
+    `SELECT conname FROM pg_constraint WHERE conrelid = 'roles'::regclass AND contype = 'u'`,
+    { type: 'SELECT' },
+  );
+  assert.equal(filas.length, 1);
+});

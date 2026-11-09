@@ -37,6 +37,8 @@ export const Materia = sequelize.define(
   },
   {
     tableName: 'materias',
+    // Creada por la migración 20261109-01-restricciones-unicas
+    indexes: [{ unique: true, name: 'uq_materias_nombre', fields: ['nombre'] }],
     timestamps: false,
   }
 );

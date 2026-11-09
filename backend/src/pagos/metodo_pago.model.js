@@ -20,6 +20,8 @@ export const MetodoPago = sequelize.define(
   },
   {
     tableName: 'metodo_pagos',
+    // Creada por la migración 20261109-01-restricciones-unicas
+    indexes: [{ unique: true, name: 'uq_metodo_pagos_nombre', fields: ['nombre'] }],
     timestamps: false,
   }
 );

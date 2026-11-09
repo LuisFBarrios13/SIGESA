@@ -59,6 +59,8 @@ export const Nota = sequelize.define(
   },
   {
     tableName: 'notas',
+    // Creada por la migración 20261109-01-restricciones-unicas
+    indexes: [{ unique: true, name: 'uq_notas_matricula_materia_periodo', fields: ['id_matricula','id_materia','id_periodo'] }],
     timestamps: false,
   }
 );

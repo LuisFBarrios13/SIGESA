@@ -20,6 +20,8 @@ export const ConceptoPago = sequelize.define(
   },
   {
     tableName: 'concepto_pagos',
+    // Creada por la migración 20261109-01-restricciones-unicas
+    indexes: [{ unique: true, name: 'uq_concepto_pagos_nombre', fields: ['nombre'] }],
     timestamps: false,
   }
 );
