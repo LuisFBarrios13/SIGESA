@@ -2,6 +2,7 @@
 
 import Icon from '../ui/Icon';
 import type { UserProfile } from '../../types';
+import { iniciales } from '../../utils/iniciales';
 
 interface TopBarProps {
   user: UserProfile;
@@ -37,7 +38,7 @@ const ActionButtons = () => (
 
 // DESPUÉS
 const UserAvatar = ({ user }: { user: UserProfile }) => {
-  const initials = user.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+  const initials = iniciales(user.name);
 
   return (
     <div className="flex items-center gap-3 cursor-pointer">

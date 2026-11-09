@@ -5,6 +5,7 @@ import EstudianteSelector     from '../../components/acudientes/EstudianteSelect
 import MatriculaSelector      from '../../components/acudientes/MatriculaSelector';
 import ResumenFinanciero      from '../../components/acudientes/ResumenFinanciero';
 import CuentasLista           from '../../components/acudientes/CuentasLista';
+import { iniciales } from '../../utils/iniciales';
 
 const ESTADO_COLOR: Record<string, string> = {
   ACTIVO:   'bg-emerald-100 text-emerald-800',
@@ -87,7 +88,7 @@ const AcudientePage = () => {
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 rounded-full bg-orange-900 flex items-center justify-center flex-shrink-0">
                   <span className="text-base font-black text-white">
-                    {selected.nombre.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
+                    {iniciales(selected.nombre)}
                   </span>
                 </div>
                 <div>

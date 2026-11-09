@@ -2,6 +2,7 @@
 // Single Responsibility: tabs para cambiar de estudiante cuando hay más de uno.
 
 import type { EstudianteVinculado } from '../../services/acudienteApi';
+import { iniciales } from '../../utils/iniciales';
 
 interface EstudianteSelectorProps {
   estudiantes: EstudianteVinculado[];
@@ -16,7 +17,7 @@ const EstudianteTab = ({
   isActive:   boolean;
   onClick:    () => void;
 }) => {
-  const initials = estudiante.nombre.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+  const initials = iniciales(estudiante.nombre);
   const active   = estudiante.matriculas.find((m) => m.estado === 'ACTIVO') ?? estudiante.matriculas[0];
 
   return (

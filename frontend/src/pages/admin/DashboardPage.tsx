@@ -1,4 +1,5 @@
 import { useDashboard } from '../../hooks/useDashboard';
+import { iniciales } from '../../utils/iniciales';
 
 const YEAR_OPTIONS = Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - 1 + i);
 
@@ -191,8 +192,7 @@ const DashboardPage = () => {
           ) : (
             <div className="space-y-4">
               {metrics.topDeudores.map((d, i) => {
-                const initials = d.nombre
-                  .split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+                const initials = iniciales(d.nombre);
                 return (
                   <div key={d.identidad} className="flex items-center gap-3">
                     <span className="text-xs font-black text-stone-300 w-4">{i + 1}</span>

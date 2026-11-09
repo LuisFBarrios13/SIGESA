@@ -2,6 +2,7 @@
 import type { EstudianteListItem } from '../../services/api';
 import { ESTADO_COLOR, ESTADO_ICON, JORNADA_COLOR, getMatriculaActiva } from '../../constants/estudiantes';
 import PillBadge from './PillBadge';
+import { iniciales } from '../../utils/iniciales';
 
 interface StudentRowProps {
   estudiante:         EstudianteListItem;
@@ -18,7 +19,7 @@ const StudentRow = ({ estudiante: e, onEditarEstudiante, onVerAcudientes, panelA
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center flex-shrink-0">
             <span className="text-[10px] font-black text-on-primary-fixed-variant">
-              {e.nombre.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
+              {iniciales(e.nombre)}
             </span>
           </div>
           <div>

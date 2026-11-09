@@ -2,6 +2,7 @@
 import type { EstudianteListItem } from '../../services/api';
 import { ESTADO_COLOR, ESTADO_ICON, JORNADA_COLOR, getMatriculaActiva } from '../../constants/estudiantes';
 import PillBadge from './PillBadge';
+import { iniciales } from '../../utils/iniciales';
 
 interface StudentCardProps {
   estudiante:         EstudianteListItem;
@@ -12,7 +13,7 @@ interface StudentCardProps {
 
 const StudentCard = ({ estudiante: e, onEditarEstudiante, onVerAcudientes, panelAbierto }: StudentCardProps) => {
   const matricula = getMatriculaActiva(e.matriculas);
-  const initials  = e.nombre.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+  const initials  = iniciales(e.nombre);
 
   return (
     <div className={`bg-white rounded-xl border shadow-sm p-5 transition-all group

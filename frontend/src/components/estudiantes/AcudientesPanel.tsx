@@ -1,5 +1,6 @@
 // src/components/estudiantes/AcudientesPanel.tsx
 import type { AcudienteDetalle } from '../../types/acudientes-admin';
+import { iniciales } from '../../utils/iniciales';
 
 interface AcudientesPanelProps {
   acudientes: AcudienteDetalle[];
@@ -34,7 +35,7 @@ const AcudientesPanel = ({ acudientes, isLoading, error, onEditar, colSpan }: Ac
               Acudiente{acudientes.length !== 1 ? 's' : ''}
             </p>
             {acudientes.map((a) => {
-              const initials = a.nombre.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+              const initials = iniciales(a.nombre);
               return (
                 <div key={a.cedula}
                   className="bg-white rounded-xl border border-outline-variant p-4

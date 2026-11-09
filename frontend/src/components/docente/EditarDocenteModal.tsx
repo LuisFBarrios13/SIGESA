@@ -4,6 +4,7 @@
 
 import { useState, type FormEvent, type ChangeEvent } from 'react';
 import type { DocenteListItem, ActualizarDocentePayload } from '../../types/docentes';
+import { iniciales } from '../../utils/iniciales';
 
 // ── Configuración de campos editables ────────────────────────
 
@@ -170,8 +171,7 @@ const EditarDocenteModal = ({
     await onConfirm(payload);
   };
 
-  const initials = docente.nombre
-    .split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+  const initials = iniciales(docente.nombre);
 
   return (
     <div
