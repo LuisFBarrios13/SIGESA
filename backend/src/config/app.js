@@ -1,6 +1,7 @@
 // src/config/app.js
 import express from 'express';
 import cors    from 'cors';
+import helmet  from 'helmet';
 import { errorHandler } from '../middlewares/errorHandler.middleware.js';
 import { env } from './environment.js';
 
@@ -20,8 +21,14 @@ import dashboardRoutes  from '../dashboard/dashboard.routes.js';
 
 const app = express();
 
+// Detrás de un proxy (Nginx, Render, Railway…) para que la IP del cliente sea la real.
+if (env.trustProxy) app.set('trust proxy', 1);
+
+// Cabeceras de seguridad estándar (evita sniffing de tipos, clickjacking, etc.).
+app.use(helmet());
+
 app.use(cors({ origin: env.corsOrigins.length ? env.corsOrigins : true }));
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true }));
 
 app.get('/api/health', (_req, res) => {

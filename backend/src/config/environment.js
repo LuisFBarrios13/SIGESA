@@ -30,6 +30,8 @@ export const env = {
   // Orígenes permitidos por CORS (separados por coma). Vacío = cualquier origen.
   corsOrigins: (process.env.CORS_ORIGIN ?? '')
     .split(',').map((o) => o.trim()).filter(Boolean),
+  // true si la API está detrás de un proxy inverso (necesario para limitar por IP).
+  trustProxy: process.env.TRUST_PROXY === 'true',
   jwt: {
     secret: process.env.JWT_SECRET,
     expiresIn: process.env.JWT_EXPIRES_IN || '8h',

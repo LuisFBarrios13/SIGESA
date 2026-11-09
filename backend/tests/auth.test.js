@@ -87,3 +87,12 @@ test('errores: JSON mal formado → 400 y ruta inexistente → 404', async () =>
   assert.equal((await res.json()).success, false);
   assert.equal((await s.api('GET', '/no-existe')).status, 404);
 });
+
+// Va al final: agota el límite de intentos fallidos de esta IP.
+test('límite de intentos: tras 10 fallos el login responde 429', async () => {
+  const intentar = () => s.api('POST', '/auth/login', { body: { username: 'admin', password: 'incorrecta' } });
+  let ultimo;
+  for (let i = 0; i < 12; i++) ultimo = await intentar();
+  assert.equal(ultimo.status, 429);
+  assert.match(ultimo.body.message, /Demasiados intentos/);
+});

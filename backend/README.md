@@ -35,6 +35,16 @@ migración `20261108-03-catalogos.js`.
 (`<DB_NAME>_test`, o `DB_NAME_TEST` si la defines) que se borra y se vuelve a
 crear en cada ejecución; tu base de desarrollo no se toca.
 
+## Producción
+
+- `NODE_ENV=production`, un `JWT_SECRET` largo y aleatorio, y `CORS_ORIGIN` con
+  el dominio del frontend (vacío = cualquier origen).
+- `TRUST_PROXY=true` si la API está detrás de un proxy (Nginx, Render, Railway…);
+  sin eso el límite de intentos de login vería a todos con la misma IP.
+- Seguridad incluida: cabeceras con `helmet`, máximo 10 intentos fallidos de
+  login por IP cada 15 minutos, validación de entrada en todas las rutas y
+  errores 500 sin detalles internos.
+
 ## Solo para desarrollo
 
 `node scripts/usuariosPrueba.js` lista los usuarios; con `--reset` les pone a
