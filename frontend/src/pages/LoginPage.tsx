@@ -33,20 +33,20 @@ export default function LoginPage({ onLogin }: Props) {
   }
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-cielo-50 flex items-center justify-center p-4 sm:p-8">
+    <div className="relative min-h-dvh overflow-hidden bg-[#e4f1fb] flex items-center justify-center p-4 sm:p-8">
       {/* Manchas difuminadas del fondo */}
-      <div aria-hidden className="pointer-events-none absolute -left-40 -top-40 size-[520px] rounded-full bg-dorado/35 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -right-32 top-1/4 size-[460px] rounded-full bg-cielo/30 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute left-1/2 -bottom-48 size-[480px] rounded-full bg-dorado/25 blur-3xl" />
+      <FondoPagina />
 
       <div className="relative w-full max-w-[1125px] lg:h-[min(670px,calc(100dvh-4rem))] flex flex-col lg:flex-row rounded-[28px] overflow-hidden bg-white shadow-2xl shadow-cielo-900/25">
         {/* Mitad izquierda: bienvenida */}
         <section className="relative lg:basis-[54%] shrink-0 text-white flex flex-col px-8 py-8 sm:px-14 sm:py-12 bg-linear-to-br from-cielo-600 to-cielo-900">
           <FondoDecorado />
 
-          <div className="relative size-16 sm:size-[88px] rounded-2xl bg-cielo grid place-items-center shadow-lg shadow-cielo-900/30">
-            <LibroIcono className="size-9 sm:size-12 text-white" />
-          </div>
+          <img
+            src="/logito.webp"
+            alt="Logo de SIGESA"
+            className="relative size-20 sm:size-[150px] rounded-[22%] shadow-xl shadow-cielo-900/35"
+          />
 
           <div className="relative mt-8 lg:mt-auto">
             <h2 className="text-3xl sm:text-[2.9rem] font-extrabold leading-[1.08] tracking-tight">
@@ -69,21 +69,18 @@ export default function LoginPage({ onLogin }: Props) {
         <section className="flex-1 flex items-center justify-center px-6 py-10 sm:px-14">
           <div className="w-full max-w-[430px]">
             <h1 className="text-[2rem] font-bold tracking-tight text-tinta">Iniciar sesión</h1>
-            <p className="mt-2 text-[15px] text-tinta/60">
-              Entra con tu usuario o número de documento.
-            </p>
 
             <form onSubmit={handleSubmit} noValidate className="mt-8 space-y-5">
               <div>
                 <label htmlFor="usuario" className="block mb-2 text-sm font-semibold text-tinta">
-                  Usuario o documento
+                  Usuario
                 </label>
                 <Caja icono={<UsuarioIcono />}>
                   <input
                     id="usuario"
                     type="text"
                     autoComplete="username"
-                    placeholder="Ej. 1122334455"
+                    placeholder="Tu usuario"
                     value={username}
                     onChange={e => setUsername(e.target.value)}
                     className="campo"
@@ -125,7 +122,7 @@ export default function LoginPage({ onLogin }: Props) {
                 </Caja>
                 {ayudaClave && (
                   <p className="mt-2 rounded-lg bg-cielo-50 px-3 py-2 text-xs text-tinta/70">
-                    Pídele a la secretaría del colegio que te asigne una contraseña nueva.
+                    Pídele al administrador del colegio que te asigne una contraseña nueva.
                   </p>
                 )}
               </div>
@@ -149,7 +146,7 @@ export default function LoginPage({ onLogin }: Props) {
             </form>
 
             <p className="mt-8 text-center text-[13px] text-tinta/60">
-              ¿No tienes acceso? <span className="font-semibold text-tinta">Comunícate con secretaría</span>
+              ¿No tienes acceso? <span className="font-semibold text-cafe">Comunícate con el administrador</span>
             </p>
           </div>
         </section>
@@ -164,6 +161,21 @@ function Caja({ icono, children }: { icono: ReactNode; children: ReactNode }) {
                     focus-within:border-cielo focus-within:ring-4 focus-within:ring-cielo/15 transition">
       <span className="text-tinta/45">{icono}</span>
       {children}
+    </div>
+  )
+}
+
+/** Figuras detrás de la tarjeta: suaves pero con bordes que se distinguen. */
+function FondoPagina() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 blur-[3px]">
+      <div className="absolute -left-[12%] -top-[22%] w-[48%] aspect-square rounded-[46%_54%_42%_58%] bg-dorado/40" />
+      <div className="absolute left-[30%] -top-[30%] w-[38%] aspect-square rounded-full bg-cielo/25" />
+      <div className="absolute -right-[10%] -top-[8%] w-[30%] aspect-square rounded-[58%_42%_50%_50%] bg-dorado/30" />
+      <div className="absolute -right-[14%] top-[38%] w-[34%] aspect-square rounded-full bg-cielo/35" />
+      <div className="absolute -left-[10%] bottom-[-26%] w-[36%] aspect-square rounded-full bg-cielo/35" />
+      <div className="absolute left-[38%] -bottom-[34%] w-[34%] aspect-square rounded-[50%_50%_44%_56%] bg-dorado/40" />
+      <div className="absolute right-[6%] -bottom-[18%] w-[16%] aspect-square rounded-full bg-cafe/20" />
     </div>
   )
 }
@@ -213,7 +225,11 @@ function FondoDecorado() {
       <circle cx="610" cy="390" r="75" fill="#F8D020" fillOpacity=".9" />
 
       {/* Medio círculo café a la izquierda */}
-      <circle cx="-10" cy="540" r="75" fill="#96502F" fillOpacity=".75" />
+      <circle cx="-40" cy="560" r="85" fill="#96502F" fillOpacity=".92" />
+      <circle cx="-40" cy="560" r="85" fill="url(#rayas-claras)" />
+
+      {/* Gota café junto al círculo de rayas */}
+      <circle cx="420" cy="262" r="16" fill="#96502F" />
 
       {/* Triángulos dorados tipo "play" */}
       <g fill="#F8D020" fillOpacity=".85">
@@ -227,7 +243,7 @@ function FondoDecorado() {
       <rect x="280" y="600" width="140" height="70" fill="url(#rayas-claras)" />
 
       {/* Triángulos verdes abajo a la izquierda */}
-      <g fill="#00A048" fillOpacity=".85" className="max-lg:hidden">
+      <g fill="#96502F" className="max-lg:hidden">
         <path d="M60 500 l25 -36 l25 36 Z" />
         <path d="M112 500 l25 -36 l25 36 Z" />
         <path d="M164 500 l25 -36 l25 36 Z" />
@@ -242,15 +258,6 @@ const trazo = {
   strokeWidth: 2,
   strokeLinecap: 'round' as const,
   strokeLinejoin: 'round' as const,
-}
-
-function LibroIcono({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} {...trazo} aria-hidden>
-      <path d="M2 5.5C4.5 4 8 4 12 6c4-2 7.5-2 10-.5V19c-2.5-1.5-6-1.5-10 .5-4-2-7.5-2-10-.5Z" />
-      <path d="M12 6v13.5" />
-    </svg>
-  )
 }
 
 function UsuarioIcono() {
