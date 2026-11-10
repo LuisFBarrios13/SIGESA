@@ -1,71 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400..700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+@import "tailwindcss";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Paleta del Colegio Pedagógico San Agustín (docs/colores.jpeg) */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 
-/* ── Tokens de diseño SIGESA ──────────────────────────────────
-   Se usan desde Tailwind (tailwind.config.js) como bg-vino, text-tinta,
-   rounded-card… Cambiar un color aquí lo cambia en toda la app.
-   Van como canales RGB para que funcione la opacidad: bg-vino/20. */
-:root {
-  /* Marca */
-  --vino:          92 36 32;     /* #5C2420  principal */
-  --vino-hover:    110 49 39;    /* #6E3127 */
-  --vino-suave:    247 230 222;  /* #F7E6DE  ítem activo, chips */
-  --verde:         78 139 106;   /* #4E8B6A  pagado / éxito */
-  --verde-texto:   47 107 76;    /* #2F6B4C */
-  --verde-suave:   226 240 231;  /* #E2F0E7 */
-  --dorado:        228 178 60;   /* #E4B23C  pendiente */
-  --dorado-texto:  107 78 0;     /* #6B4E00 */
-  --dorado-suave:  251 240 210;  /* #FBF0D2 */
-  --rojo:          179 38 30;    /* #B3261E  vencido / error */
-  --rojo-suave:    251 228 225;  /* #FBE4E1 */
-  --azul:          46 110 142;   /* #2E6E8E  tarde, pagos parciales */
-  --azul-texto:    31 92 128;    /* #1F5C80 */
-  --azul-suave:    227 238 246;  /* #E3EEF6 */
+  --color-cafe: #96502f;          /* marrón institucional */
+  --color-verde: #00a048;         /* verde educativo */
+  --color-dorado: #f8d020;        /* amarillo dorado */
+  --color-tinta: #201810;         /* negro cálido */
 
-  /* Superficies */
-  --crema:         247 245 242;  /* #F7F5F2  fondo de la app */
-  --crema-oscuro:  251 246 241;  /* #FBF6F1  recuadros dentro de tarjetas */
-  --tarjeta:       255 255 255;  /* #FFFFFF */
-  --linea:         241 236 232;  /* #F1ECE8  bordes y separadores */
-
-  /* Texto */
-  --tinta:         36 32 30;     /* #24201E */
-  --tinta-media:   74 67 63;     /* #4A433F */
-  --tinta-suave:   110 101 96;   /* #6E6560 */
+  --color-cielo: #38a6e8;         /* azul cielo */
+  --color-cielo-50: #eef7fd;
+  --color-cielo-600: #2183c0;
+  --color-cielo-800: #1a5a86;
+  --color-cielo-900: #12324d;
 }
 
-@layer base {
-  html {
-    -webkit-text-size-adjust: 100%;
-  }
-  body {
-    font-family: 'DM Sans', system-ui, sans-serif;
-    background-color: rgb(var(--crema));
-    color: rgb(var(--tinta));
-    -webkit-font-smoothing: antialiased;
-  }
-  button {
-    font-family: inherit;
-  }
-}
-
-@layer utilities {
-  .material-symbols-outlined {
-    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-    display: inline-block;
-    line-height: 1;
-    text-transform: none;
-    letter-spacing: normal;
-    word-wrap: normal;
-    white-space: nowrap;
-    direction: ltr;
-  }
-  /* Espacio para la barra inferior del celular (incluye la zona segura del iPhone) */
-  .pb-barra-movil {
-    padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
+@layer components {
+  .campo {
+    @apply flex-1 min-w-0 bg-transparent text-[15px] text-tinta outline-none placeholder:text-tinta/35;
   }
 }

@@ -1,136 +1,51 @@
-// src/App.tsx
-// Cada pantalla se descarga por separado (lazy) la primera vez que se visita;
-// el login se incluye en el paquete inicial porque es lo primero que se ve.
-import { lazy, Suspense, type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import { useAuth } from './hooks/useAuth';
+import { useState } from 'react'
+import LoginPage from './pages/LoginPage'
+import { getToken, removeToken, tokenVencido } from './services/api'
+import type { AuthUser } from './types/auth'
 
-import LoginPage          from './pages/shared/LoginPage';
-import AppLayout          from './components/ds/AppLayout';
-import ProtectedRoute     from './components/ui/ProtectedRoute';
+const USER_KEY = 'sigesa_user'
 
-const ChangePasswordPage = lazy(() => import('./pages/shared/ChangePasswordPage'));
+function usuarioGuardado(): AuthUser | null {
+  const token = getToken()
+  if (!token || tokenVencido(token)) return null
+  try {
+    return JSON.parse(localStorage.getItem(USER_KEY) ?? 'null')
+  } catch {
+    return null
+  }
+}
 
-const DashboardPage   = lazy(() => import('./pages/admin/DashboardPage'));
-const MatriculaPage   = lazy(() => import('./pages/admin/MatriculaPage'));
-const DocentesPage    = lazy(() => import('./pages/admin/DocentesPage'));
-const PagosPage       = lazy(() => import('./pages/admin/PagosPage'));
-const DeudoresPage    = lazy(() => import('./pages/admin/DeudoresPage'));
-const EstudiantesPage = lazy(() => import('./pages/admin/EstudiantesPage'));
+export default function App() {
+  const [user, setUser] = useState<AuthUser | null>(usuarioGuardado)
 
-const AcudientePage = lazy(() => import('./pages/acudiente/AcudientePage'));
-
-const MiGradoPage = lazy(() => import('./pages/docente/MiGradoPage'));
-const NotasPage   = lazy(() => import('./pages/docente/NotasPage'));
-const BoletinPage = lazy(() => import('./pages/docente/BoletinPage'));
-
-/** Mientras se descarga una pantalla. */
-const CargandoPagina = () => (
-  <div className="flex items-center justify-center py-24" role="status" aria-label="Cargando">
-    <span className="material-symbols-outlined text-primary animate-spin text-3xl">progress_activity</span>
-  </div>
-);
-
-const Cargar = ({ children }: { children: ReactNode }) => (
-  <Suspense fallback={<CargandoPagina />}>{children}</Suspense>
-);
-
-const HomeRedirect = () => {
-  const { user } = useAuth();
-  const rol = user?.roles[0];
-  if (rol === 'DOCENTE')   return <Navigate to="/docente"   replace />;
-  if (rol === 'ACUDIENTE') return <Navigate to="/acudiente" replace />;
-  return <DashboardPage />;
-};
-
-const AppRoutes = () => {
-  const { user, isAuthenticated } = useAuth();
-
-  if (isAuthenticated && user?.primerLogin) {
+  if (!user) {
     return (
-      <Routes>
-        <Route path="/change-password" element={<Cargar><ChangePasswordPage /></Cargar>} />
-        <Route path="*" element={<Navigate to="/change-password" replace />} />
-      </Routes>
-    );
+      <LoginPage
+        onLogin={u => {
+          localStorage.setItem(USER_KEY, JSON.stringify(u))
+          setUser(u)
+        }}
+      />
+    )
   }
 
+  // Pantalla provisional hasta diseñar el panel de cada rol.
   return (
-    <Routes>
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
-
-      {/* ── Inicio ── */}
-      <Route path="/" element={
-        <ProtectedRoute>
-          <AppLayout><Cargar><HomeRedirect /></Cargar></AppLayout>
-        </ProtectedRoute>
-      } />
-
-      {/* ── Admin ── */}
-      <Route path="/matricula" element={
-        <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <AppLayout><Cargar><MatriculaPage /></Cargar></AppLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/docentes" element={
-        <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <AppLayout><Cargar><DocentesPage /></Cargar></AppLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/pagos" element={
-        <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <AppLayout><Cargar><PagosPage /></Cargar></AppLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/deudores" element={
-        <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <AppLayout><Cargar><DeudoresPage /></Cargar></AppLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/estudiantes" element={
-        <ProtectedRoute roles={['ADMINISTRADOR']}>
-          <AppLayout><Cargar><EstudiantesPage /></Cargar></AppLayout>
-        </ProtectedRoute>
-      } />
-
-      {/* ── Acudiente ── */}
-      <Route path="/acudiente" element={
-        <ProtectedRoute roles={['ACUDIENTE']}>
-          <AppLayout><Cargar><AcudientePage /></Cargar></AppLayout>
-        </ProtectedRoute>
-      } />
-
-      {/* ── Docente ── */}
-      <Route path="/docente" element={
-        <ProtectedRoute roles={['DOCENTE']}>
-          <AppLayout><Cargar><MiGradoPage /></Cargar></AppLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/docente/notas" element={
-        <ProtectedRoute roles={['DOCENTE']}>
-          <AppLayout><Cargar><NotasPage /></Cargar></AppLayout>
-        </ProtectedRoute>
-      } />
-
-      {/* ── Boletín sin Layout (página de impresión limpia) ── */}
-      <Route path="/docente/boletin" element={
-        <ProtectedRoute roles={['DOCENTE', 'ADMINISTRADOR']}>
-          <Cargar><BoletinPage /></Cargar>
-        </ProtectedRoute>
-      } />
-
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
-};
-
-const App = () => (
-  <BrowserRouter>
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
-  </BrowserRouter>
-);
-
-export default App;
+    <main className="min-h-dvh grid place-items-center bg-cielo-50 text-tinta p-6">
+      <div className="text-center">
+        <p className="text-2xl font-semibold">Hola, {user.nombre}</p>
+        <p className="mt-1 text-tinta/70">Rol: {user.roles.join(', ')}</p>
+        <button
+          onClick={() => {
+            removeToken()
+            localStorage.removeItem(USER_KEY)
+            setUser(null)
+          }}
+          className="mt-6 h-11 px-6 rounded-full bg-cielo-600 text-white font-semibold hover:bg-cielo-800"
+        >
+          Cerrar sesión
+        </button>
+      </div>
+    </main>
+  )
+}
