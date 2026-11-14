@@ -16,6 +16,34 @@
   --color-cielo-900: #12324d;
 }
 
+/* Colores del login (docs/login-example.png), con modo claro y oscuro */
+.login {
+  --l-fondo: #ffffff;           /* página detrás de la caja */
+  --l-circulo-1: #f8ebcb;       /* círculo de arriba a la derecha */
+  --l-circulo-2: #e7e8e7;       /* círculo de abajo a la izquierda */
+  --l-caja: #e3efe6;
+  --l-borde: transparent;
+  --l-panel: #adb5b0;
+  --l-nube: #f7f9f8;
+  --l-tinta: #170f27;
+  --l-suave: #4b4659;
+  --l-campo: #ffffff;
+  --l-acento: #efcb68;
+  --l-banda: #170f27;
+}
+.login[data-tema="oscuro"] {
+  --l-fondo: #1f1530;
+  --l-circulo-1: #2f2330;
+  --l-circulo-2: #281d3a;
+  --l-caja: #0d0b12;
+  --l-borde: #2b2540;
+  --l-panel: #2a2140;
+  --l-tinta: #f4f2f7;
+  --l-suave: #aaa4b9;
+  --l-campo: #1e1830;
+  --l-banda: #120d1c;
+}
+
 @layer components {
   .campo {
     @apply flex-1 min-w-0 bg-transparent text-[15px] text-tinta outline-none placeholder:text-tinta/35;

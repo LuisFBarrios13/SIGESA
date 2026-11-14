@@ -6,6 +6,17 @@ interface Props {
   onLogin: (user: AuthUser) => void
 }
 
+type Tema = 'claro' | 'oscuro'
+const TEMA_KEY = 'sigesa_tema'
+
+function temaGuardado(): Tema {
+  try {
+    return localStorage.getItem(TEMA_KEY) === 'oscuro' ? 'oscuro' : 'claro'
+  } catch {
+    return 'claro'
+  }
+}
+
 export default function LoginPage({ onLogin }: Props) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -13,6 +24,16 @@ export default function LoginPage({ onLogin }: Props) {
   const [ayudaClave, setAyudaClave] = useState(false)
   const [error, setError] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [tema, setTema] = useState<Tema>(temaGuardado)
+
+  function cambiarTema(t: Tema) {
+    setTema(t)
+    try {
+      localStorage.setItem(TEMA_KEY, t)
+    } catch {
+      /* sin almacenamiento: el tema solo dura esta visita */
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -33,46 +54,51 @@ export default function LoginPage({ onLogin }: Props) {
   }
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-[#e4f1fb] flex items-center justify-center p-4 sm:p-8">
-      {/* Manchas difuminadas del fondo */}
-      <FondoPagina />
+    <div
+      data-tema={tema}
+      className="login relative min-h-dvh overflow-hidden flex items-center justify-center
+                 bg-(--l-caja) sm:bg-(--l-fondo) text-(--l-tinta) sm:p-8 lg:p-10 transition-colors"
+    >
+      {/* Círculos decorativos de la página (desde tablet) */}
+      <div aria-hidden className="hidden sm:block pointer-events-none">
+        <div className="absolute -top-[130px] -right-[130px] size-[480px] rounded-full bg-(--l-circulo-1) transition-colors" />
+        <div className="absolute -bottom-[120px] -left-[80px] size-[400px] rounded-full bg-(--l-circulo-2) transition-colors" />
+      </div>
 
-      <div className="relative w-full max-w-[1125px] lg:h-[min(670px,calc(100dvh-4rem))] flex flex-col lg:flex-row rounded-[28px] overflow-hidden bg-white shadow-2xl shadow-cielo-900/25">
-        {/* Mitad izquierda: bienvenida */}
-        <section className="relative lg:basis-[54%] shrink-0 text-white flex flex-col px-8 py-8 sm:px-14 sm:py-12 bg-linear-to-br from-cielo-600 to-cielo-900">
-          <FondoDecorado />
+      {/* Caja: en celular ocupa toda la pantalla; desde tablet es una tarjeta centrada */}
+      <div
+        className="relative w-full min-h-dvh sm:min-h-0 sm:max-w-[540px] lg:max-w-[1380px]
+                   lg:min-h-[max(640px,min(920px,calc(100dvh-5rem)))]
+                   flex gap-6 p-4 sm:p-6 bg-(--l-caja)
+                   sm:rounded-[40px] sm:border sm:border-(--l-borde) sm:shadow-2xl sm:shadow-black/10 transition-colors"
+      >
+      {/* Mitad izquierda: ilustración del colegio (solo en pantallas grandes) */}
+      <PanelColegio tema={tema} />
 
-          <img
-            src="/logito.webp"
-            alt="Logo de SIGESA"
-            className="relative size-20 sm:size-[150px] rounded-[22%] shadow-xl shadow-cielo-900/35"
-          />
+      {/* Mitad derecha: formulario */}
+      <main className="relative flex-1 flex flex-col sm:px-4">
+        <div className="flex justify-end">
+          <SelectorTema tema={tema} onCambiar={cambiarTema} />
+        </div>
 
-          <div className="relative mt-8 lg:mt-auto">
-            <h2 className="text-3xl sm:text-[2.9rem] font-extrabold leading-[1.08] tracking-tight">
-              Bienvenido
-              <br />
-              de vuelta
-            </h2>
-            <p className="mt-4 max-w-sm text-base sm:text-lg text-white/85">
-              Estudiamos con amor para un futuro mejor.
+        <div className="flex-1 flex items-center justify-center py-8">
+          <div className="w-full max-w-[400px]">
+            {/* En pantallas pequeñas el panel izquierdo no se ve: mostramos la marca aquí */}
+            <div className="lg:hidden mb-10">
+              <Marca />
+            </div>
+
+            <p className="text-[11px] font-semibold tracking-[0.2em] text-(--l-suave)">
+              SIGESA · PORTAL ESCOLAR
             </p>
-          </div>
+            <h1 className="mt-3 text-[2.4rem] leading-tight font-extrabold tracking-tight">
+              ¡Hola de nuevo!
+            </h1>
+            <p className="mt-2 text-[15px] text-(--l-suave)">Ingresa a tu cuenta para continuar.</p>
 
-          <div className="relative mt-8 lg:mt-auto lg:pt-16">
-            <p className="text-sm font-bold">SIGESA</p>
-            <p className="text-xs text-white/70">Colegio Pedagógico San Agustín</p>
-          </div>
-        </section>
-
-        {/* Mitad derecha: formulario */}
-        <section className="flex-1 flex items-center justify-center px-6 py-10 sm:px-14">
-          <div className="w-full max-w-[430px]">
-            <h1 className="text-[2rem] font-bold tracking-tight text-tinta">Iniciar sesión</h1>
-
-            <form onSubmit={handleSubmit} noValidate className="mt-8 space-y-5">
+            <form onSubmit={handleSubmit} noValidate className="mt-10 space-y-6">
               <div>
-                <label htmlFor="usuario" className="block mb-2 text-sm font-semibold text-tinta">
+                <label htmlFor="usuario" className="block mb-2.5 text-[13px] font-bold">
                   Usuario
                 </label>
                 <Caja icono={<UsuarioIcono />}>
@@ -83,24 +109,15 @@ export default function LoginPage({ onLogin }: Props) {
                     placeholder="Tu usuario"
                     value={username}
                     onChange={e => setUsername(e.target.value)}
-                    className="campo"
+                    className="flex-1 min-w-0 bg-transparent text-[15px] outline-none placeholder:text-(--l-suave)/60"
                   />
                 </Caja>
               </div>
 
               <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <label htmlFor="clave" className="text-sm font-semibold text-tinta">
-                    Contraseña
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setAyudaClave(v => !v)}
-                    className="text-xs font-semibold text-cielo-600 hover:text-cielo-800"
-                  >
-                    ¿Olvidaste tu contraseña?
-                  </button>
-                </div>
+                <label htmlFor="clave" className="block mb-2.5 text-[13px] font-bold">
+                  Contraseña
+                </label>
                 <Caja icono={<CandadoIcono />}>
                   <input
                     id="clave"
@@ -109,26 +126,37 @@ export default function LoginPage({ onLogin }: Props) {
                     placeholder="••••••••"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    className="campo"
+                    className="flex-1 min-w-0 bg-transparent text-[15px] outline-none placeholder:text-(--l-suave)/60"
                   />
                   <button
                     type="button"
                     onClick={() => setVerClave(v => !v)}
                     aria-label={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                    className="p-1 text-tinta/50 hover:text-tinta"
+                    className="p-1 text-(--l-suave) hover:text-(--l-tinta)"
                   >
                     <OjoIcono tachado={verClave} />
                   </button>
                 </Caja>
+
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setAyudaClave(v => !v)}
+                    aria-expanded={ayudaClave}
+                    className="text-[13px] font-bold border-b-2 border-(--l-acento) hover:opacity-75"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
+                </div>
                 {ayudaClave && (
-                  <p className="mt-2 rounded-lg bg-cielo-50 px-3 py-2 text-xs text-tinta/70">
+                  <p className="mt-3 rounded-xl bg-(--l-campo) px-4 py-3 text-[13px] text-(--l-suave)">
                     Pídele al administrador del colegio que te asigne una contraseña nueva.
                   </p>
                 )}
               </div>
 
               {error && (
-                <p role="alert" className="text-sm text-red-600">
+                <p role="alert" className="text-sm font-medium text-red-600">
                   {error}
                 </p>
               )}
@@ -136,133 +164,318 @@ export default function LoginPage({ onLogin }: Props) {
               <button
                 type="submit"
                 disabled={enviando}
-                className="w-full h-[52px] rounded-xl font-semibold text-white
-                           bg-linear-to-r from-cielo to-cielo-900
-                           shadow-lg shadow-cielo/30 hover:shadow-cielo/45 hover:brightness-110
-                           active:scale-[0.99] transition disabled:opacity-70 disabled:cursor-wait"
+                className="w-full h-[58px] rounded-2xl bg-(--l-acento) text-[#170f27] text-base font-bold
+                           flex items-center justify-center gap-2.5
+                           hover:brightness-105 active:scale-[0.99] transition
+                           disabled:opacity-70 disabled:cursor-wait"
               >
-                {enviando ? 'Ingresando…' : 'Iniciar sesión'}
+                {enviando ? 'Ingresando…' : <>Ingresar <FlechaIcono /></>}
               </button>
             </form>
 
-            <p className="mt-8 text-center text-[13px] text-tinta/60">
-              ¿No tienes acceso? <span className="font-semibold text-cafe">Comunícate con el administrador</span>
+            <p className="mt-10 text-center text-[13px] text-(--l-suave)">
+              ¿No tienes acceso?{' '}
+              <span className="font-bold text-(--l-tinta) border-b-2 border-(--l-acento)">
+                Comunícate con el administrador
+              </span>
             </p>
           </div>
-        </section>
+        </div>
+      </main>
       </div>
+    </div>
+  )
+}
+
+/* ── Panel izquierdo ─────────────────────────────────────────── */
+
+function PanelColegio({ tema }: { tema: Tema }) {
+  return (
+    <aside className="relative hidden lg:flex lg:basis-[54%] shrink-0 flex-col overflow-hidden rounded-[28px] bg-(--l-panel) transition-colors">
+      {/* Sol de día, luna de noche */}
+      {tema === 'claro' ? (
+        <div aria-hidden className="absolute right-[7%] top-[5%] size-[72px] xl:right-[12.5%] xl:top-[13.5%] xl:size-[124px] rounded-full bg-(--l-acento)" />
+      ) : (
+        <svg aria-hidden viewBox="0 0 100 100" className="absolute right-[7%] top-[5%] size-[64px] xl:right-[12.5%] xl:top-[13.5%] xl:size-[110px]">
+          <path d="M62 4 A46 46 0 1 0 98 74 A40 40 0 1 1 62 4 Z" fill="#efcb68" />
+        </svg>
+      )}
+
+      <div className="relative px-7 pt-8">
+        <Marca />
+      </div>
+
+      <div className="relative px-10 mt-12">
+        <p className="text-[2.15rem] leading-[1.15] font-extrabold tracking-tight">
+          Estudiamos con amor
+          <br />
+          para un futuro mejor.
+        </p>
+      </div>
+
+      <div className="relative flex-1 min-h-0">
+        <EscenaColegio tema={tema} />
+      </div>
+
+      {/* Lo que se puede consultar en SIGESA */}
+      <dl className="relative grid grid-cols-3 gap-6 bg-(--l-banda) px-10 py-6 text-white transition-colors">
+        <Dato titulo="Notas" detalle="Por periodo" />
+        <Dato titulo="Boletines" detalle="Por estudiante" />
+        <Dato titulo="Pagos" detalle="Estado de cuenta" />
+      </dl>
+    </aside>
+  )
+}
+
+function Dato({ titulo, detalle }: { titulo: string; detalle: string }) {
+  return (
+    <div className="flex flex-col-reverse">
+      <dd className="mt-1 text-xs text-white/80">{detalle}</dd>
+      <dt className="text-[1.35rem] font-extrabold text-(--l-acento)">{titulo}</dt>
+    </div>
+  )
+}
+
+function Marca() {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="grid place-items-center size-14 rounded-full bg-[#170f27] ring-[3px] ring-(--l-acento) text-white">
+        <LibroIcono />
+      </span>
+      <div className="leading-tight">
+        <p className="text-[15px] font-bold">Colegio Pedagógico</p>
+        <p className="text-[13px] text-(--l-suave)">San Agustín</p>
+      </div>
+    </div>
+  )
+}
+
+function SelectorTema({ tema, onCambiar }: { tema: Tema; onCambiar: (t: Tema) => void }) {
+  const boton = (t: Tema, etiqueta: string, icono: ReactNode) => (
+    <button
+      type="button"
+      onClick={() => onCambiar(t)}
+      aria-label={etiqueta}
+      aria-pressed={tema === t}
+      className={`grid place-items-center h-8 w-11 rounded-full transition-colors ${
+        tema === t ? 'bg-(--l-acento) text-[#170f27]' : 'text-(--l-suave) hover:text-(--l-tinta)'
+      }`}
+    >
+      {icono}
+    </button>
+  )
+  return (
+    <div className="flex gap-1 rounded-full bg-(--l-campo) p-1 transition-colors">
+      {boton('claro', 'Modo claro', <SolIcono />)}
+      {boton('oscuro', 'Modo oscuro', <LunaIcono />)}
     </div>
   )
 }
 
 function Caja({ icono, children }: { icono: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-3 h-[52px] px-4 rounded-xl border-2 border-tinta/10 bg-white
-                    focus-within:border-cielo focus-within:ring-4 focus-within:ring-cielo/15 transition">
-      <span className="text-tinta/45">{icono}</span>
+    <div
+      className="flex items-center gap-3 h-[56px] px-4 rounded-2xl bg-(--l-campo) border-2 border-transparent
+                 focus-within:border-(--l-acento) transition-colors"
+    >
+      <span className="text-(--l-suave)">{icono}</span>
       {children}
     </div>
   )
 }
 
-/** Figuras detrás de la tarjeta: suaves pero con bordes que se distinguen. */
-function FondoPagina() {
+/* ── Ilustración: nubes y edificio del colegio ───────────────── */
+
+const OSCURO = '#170f27'
+const AMARILLO = '#efcb68'
+const MENTA = '#e3efe6'
+const BLANCO = '#ffffff'
+
+function Persiana({ x, y, w, h }: { x: number; y: number; w: number; h: number }) {
+  const lineas = []
+  for (let ly = y + 6; ly < y + h - 3; ly += 8) {
+    lineas.push(<rect key={ly} x={x + 6} y={ly} width={w - 12} height={4} fill={OSCURO} />)
+  }
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 blur-[3px]">
-      <div className="absolute -left-[12%] -top-[22%] w-[48%] aspect-square rounded-[46%_54%_42%_58%] bg-dorado/40" />
-      <div className="absolute left-[30%] -top-[30%] w-[38%] aspect-square rounded-full bg-cielo/25" />
-      <div className="absolute -right-[10%] -top-[8%] w-[30%] aspect-square rounded-[58%_42%_50%_50%] bg-dorado/30" />
-      <div className="absolute -right-[14%] top-[38%] w-[34%] aspect-square rounded-full bg-cielo/35" />
-      <div className="absolute -left-[10%] bottom-[-26%] w-[36%] aspect-square rounded-full bg-cielo/35" />
-      <div className="absolute left-[38%] -bottom-[34%] w-[34%] aspect-square rounded-[50%_50%_44%_56%] bg-dorado/40" />
-      <div className="absolute right-[6%] -bottom-[18%] w-[16%] aspect-square rounded-full bg-cafe/20" />
-    </div>
+    <g>
+      <rect x={x - 10} y={y - 14} width={w + 20} height={14} rx={2} fill={OSCURO} />
+      <rect x={x} y={y} width={w} height={h} fill={BLANCO} />
+      {lineas}
+    </g>
   )
 }
 
-/** Formas de fondo de la mitad izquierda, con la paleta del colegio. */
-function FondoDecorado() {
+function Ventana({ x, y, w, h }: { x: number; y: number; w: number; h: number }) {
+  const lineas = []
+  for (let ly = y + 7; ly < y + h - 5; ly += 9) {
+    lineas.push(<rect key={ly} x={x + 6} y={ly} width={w - 12} height={4} fill={BLANCO} />)
+  }
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height={h} fill={OSCURO} />
+      {lineas}
+    </g>
+  )
+}
+
+function Arbol({ cx, copa }: { cx: number; copa: string }) {
+  return (
+    <g>
+      <circle cx={cx} cy={248} r={36} fill={copa} />
+      <path
+        d={`M${cx} 322 V258 M${cx} 276 l-16 -18 M${cx} 276 l16 -18`}
+        stroke={OSCURO}
+        strokeWidth={4}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <circle cx={cx - 6} cy={326} r={16} fill={OSCURO} />
+      <circle cx={cx + 20} cy={322} r={20} fill={OSCURO} />
+    </g>
+  )
+}
+
+/** Estrellas del modo oscuro: [x, y, radio] dentro de la escena. */
+const ESTRELLAS: [number, number, number][] = [
+  [40, 130, 1.2], [90, 172, 2], [104, 150, 1.4], [164, 118, 2], [126, 76, 2], [186, 100, 1.4],
+  [282, 92, 2], [300, 124, 2], [342, 106, 1.4], [376, 64, 2], [404, 116, 1.2], [450, 96, 1.4],
+  [490, 124, 2], [534, 72, 1.4], [586, 96, 2], [610, 120, 1.4], [654, 70, 2], [672, 102, 1.4],
+  [700, 52, 1.2], [714, 6, 1.4], [560, 26, 1.2], [230, 36, 1.2],
+]
+
+function EscenaColegio({ tema }: { tema: Tema }) {
+  const oscuro = tema === 'oscuro'
+  const fachada = oscuro ? '#aeb6b1' : MENTA
+  const festones = []
+  for (let x = 72; x <= 584; x += 13) festones.push(<circle key={x} cx={x} cy={10} r={6} fill={OSCURO} />)
+
   return (
     <svg
       aria-hidden
+      viewBox="0 0 776 546"
+      preserveAspectRatio="xMidYMax meet"
       className="absolute inset-0 size-full"
-      viewBox="0 0 600 670"
-      preserveAspectRatio="xMidYMid slice"
     >
-      <defs>
-        <linearGradient id="ola" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#1f5c86" />
-          <stop offset="1" stopColor="#102f47" />
-        </linearGradient>
-        <pattern id="rayas" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(-20)">
-          <line x1="0" y1="0" x2="14" y2="0" stroke="#F8D020" strokeOpacity=".45" strokeWidth="2" />
-        </pattern>
-        <pattern id="rayas-claras" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(55)">
-          <line x1="0" y1="0" x2="12" y2="0" stroke="#ffffff" strokeOpacity=".18" strokeWidth="2" />
-        </pattern>
-      </defs>
+      {oscuro ? (
+        /* Estrellas */
+        <g fill="#ffffff" fillOpacity=".7">
+          {ESTRELLAS.map(([x, y, r]) => (
+            <circle key={`${x}-${y}`} cx={x} cy={y} r={r} />
+          ))}
+        </g>
+      ) : (
+        /* Nubes */
+        <g className="fill-(--l-nube)">
+          <rect x="66" y="6" width="150" height="30" rx="15" />
+          <rect x="116" y="48" width="96" height="26" rx="13" />
+          <rect x="496" y="36" width="120" height="26" rx="13" />
+        </g>
+      )}
 
-      {/* Ola oscura de la derecha */}
-      <path d="M270 0 C230 120 330 230 420 300 C510 370 470 470 520 560 C545 610 600 640 600 670 L600 0 Z" fill="url(#ola)" />
+      <g transform="translate(56 146)">
+        {/* Suelo: de día una línea blanca, de noche una acera gris */}
+        {oscuro ? (
+          <>
+            <rect x="5" y="332" width="650" height="32" fill="#8f9994" />
+            <rect x="5" y="332" width="650" height="6" fill="#c3cac6" />
+          </>
+        ) : (
+          <rect x="5" y="332" width="650" height="12" fill={BLANCO} />
+        )}
 
-      {/* Mancha dorada superior */}
-      <path d="M-20 -20 L440 -20 C450 60 420 140 340 170 C260 200 200 150 130 180 C70 205 20 200 -20 190 Z" fill="#F8D020" fillOpacity=".88" />
+        {/* Fachada superior */}
+        <rect x="72" y="22" width="512" height="158" fill={fachada} />
+        {oscuro && (
+          <>
+            <rect x="200" y="22" width="114" height="34" fill={MENTA} />
+            <rect x="72" y="160" width="68" height="20" fill={MENTA} />
+          </>
+        )}
+        <rect x="72" y="22" width="128" height="78" fill={AMARILLO} />
+        <rect x="314" y="22" width="96" height="158" fill={BLANCO} />
+        <rect x="410" y="22" width="174" height="56" fill={AMARILLO} />
+        <rect x="255" y="74" width="59" height="66" fill={OSCURO} />
 
-      {/* Triángulos verdes arriba */}
-      <g fill="#00A048" fillOpacity=".75">
-        <path d="M335 140 l25 -38 l25 38 Z" />
-        <path d="M388 140 l25 -38 l25 38 Z" />
-        <path d="M441 140 l25 -38 l25 38 Z" />
-      </g>
+        {/* Techo con festones */}
+        {festones}
+        <rect x="65" y="10" width="526" height="12" fill={OSCURO} />
 
-      {/* Círculo de rayas */}
-      <circle cx="510" cy="215" r="80" fill="url(#rayas)" />
+        <Persiana x={135} y={64} w={120} h={52} />
+        <Persiana x={397} y={64} w={120} h={52} />
 
-      {/* Líneas diagonales a la izquierda */}
-      <rect x="0" y="210" width="190" height="170" fill="url(#rayas-claras)" />
+        {/* Letrero */}
+        <rect x="140" y="125" width="370" height="55" fill={BLANCO} />
+        <text
+          x="325"
+          y="149"
+          textAnchor="middle"
+          fontFamily="Inter, sans-serif"
+          fontWeight="800"
+          fontSize="17"
+          fill={OSCURO}
+        >
+          COLEGIO PEDAGÓGICO SAN AGUSTÍN
+        </text>
+        <rect x="192" y="160" width="90" height="3" rx="1.5" fill="#adb5b0" />
+        <rect x="200" y="167" width="44" height="3" rx="1.5" fill="#adb5b0" />
+        <rect x="372" y="160" width="90" height="3" rx="1.5" fill="#adb5b0" />
+        <rect x="372" y="167" width="44" height="3" rx="1.5" fill="#adb5b0" />
+        <circle cx="327" cy="165" r="13" fill={OSCURO} stroke={AMARILLO} strokeWidth="3" />
+        <path d="M320 160 q3.5 -1.5 7 0 v10 q-3.5 -1.5 -7 0 Z M327 160 q3.5 -1.5 7 0 v10 q-3.5 -1.5 -7 0 Z" fill={BLANCO} />
 
-      {/* Círculo dorado en el borde derecho */}
-      <circle cx="610" cy="390" r="75" fill="#F8D020" fillOpacity=".9" />
+        {/* Fachada inferior */}
+        <rect x="72" y="196" width="512" height="136" fill={fachada} />
+        <rect x="85" y="196" width="145" height="40" fill={AMARILLO} />
+        <rect x="85" y="280" width="80" height="52" fill={BLANCO} />
+        {oscuro && (
+          <>
+            <rect x="165" y="280" width="76" height="52" fill={MENTA} />
+            <rect x="367" y="196" width="66" height="26" fill={MENTA} />
+          </>
+        )}
+        <rect x="367" y="240" width="206" height="92" fill={AMARILLO} />
 
-      {/* Medio círculo café a la izquierda */}
-      <circle cx="-40" cy="560" r="85" fill="#96502F" fillOpacity=".92" />
-      <circle cx="-40" cy="560" r="85" fill="url(#rayas-claras)" />
+        {/* Alero */}
+        <rect x="52" y="180" width="553" height="16" rx="8" fill={OSCURO} />
 
-      {/* Gota café junto al círculo de rayas */}
-      <circle cx="420" cy="262" r="16" fill="#96502F" />
+        {/* Puerta */}
+        <rect x="310" y="196" width="57" height="136" fill={OSCURO} />
+        {Array.from({ length: 10 }, (_, i) => (
+          <rect key={i} x="317" y={226 + i * 10} width="43" height="5" fill={BLANCO} />
+        ))}
 
-      {/* Triángulos dorados tipo "play" */}
-      <g fill="#F8D020" fillOpacity=".85">
-        <path d="M530 490 l36 20 l-36 20 Z" />
-        <path d="M538 540 l36 20 l-36 20 Z" />
-        <path d="M530 590 l36 20 l-36 20 Z" fillOpacity=".55" />
-      </g>
+        <Ventana x={150} y={223} w={110} h={60} />
+        <Ventana x={372} y={223} w={119} h={60} />
 
-      {/* Mancha dorada inferior */}
-      <path d="M300 670 C310 610 360 580 420 590 C480 600 520 560 560 560 C590 560 600 580 600 600 L600 670 Z" fill="#F8D020" fillOpacity=".85" />
-      <rect x="280" y="600" width="140" height="70" fill="url(#rayas-claras)" />
-
-      {/* Triángulos verdes abajo a la izquierda */}
-      <g fill="#96502F" className="max-lg:hidden">
-        <path d="M60 500 l25 -36 l25 36 Z" />
-        <path d="M112 500 l25 -36 l25 36 Z" />
-        <path d="M164 500 l25 -36 l25 36 Z" />
+        <Arbol cx={42} copa={oscuro ? AMARILLO : MENTA} />
+        <Arbol cx={615} copa={oscuro ? AMARILLO : MENTA} />
       </g>
     </svg>
   )
 }
 
+/* ── Íconos ──────────────────────────────────────────────────── */
+
 const trazo = {
   fill: 'none',
   stroke: 'currentColor',
-  strokeWidth: 2,
+  strokeWidth: 1.8,
   strokeLinecap: 'round' as const,
   strokeLinejoin: 'round' as const,
 }
 
+function LibroIcono() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M3 5.5c2.8-1.2 5.8-1.1 8 .6v13c-2.2-1.6-5.2-1.8-8-.6Z" />
+      <path d="M21 5.5c-2.8-1.2-5.8-1.1-8 .6v13c2.2-1.6 5.2-1.8 8-.6Z" />
+    </svg>
+  )
+}
+
 function UsuarioIcono() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" {...trazo} aria-hidden>
+    <svg width="22" height="22" viewBox="0 0 24 24" {...trazo} aria-hidden>
       <circle cx="12" cy="8" r="4" />
       <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
     </svg>
@@ -271,8 +484,8 @@ function UsuarioIcono() {
 
 function CandadoIcono() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" {...trazo} aria-hidden>
-      <rect x="4" y="10" width="16" height="11" rx="2" />
+    <svg width="22" height="22" viewBox="0 0 24 24" {...trazo} aria-hidden>
+      <rect x="4.5" y="10" width="15" height="11" rx="3" />
       <path d="M8 10V7a4 4 0 0 1 8 0v3" />
     </svg>
   )
@@ -280,10 +493,34 @@ function CandadoIcono() {
 
 function OjoIcono({ tachado }: { tachado: boolean }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" {...trazo} aria-hidden>
-      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
-      <circle cx="12" cy="12" r="3" />
+    <svg width="22" height="22" viewBox="0 0 24 24" {...trazo} aria-hidden>
+      <path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="2.5" />
       {tachado && <path d="M3 3l18 18" />}
+    </svg>
+  )
+}
+
+function FlechaIcono() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" {...trazo} strokeWidth={2.2} aria-hidden>
+      <path d="M4 12h15M13 6l6 6-6 6" />
+    </svg>
+  )
+}
+
+function SolIcono() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" {...trazo} strokeWidth={2.2} aria-hidden>
+      <circle cx="12" cy="12" r="6" />
+    </svg>
+  )
+}
+
+function LunaIcono() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" {...trazo} aria-hidden>
+      <path d="M19 15.5A8 8 0 0 1 9.5 5a8 8 0 1 0 9.5 10.5Z" />
     </svg>
   )
 }
