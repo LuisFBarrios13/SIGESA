@@ -151,7 +151,51 @@ test('dashboard: totales calculados en la base de datos', async () => {
   assert.equal(d.totalDeudores, vencidas > 0 ? 1 : 0);
   if (vencidas > 0) assert.equal(d.topDeudores[0].saldo, 150000 * vencidas);
 
+  // Estudiantes por grado y jornada: los dos están en Primero de la mañana.
+  assert.equal(d.porGrado.length, 16);
+  const primero = d.porGrado.find((g) => g.idGrado === idGrado);
+  assert.equal(primero.activos, 2);
+  assert.equal(primero.docente, null);
+  assert.equal(d.gradosSinDocente, 16);
+  assert.deepEqual(d.porJornada, { 'MAÑANA': 2, TARDE: 0 });
+
+  // Últimos pagos: el más reciente primero.
+  assert.equal(d.ultimosPagos.length, 2);
+  assert.equal(d.ultimosPagos[0].monto, 150000);
+  assert.equal(d.ultimosPagos[0].estudiante, 'Estudiante 1001');
+  assert.equal(d.ultimosPagos[0].metodo, 'EFECTIVO');
+
+  // Sin notas todavía.
+  assert.equal(d.academico.periodoActual, null);
+  assert.equal(d.academico.promedioGeneral, null);
+  assert.equal(d.academico.estudiantesEvaluados, 0);
+
   assert.equal((await s.api('GET', '/dashboard?year=abc', { token: admin })).status, 400);
+});
+
+test('dashboard: resumen académico del último periodo con notas', async () => {
+  const { Periodo, Nota, Materia, Matricula } = s.modelos;
+  const [mat1, mat2] = await Materia.findAll({ limit: 2, order: [['id_materia', 'ASC']] });
+  const otra = await Matricula.findOne({ where: { id_estudiante: '1002', year: YEAR } });
+  const p1 = await Periodo.create({ numero_periodo: 1, year: YEAR });
+  const p2 = await Periodo.create({ numero_periodo: 2, year: YEAR });
+
+  // El periodo 1 no cuenta: el actual es el 2.
+  await Nota.create({ id_matricula: idMatricula, id_materia: mat1.id_materia, id_periodo: p1.id_periodo, nota: 1.0 });
+  await Nota.bulkCreate([
+    { id_matricula: idMatricula,       id_materia: mat1.id_materia, id_periodo: p2.id_periodo, nota: 4.0 },
+    { id_matricula: idMatricula,       id_materia: mat2.id_materia, id_periodo: p2.id_periodo, nota: 2.5 },
+    { id_matricula: otra.id_matricula, id_materia: mat1.id_materia, id_periodo: p2.id_periodo, nota: 4.5 },
+  ]);
+
+  const { body } = await s.api('GET', `/dashboard?year=${YEAR}`, { token: admin });
+  const a = body.data.academico;
+  assert.equal(a.periodoActual, 2);
+  assert.equal(a.promedioGeneral, 3.67); // (4.0 + 2.5 + 4.5) / 3
+  assert.equal(a.notaAprobatoria, 3);
+  assert.equal(a.estudiantesEvaluados, 2);
+  assert.equal(a.estudiantesConMateriasPerdidas, 1);
+  assert.equal(body.data.porGrado.find((g) => g.idGrado === idGrado).promedio, 3.67);
 });
 
 test('el acudiente ve los pagos de sus hijos y no los de otros', async () => {

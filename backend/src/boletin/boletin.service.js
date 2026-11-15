@@ -5,13 +5,14 @@ import {
   Materia, Nota, Periodo, ResumenPeriodo,
 } from '../models/index.js';
 import { AppError } from '../utils/AppError.js';
+import { NOTA_APROBATORIA } from '../constants/notas.js';
 
 // ── Nivel de desempeño ─────────────────────────────────────────────────────────
 const nivelDesempeño = (nota) => {
   if (nota == null) return '';
   if (nota >= 4.6) return 'SUPERIOR';
   if (nota >= 4.0) return 'ALTO';
-  if (nota >= 3.0) return 'BÁSICO';
+  if (nota >= NOTA_APROBATORIA) return 'BÁSICO';
   return 'BAJO';
 };
 
