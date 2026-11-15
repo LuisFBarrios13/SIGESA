@@ -49,3 +49,125 @@
     @apply flex-1 min-w-0 bg-transparent text-[15px] text-tinta outline-none placeholder:text-tinta/35;
   }
 }
+
+/* Colores del panel (docs/panel-admin-inicio-claro.png y -oscuro.png) */
+.panel {
+  --p-fondo: #e1eee5;          /* página */
+  --p-sup: #ffffff;            /* tarjetas */
+  --p-contenedor: rgb(255 255 255 / 0.45); /* contenedor grande del contenido */
+  --p-borde: #e4eae6;
+  --p-tinta: #170f27;
+  --p-suave: #5d5869;
+  --p-tenue: #8d8999;
+  --p-banda: #170f27;          /* encabezados oscuros de las tarjetas */
+  --p-acento: #efcb68;
+  --p-acento-2: #d9b65e;       /* parte más oscura del botón activo */
+  --p-gris: #adb5b0;           /* barras de lo facturado */
+  --p-menta: #e3efe6;          /* avatares, chips, pistas */
+  --p-icono: #170f27;          /* cuadros de ícono oscuros */
+  --p-icono-txt: #ffffff;
+  --p-hover: #f2f6f3;
+  --p-linea: #170f27;          /* barra de progreso oscura */
+}
+.panel[data-tema="oscuro"] {
+  --p-fondo: #0b0910;
+  --p-sup: #17111f;
+  --p-contenedor: #110c18;
+  --p-borde: #2a2238;
+  --p-tinta: #f4f2f7;
+  --p-suave: #b3adc1;
+  --p-tenue: #7f798e;
+  --p-banda: #221a30;
+  --p-gris: #57525f;
+  --p-menta: #2a2238;
+  --p-icono: #2a2238;
+  --p-icono-txt: #efcb68;
+  --p-hover: #1f1829;
+  --p-linea: #f4f2f7;
+}
+
+/* ── Movimiento del panel ─────────────────────────────────────────
+   Dashboard profesional: animaciones rápidas, discretas y con propósito.
+   Solo se animan transform y opacity (no recalculan el diseño). */
+.panel {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);       /* entradas y respuestas */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);   /* movimiento en pantalla */
+}
+
+/* Botones: se hunden un poco al presionar para confirmar el clic. */
+.panel button {
+  transition-property: color, background-color, border-color, opacity, filter, transform;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-out);
+}
+.panel button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+/* Menús que se abren (campanita, usuario): nacen desde su botón. */
+.emergente {
+  transform-origin: top right;
+  transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out);
+}
+@starting-style {
+  .emergente { opacity: 0; transform: translateY(-4px) scale(0.97); }
+}
+/* Resultados del buscador: se ven al escribir, así que solo un fundido corto. */
+.emergente-suave { transition: opacity 120ms var(--ease-out); }
+@starting-style {
+  .emergente-suave { opacity: 0; }
+}
+
+/* Entrada escalonada de los bloques al abrir una sección. */
+@keyframes aparecer {
+  from { opacity: 0; transform: translateY(8px); }
+}
+.aparecer {
+  animation: aparecer 320ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 50ms);
+}
+/* Filas de listas y tablas cuando llegan los datos. */
+.aparecer-fila {
+  animation: aparecer 260ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+/* Cambio de pestaña: solo fundido, sin desplazamiento. */
+@keyframes desvanecer {
+  from { opacity: 0; }
+}
+.fundido { animation: desvanecer 150ms var(--ease-out) both; }
+
+/* Gráfica: las barras crecen desde la base, mes por mes. */
+@keyframes crecer-y {
+  from { transform: scaleY(0); }
+}
+.barra-crece {
+  transform-origin: bottom;
+  animation: crecer-y 600ms var(--ease-out) both;
+  animation-delay: calc(120ms + var(--i, 0) * 30ms);
+}
+/* Indicadores: la barra de progreso se llena y la perilla aparece al final. */
+@keyframes crecer-x {
+  from { transform: scaleX(0); }
+}
+.barra-llena {
+  transform-origin: left;
+  animation: crecer-x 700ms var(--ease-out) both;
+  animation-delay: calc(150ms + var(--i, 0) * 25ms);
+}
+@keyframes surgir {
+  from { opacity: 0; transform: scale(0.6); }
+}
+.perilla { animation: surgir 260ms var(--ease-out) 650ms both; }
+
+/* Quien pide menos movimiento: sin desplazamientos, solo fundidos suaves. */
+@media (prefers-reduced-motion: reduce) {
+  .aparecer, .aparecer-fila, .barra-crece, .barra-llena, .perilla {
+    animation: desvanecer 200ms ease both;
+  }
+  .panel button:not(:disabled):active { transform: none; }
+  .emergente { transition: opacity 150ms ease; }
+  @starting-style {
+    .emergente { transform: none; }
+  }
+}

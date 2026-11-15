@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import LoginPage from './pages/LoginPage'
+import AdminLayout from './layouts/AdminLayout'
 import { getToken, removeToken, tokenVencido } from './services/api'
 import type { AuthUser } from './types/auth'
 
@@ -29,18 +30,24 @@ export default function App() {
     )
   }
 
-  // Pantalla provisional hasta diseñar el panel de cada rol.
+  function cerrarSesion() {
+    removeToken()
+    localStorage.removeItem(USER_KEY)
+    setUser(null)
+  }
+
+  if (user.roles.includes('ADMINISTRADOR')) {
+    return <AdminLayout user={user} onLogout={cerrarSesion} />
+  }
+
+  // Pantalla provisional hasta diseñar el panel de docentes y acudientes.
   return (
     <main className="min-h-dvh grid place-items-center bg-cielo-50 text-tinta p-6">
       <div className="text-center">
         <p className="text-2xl font-semibold">Hola, {user.nombre}</p>
         <p className="mt-1 text-tinta/70">Rol: {user.roles.join(', ')}</p>
         <button
-          onClick={() => {
-            removeToken()
-            localStorage.removeItem(USER_KEY)
-            setUser(null)
-          }}
+          onClick={cerrarSesion}
           className="mt-6 h-11 px-6 rounded-full bg-cielo-600 text-white font-semibold hover:bg-cielo-800"
         >
           Cerrar sesión

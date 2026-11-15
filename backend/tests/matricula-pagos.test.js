@@ -150,6 +150,7 @@ test('dashboard: totales calculados en la base de datos', async () => {
   const vencidas  = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11].filter((m) => m < mesActual).length;
   assert.equal(d.totalDeudores, vencidas > 0 ? 1 : 0);
   if (vencidas > 0) assert.equal(d.topDeudores[0].saldo, 150000 * vencidas);
+  assert.equal(d.carteraVencida, 150000 * vencidas);
 
   // Estudiantes por grado y jornada: los dos están en Primero de la mañana.
   assert.equal(d.porGrado.length, 16);

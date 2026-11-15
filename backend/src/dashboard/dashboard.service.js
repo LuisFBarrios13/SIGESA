@@ -78,7 +78,8 @@ export const obtenerMetricas = async (year) => {
         FROM cuentas GROUP BY mes`, year),
 
     consultar(`${CUENTAS_DEL_YEAR}
-      SELECT COUNT(DISTINCT id_estudiante)::int AS total
+      SELECT COUNT(DISTINCT id_estudiante)::int AS total,
+             COALESCE(SUM(GREATEST(deuda - pagado, 0)), 0)::float8 AS saldo
         FROM cuentas WHERE estado = 'VENCIDO'`, year),
 
     consultar(`${CUENTAS_DEL_YEAR}
@@ -166,6 +167,8 @@ export const obtenerMetricas = async (year) => {
     totalRecaudado: totales.totalRecaudado,
     totalDeuda:     totales.totalDeuda,
     totalDeudores:  deudores.total,
+    // Lo que deben las cuentas ya vencidas (sin contar los meses que no han llegado).
+    carteraVencida: deudores.saldo,
     monthlyChart: MESES.map((month, i) => ({
       month,
       recaudado: mesesConDatos.get(i + 1)?.recaudado ?? 0,
