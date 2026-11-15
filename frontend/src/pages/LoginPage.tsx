@@ -24,6 +24,8 @@ function temaGuardado(): Tema {
  */
 const DISENO = { ancho: 1920, alto: 1080 }
 const ESCALA_MIN = 0.6
+// La caja se ve un 10 % más grande que en el diseño original
+const AUMENTO = 1.1
 
 // Densidad de píxeles al cargar la página. Si después cambia es porque el usuario usó
 // el zoom del navegador (Ctrl + / Ctrl −), y ese zoom se debe respetar.
@@ -36,7 +38,7 @@ function calcularEscala(): number {
   const zoom = (window.devicePixelRatio || 1) / DPR_INICIAL
   const ancho = window.innerWidth * zoom
   const alto = window.innerHeight * zoom
-  const e = Math.min(ancho / DISENO.ancho, alto / DISENO.alto)
+  const e = Math.min(ancho / DISENO.ancho, alto / DISENO.alto) * AUMENTO
   return Math.max(ESCALA_MIN, e)
 }
 
@@ -90,11 +92,11 @@ export default function LoginPage({ onLogin }: Props) {
   return (
     <div
       data-tema={tema}
-      className="login relative min-h-dvh overflow-hidden flex items-center justify-center
-                 bg-(--l-caja) sm:bg-(--l-fondo) text-(--l-tinta) sm:p-[clamp(16px,4dvh,40px)] lg:p-0 transition-colors"
+      className="login relative min-h-dvh overflow-hidden flex flex-col lg:flex-row lg:items-center lg:justify-center
+                 bg-(--l-panel) lg:bg-(--l-fondo) text-(--l-tinta) transition-colors"
     >
-      {/* Círculos decorativos de la página (desde tablet) */}
-      <div aria-hidden className="hidden sm:block pointer-events-none">
+      {/* Círculos decorativos de la página (computador) */}
+      <div aria-hidden className="hidden lg:block pointer-events-none">
         <div
           className="absolute rounded-full bg-(--l-circulo-1) transition-colors"
           style={{ top: -90 * escala, right: -110 * escala, width: 440 * escala, height: 440 * escala }}
@@ -105,43 +107,48 @@ export default function LoginPage({ onLogin }: Props) {
         />
       </div>
 
-      {/* Caja: en celular ocupa toda la pantalla; en tablet es una tarjeta centrada;
-          en computador mide 1380×920 como en el diseño y se escala con la pantalla */}
+      {/* Celular y tablet: el colegio arriba, a todo el ancho */}
+      <HeroMovil tema={tema} onCambiarTema={cambiarTema} />
+
+      {/* Celular y tablet: hoja con el formulario que sube sobre el dibujo.
+          Computador: caja de 1380×920 como en el diseño, escalada con la pantalla */}
       <div
         style={escala !== 1 ? { zoom: escala } : undefined}
-        className="relative w-full min-h-dvh sm:min-h-0 sm:max-w-[540px]
-                   lg:w-[1380px] lg:max-w-none lg:h-[920px] lg:shrink-0
-                   flex gap-6 p-4 sm:p-[clamp(16px,2.5dvh,24px)] lg:p-6 bg-(--l-caja)
-                   sm:rounded-[40px] sm:border sm:border-(--l-borde) sm:shadow-2xl sm:shadow-black/10 transition-colors"
+        className="relative flex-1 flex -mt-8 rounded-t-[32px] px-[22px] pt-8 pb-7 sm:px-10 bg-(--l-caja)
+                   lg:flex-none lg:mt-0 lg:w-[1380px] lg:h-[920px] lg:shrink-0 lg:gap-6 lg:p-6
+                   lg:rounded-[40px] lg:border lg:border-(--l-borde) lg:shadow-2xl lg:shadow-black/10 transition-colors"
       >
-      {/* Mitad izquierda: ilustración del colegio (solo en pantallas grandes) */}
+      {/* Mitad izquierda: ilustración del colegio (solo en computador) */}
       <PanelColegio tema={tema} />
 
       {/* Mitad derecha: formulario */}
-      <main className="relative flex-1 flex flex-col sm:px-4">
+      <main className="relative flex-1 flex flex-col lg:px-4">
         <div className="hidden lg:flex justify-end">
           <SelectorTema tema={tema} onCambiar={cambiarTema} />
         </div>
 
-        <div className="flex-1 flex items-center justify-center py-[clamp(4px,2.5dvh,32px)] lg:py-8">
-          <div className="w-full max-w-[460px]">
-            {/* En pantallas pequeñas el panel izquierdo no se ve: mostramos la marca aquí */}
-            <div className="lg:hidden mb-[clamp(16px,4dvh,40px)] flex items-center justify-between gap-3">
-              <Marca />
-              <SelectorTema tema={tema} onCambiar={cambiarTema} />
-            </div>
-
-            <p className="text-[13px] font-semibold tracking-[0.2em] text-(--l-suave)">
+        <div className="flex-1 flex justify-center lg:items-center lg:py-8">
+          <div className="w-full max-w-[460px] flex flex-col sm:justify-center lg:block">
+            <p className="hidden lg:block text-[13px] font-semibold tracking-[0.2em] text-(--l-suave)">
               SIGESA · PORTAL ESCOLAR
             </p>
-            <h1 className="mt-3 text-[clamp(2.2rem,5.2dvh,2.75rem)] lg:text-[2.75rem] leading-tight font-extrabold tracking-tight">
+            <h1 className="lg:mt-3 text-[1.9rem] sm:text-[2.2rem] lg:text-[2.75rem] leading-tight font-extrabold tracking-tight">
               ¡Hola de nuevo!
             </h1>
-            <p className="mt-2 text-[17px] text-(--l-suave)">Ingresa a tu cuenta para continuar.</p>
+            <p className="mt-1 lg:mt-2 text-sm sm:text-[15px] lg:text-[17px] text-(--l-suave)">
+              <span className="lg:hidden">
+                <LibroLinea /> SIGESA ·{' '}
+              </span>
+              Ingresa a tu cuenta para continuar.
+            </p>
 
-            <form onSubmit={handleSubmit} noValidate className="mt-[clamp(16px,4.5dvh,44px)] space-y-[clamp(12px,2.6dvh,28px)] lg:mt-11 lg:space-y-7">
+            <form
+              onSubmit={handleSubmit}
+              noValidate
+              className="flex-1 sm:flex-none flex flex-col lg:block mt-6 lg:mt-11 space-y-6 lg:space-y-7"
+            >
               <div>
-                <label htmlFor="usuario" className="block mb-3 text-[15px] font-bold">
+                <label htmlFor="usuario" className="block mb-1.5 lg:mb-3 text-sm lg:text-[15px] font-bold">
                   Usuario
                 </label>
                 <Caja icono={<UsuarioIcono />}>
@@ -152,13 +159,13 @@ export default function LoginPage({ onLogin }: Props) {
                     placeholder="Tu usuario"
                     value={username}
                     onChange={e => setUsername(e.target.value)}
-                    className="flex-1 min-w-0 bg-transparent text-[17px] outline-none placeholder:text-(--l-suave)/60"
+                    className="flex-1 min-w-0 bg-transparent text-base lg:text-[17px] outline-none placeholder:text-(--l-suave)/60"
                   />
                 </Caja>
               </div>
 
               <div>
-                <label htmlFor="clave" className="block mb-3 text-[15px] font-bold">
+                <label htmlFor="clave" className="block mb-1.5 lg:mb-3 text-sm lg:text-[15px] font-bold">
                   Contraseña
                 </label>
                 <Caja icono={<CandadoIcono />}>
@@ -169,7 +176,7 @@ export default function LoginPage({ onLogin }: Props) {
                     placeholder="••••••••"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    className="flex-1 min-w-0 bg-transparent text-[17px] outline-none placeholder:text-(--l-suave)/60"
+                    className="flex-1 min-w-0 bg-transparent text-base lg:text-[17px] outline-none placeholder:text-(--l-suave)/60"
                   />
                   <button
                     type="button"
@@ -181,18 +188,18 @@ export default function LoginPage({ onLogin }: Props) {
                   </button>
                 </Caja>
 
-                <div className="mt-[clamp(8px,2dvh,16px)] lg:mt-4 flex justify-end">
+                <div className="mt-3 lg:mt-4 flex justify-end">
                   <button
                     type="button"
                     onClick={() => setAyudaClave(v => !v)}
                     aria-expanded={ayudaClave}
-                    className="text-[15px] font-bold border-b-2 border-(--l-acento) hover:opacity-75"
+                    className="text-sm lg:text-[15px] font-bold border-b-2 border-(--l-acento) hover:opacity-75"
                   >
                     ¿Olvidaste tu contraseña?
                   </button>
                 </div>
                 {ayudaClave && (
-                  <p className="mt-3 rounded-xl bg-(--l-campo) px-5 py-3.5 text-[15px] text-(--l-suave)">
+                  <p className="mt-3 rounded-xl bg-(--l-campo) px-4 lg:px-5 py-3 lg:py-3.5 text-[13px] lg:text-[15px] text-(--l-suave)">
                     Pídele al administrador del colegio que te asigne una contraseña nueva.
                   </p>
                 )}
@@ -207,7 +214,7 @@ export default function LoginPage({ onLogin }: Props) {
               <button
                 type="submit"
                 disabled={enviando}
-                className="w-full h-[clamp(52px,8.5dvh,66px)] lg:h-[66px] rounded-2xl bg-(--l-acento) text-[#170f27] text-lg font-bold
+                className="mt-auto w-full h-[56px] lg:h-[66px] rounded-2xl bg-(--l-acento) text-[#170f27] text-[17px] lg:text-lg font-bold
                            flex items-center justify-center gap-2.5
                            hover:brightness-105 active:scale-[0.99] transition
                            disabled:opacity-70 disabled:cursor-wait"
@@ -216,7 +223,7 @@ export default function LoginPage({ onLogin }: Props) {
               </button>
             </form>
 
-            <p className="mt-[clamp(16px,4.5dvh,44px)] lg:mt-11 text-center text-[15px] text-(--l-suave)">
+            <p className="mt-4 sm:mt-6 lg:mt-11 text-center text-[13px] lg:text-[15px] text-(--l-suave)">
               ¿No tienes acceso?{' '}
               <span className="font-bold text-(--l-tinta) border-b-2 border-(--l-acento)">
                 Comunícate con el administrador
@@ -279,15 +286,72 @@ function Dato({ titulo, detalle }: { titulo: string; detalle: string }) {
   )
 }
 
-function Marca() {
+/** Parte de arriba en celular y tablet (docs/Teléfono · Modo claro@1x.png). */
+function HeroMovil({ tema, onCambiarTema }: { tema: Tema; onCambiarTema: (t: Tema) => void }) {
+  const oscuro = tema === 'oscuro'
   return (
-    <div className="flex items-center gap-3">
-      <span className="grid place-items-center size-16 rounded-full bg-[#170f27] ring-[3px] ring-(--l-acento) text-white">
-        <LibroIcono />
+    <header className="lg:hidden relative shrink-0 h-[clamp(220px,calc(100dvh_-_516px),360px)] sm:h-[clamp(320px,42dvh,520px)] overflow-hidden">
+      {/* Sol o luna asomando detrás del selector de tema */}
+      {oscuro ? (
+        <svg aria-hidden viewBox="0 0 100 100" className="absolute right-[40px] sm:right-[60px] top-[60px] size-[50px]">
+          <path d="M62 4 A46 46 0 1 0 98 74 A40 40 0 1 1 62 4 Z" fill="#efcb68" />
+        </svg>
+      ) : (
+        <div aria-hidden className="absolute right-[45px] sm:right-[65px] top-[66px] size-[56px] rounded-full bg-(--l-acento)" />
+      )}
+
+      <CieloMovil oscuro={oscuro} />
+
+      {/* Edificio: la hoja del formulario tapa su parte de abajo */}
+      <EscenaColegio tema={tema} recorte="44 100 690 360" conCielo={false} className="absolute left-0 sm:left-[12%] bottom-0 w-full sm:w-[76%] h-[calc(100%-84px)]" />
+
+      <div className="relative flex items-center justify-between gap-3 px-5 sm:px-10 pt-10">
+        <Marca compacto />
+        <SelectorTema tema={tema} onCambiar={onCambiarTema} />
+      </div>
+    </header>
+  )
+}
+
+/** Nubes (de día) o estrellas (de noche) sobre el edificio en celular. */
+const ESTRELLAS_MOVIL: [number, number, number][] = [
+  [244, 34, 1.4], [254, 50, 1.2], [332, 38, 1.2], [92, 88, 1.6], [112, 102, 1.2], [132, 106, 1.6],
+  [152, 94, 1.2], [202, 90, 1.2], [234, 104, 1.6], [288, 100, 1.4], [270, 118, 1.2], [352, 116, 1.6],
+  [30, 122, 1.2], [60, 100, 1.2], [372, 92, 1.2],
+]
+
+function CieloMovil({ oscuro }: { oscuro: boolean }) {
+  return (
+    <svg aria-hidden viewBox="0 0 390 330" preserveAspectRatio="xMidYMin meet" className="absolute inset-0 size-full [@media(max-height:700px)]:hidden">
+      {oscuro ? (
+        <g fill="#ffffff" fillOpacity=".7">
+          {ESTRELLAS_MOVIL.map(([x, y, r]) => (
+            <circle key={`${x}-${y}`} cx={x} cy={y} r={r} />
+          ))}
+        </g>
+      ) : (
+        <g className="fill-(--l-nube)">
+          <rect x="150" y="85" width="75" height="17" rx="8.5" />
+          <rect x="180" y="104" width="45" height="13" rx="6.5" />
+        </g>
+      )}
+    </svg>
+  )
+}
+
+function Marca({ compacto = false }: { compacto?: boolean }) {
+  return (
+    <div className={`flex items-center ${compacto ? 'gap-2.5' : 'gap-3'}`}>
+      <span
+        className={`grid place-items-center shrink-0 rounded-full bg-[#170f27] text-white ring-(--l-acento) ${
+          compacto ? 'size-10 ring-[2.5px]' : 'size-16 ring-[3px]'
+        }`}
+      >
+        <LibroIcono tam={compacto ? 22 : 32} />
       </span>
-      <div className="leading-tight">
-        <p className="text-[17px] font-bold">Colegio Pedagógico</p>
-        <p className="text-[15px] text-(--l-suave)">San Agustín</p>
+      <div className={`leading-tight ${compacto ? 'whitespace-nowrap' : ''}`}>
+        <p className={`font-bold ${compacto ? 'text-[15px]' : 'text-[17px]'}`}>Colegio Pedagógico</p>
+        <p className={`text-(--l-suave) ${compacto ? 'text-[13px]' : 'text-[15px]'}`}>San Agustín</p>
       </div>
     </div>
   )
@@ -300,7 +364,7 @@ function SelectorTema({ tema, onCambiar }: { tema: Tema; onCambiar: (t: Tema) =>
       onClick={() => onCambiar(t)}
       aria-label={etiqueta}
       aria-pressed={tema === t}
-      className={`grid place-items-center h-9 w-11 sm:w-[52px] rounded-full transition-colors ${
+      className={`grid place-items-center h-9 w-10 min-[380px]:w-11 sm:w-[52px] rounded-full transition-colors ${
         tema === t ? 'bg-(--l-acento) text-[#170f27]' : 'text-(--l-suave) hover:text-(--l-tinta)'
       }`}
     >
@@ -318,7 +382,7 @@ function SelectorTema({ tema, onCambiar }: { tema: Tema; onCambiar: (t: Tema) =>
 function Caja({ icono, children }: { icono: ReactNode; children: ReactNode }) {
   return (
     <div
-      className="flex items-center gap-3 h-[clamp(50px,8dvh,64px)] lg:h-[64px] px-5 rounded-2xl bg-(--l-campo) border-2 border-transparent
+      className="flex items-center gap-3 h-[52px] lg:h-[64px] px-4 lg:px-5 rounded-2xl bg-(--l-campo) border-2 border-transparent
                  focus-within:border-(--l-acento) transition-colors"
     >
       <span className="text-(--l-suave)">{icono}</span>
@@ -386,7 +450,18 @@ const ESTRELLAS: [number, number, number][] = [
   [700, 52, 1.2], [714, 6, 1.4], [560, 26, 1.2], [230, 36, 1.2],
 ]
 
-function EscenaColegio({ tema }: { tema: Tema }) {
+function EscenaColegio({
+  tema,
+  recorte = '40 0 696 484',
+  className = 'absolute inset-0 size-full',
+  conCielo = true,
+}: {
+  tema: Tema
+  recorte?: string
+  className?: string
+  /** false = solo el edificio, sin nubes ni estrellas (en celular van aparte) */
+  conCielo?: boolean
+}) {
   const oscuro = tema === 'oscuro'
   const fachada = oscuro ? '#aeb6b1' : MENTA
   const festones = []
@@ -395,11 +470,11 @@ function EscenaColegio({ tema }: { tema: Tema }) {
   return (
     <svg
       aria-hidden
-      viewBox="40 0 696 484"
+      viewBox={recorte}
       preserveAspectRatio="xMidYMax meet"
-      className="absolute inset-0 size-full"
+      className={className}
     >
-      {oscuro ? (
+      {!conCielo ? null : oscuro ? (
         /* Estrellas */
         <g fill="#ffffff" fillOpacity=".7">
           {ESTRELLAS.map(([x, y, r]) => (
@@ -507,11 +582,20 @@ const trazo = {
   strokeLinejoin: 'round' as const,
 }
 
-function LibroIcono() {
+function LibroIcono({ tam = 32 }: { tam?: number }) {
   return (
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <svg width={tam} height={tam} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M3 5.5c2.8-1.2 5.8-1.1 8 .6v13c-2.2-1.6-5.2-1.8-8-.6Z" />
       <path d="M21 5.5c-2.8-1.2-5.8-1.1-8 .6v13c2.2-1.6 5.2-1.8 8-.6Z" />
+    </svg>
+  )
+}
+
+function LibroLinea() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" {...trazo} className="inline-block -mt-0.5 mr-1" aria-hidden>
+      <path d="M2.5 5.5c3-1.4 6.2-1.4 9.5.4v13c-3.3-1.8-6.5-1.8-9.5-.4Z" />
+      <path d="M21.5 5.5c-3-1.4-6.2-1.4-9.5.4v13c3.3-1.8 6.5-1.8 9.5-.4Z" />
     </svg>
   )
 }
