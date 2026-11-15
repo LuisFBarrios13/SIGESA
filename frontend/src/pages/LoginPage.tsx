@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent, type ReactNode } from 'react'
 import { authApi, saveToken } from '../services/api'
 import type { AuthUser } from '../types/auth'
 
@@ -52,6 +52,104 @@ function useEscala(): number {
   return escala
 }
 
+/* ── Hoja del formulario movible (celular y tablet) ──────────────── */
+
+/** Alto mínimo del dibujo al subir la hoja: siempre se ven el logo y el selector. */
+const DIBUJO_MIN = 110
+/** Parte de la hoja que siempre se ve al bajarla (px). */
+const HOJA_MIN = 120
+/** Cuánto baja la hoja con un toque: lo justo para ver el edificio entero con su suelo. */
+const BAJADA_TOQUE = 90
+/**
+ * En la posición normal la hoja tapa la base del edificio (como en el diseño).
+ * Al bajarla, el edificio sube hasta esta cantidad para verse entero.
+ */
+const REVELAR_MAX = 44
+
+/** Alto del dibujo en la posición normal: el mismo que dan las clases de HeroMovil. */
+function altoNormal(): number {
+  const h = window.innerHeight
+  return window.innerWidth >= 640
+    ? Math.min(520, Math.max(320, h * 0.42))
+    : Math.min(360, Math.max(220, h - 516))
+}
+
+/**
+ * La hoja del formulario se arrastra desde su barrita: se sube o se baja a gusto
+ * y se queda donde el usuario la suelta. Un toque la baja para ver el edificio
+ * completo y otro la devuelve a su lugar.
+ */
+function useHojaMovible() {
+  /** Alto del dibujo elegido por el usuario; null = posición normal. */
+  const [alto, setAlto] = useState<number | null>(null)
+  const [arrastrando, setArrastrando] = useState(false)
+  const [animando, setAnimando] = useState(false)
+  const inicio = useRef<{ y: number; alto: number; movido: boolean } | null>(null)
+
+  // La animación dura 300 ms
+  useEffect(() => {
+    if (!animando) return
+    const t = setTimeout(() => setAnimando(false), 350)
+    return () => clearTimeout(t)
+  }, [animando])
+
+  const ajustar = (v: number) => Math.min(window.innerHeight - HOJA_MIN, Math.max(DIBUJO_MIN, v))
+  const bajada = alto !== null && alto > altoNormal() + 4
+
+  function moverA(v: number | null) {
+    setAnimando(true)
+    setAlto(v)
+  }
+
+  function alternar() {
+    moverA(bajada ? null : ajustar(altoNormal() + BAJADA_TOQUE))
+  }
+
+  const manejadores = {
+    onPointerDown(e: PointerEvent<HTMLElement>) {
+      inicio.current = { y: e.clientY, alto: alto ?? altoNormal(), movido: false }
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId)
+      } catch {
+        /* algunos navegadores no permiten capturar este puntero: el arrastre sigue funcionando */
+      }
+    },
+    onPointerMove(e: PointerEvent<HTMLElement>) {
+      const i = inicio.current
+      if (!i) return
+      const dy = e.clientY - i.y
+      if (!i.movido && Math.abs(dy) < 6) return
+      i.movido = true
+      setArrastrando(true)
+      setAlto(ajustar(i.alto + dy))
+    },
+    onPointerUp() {
+      const i = inicio.current
+      inicio.current = null
+      if (!i) return
+      // Un toque sin arrastrar baja o sube la hoja; si se arrastró, se queda donde se soltó
+      if (!i.movido) alternar()
+      setArrastrando(false)
+    },
+    onPointerCancel() {
+      inicio.current = null
+      setArrastrando(false)
+    },
+  }
+
+  return {
+    alto,
+    arrastrando,
+    bajada,
+    /** true cuando el usuario movió la hoja (o se está animando): la página mide justo la pantalla */
+    movida: alto !== null || animando,
+    /** Cuánto sube el edificio para que la hoja no tape su base (px) */
+    revelar: alto === null ? 0 : Math.min(REVELAR_MAX, Math.max(0, alto - altoNormal())),
+    alternar,
+    manejadores,
+  }
+}
+
 export default function LoginPage({ onLogin }: Props) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -61,6 +159,7 @@ export default function LoginPage({ onLogin }: Props) {
   const [enviando, setEnviando] = useState(false)
   const [tema, setTema] = useState<Tema>(temaGuardado)
   const escala = useEscala()
+  const hoja = useHojaMovible()
 
   function cambiarTema(t: Tema) {
     setTema(t)
@@ -92,8 +191,8 @@ export default function LoginPage({ onLogin }: Props) {
   return (
     <div
       data-tema={tema}
-      className="login relative min-h-dvh overflow-hidden flex flex-col lg:flex-row lg:items-center lg:justify-center
-                 bg-(--l-panel) lg:bg-(--l-fondo) text-(--l-tinta) transition-colors"
+      className={`login relative min-h-dvh overflow-hidden flex flex-col lg:flex-row lg:items-center lg:justify-center
+                 bg-(--l-panel) lg:bg-(--l-fondo) text-(--l-tinta) transition-colors ${hoja.movida ? 'max-lg:h-dvh' : ''}`}
     >
       {/* Círculos decorativos de la página (computador) */}
       <div aria-hidden className="hidden lg:block pointer-events-none">
@@ -108,16 +207,39 @@ export default function LoginPage({ onLogin }: Props) {
       </div>
 
       {/* Celular y tablet: el colegio arriba, a todo el ancho */}
-      <HeroMovil tema={tema} onCambiarTema={cambiarTema} />
+      <HeroMovil
+        tema={tema}
+        onCambiarTema={cambiarTema}
+        alto={hoja.alto}
+        revelar={hoja.revelar}
+        arrastrando={hoja.arrastrando}
+      />
 
       {/* Celular y tablet: hoja con el formulario que sube sobre el dibujo.
           Computador: caja de 1380×920 como en el diseño, escalada con la pantalla */}
       <div
         style={escala !== 1 ? { zoom: escala } : undefined}
-        className="relative flex-1 flex -mt-8 rounded-t-[32px] px-[22px] pt-8 pb-7 sm:px-10 bg-(--l-caja)
+        className={`relative flex-1 flex -mt-8 rounded-t-[32px] px-[22px] pt-8 pb-7 sm:px-10 bg-(--l-caja)
                    lg:flex-none lg:mt-0 lg:w-[1380px] lg:h-[920px] lg:shrink-0 lg:gap-6 lg:p-6
-                   lg:rounded-[40px] lg:border lg:border-(--l-borde) lg:shadow-2xl lg:shadow-black/10 transition-colors"
+                   lg:rounded-[40px] lg:border lg:border-(--l-borde) lg:shadow-2xl lg:shadow-black/10 transition-colors
+                   ${hoja.movida ? 'max-lg:min-h-0 max-lg:overflow-hidden' : ''}`}
       >
+      {/* Barrita para mover la hoja: arrastrar la sube o la baja; un toque la baja para ver el dibujo */}
+      <button
+        type="button"
+        {...hoja.manejadores}
+        onClick={e => {
+          // Con teclado (Enter o espacio) no hay arrastre: solo alterna
+          if (e.detail === 0) hoja.alternar()
+        }}
+        aria-expanded={!hoja.bajada}
+        aria-label={hoja.bajada ? 'Subir el formulario' : 'Bajar el formulario para ver el dibujo'}
+        title="Arrastra para subir o bajar el formulario"
+        className="lg:hidden absolute inset-x-0 top-0 z-10 h-8 flex justify-center pt-3 touch-none cursor-grab active:cursor-grabbing"
+      >
+        <span className="h-1.5 w-11 rounded-full bg-(--l-suave)/35" />
+      </button>
+
       {/* Mitad izquierda: ilustración del colegio (solo en computador) */}
       <PanelColegio tema={tema} />
 
@@ -287,27 +409,55 @@ function Dato({ titulo, detalle }: { titulo: string; detalle: string }) {
 }
 
 /** Parte de arriba en celular y tablet (docs/Teléfono · Modo claro@1x.png). */
-function HeroMovil({ tema, onCambiarTema }: { tema: Tema; onCambiarTema: (t: Tema) => void }) {
+function HeroMovil({
+  tema,
+  onCambiarTema,
+  alto,
+  revelar,
+  arrastrando,
+}: {
+  tema: Tema
+  onCambiarTema: (t: Tema) => void
+  /** Alto elegido al mover la hoja (px); null = posición normal */
+  alto: number | null
+  /** Cuánto sube el edificio para que la hoja no tape su base (px) */
+  revelar: number
+  arrastrando: boolean
+}) {
   const oscuro = tema === 'oscuro'
   return (
-    <header className="lg:hidden relative shrink-0 h-[clamp(220px,calc(100dvh_-_516px),360px)] sm:h-[clamp(320px,42dvh,520px)] overflow-hidden">
+    <header
+      style={alto !== null ? { height: alto } : undefined}
+      className={`lg:hidden relative shrink-0 overflow-hidden
+                  h-[clamp(220px,calc(100dvh_-_516px),360px)] sm:h-[clamp(320px,42dvh,520px)]
+                  ${arrastrando ? '' : 'transition-[height] duration-300 ease-out'}`}
+    >
       {/* Sol o luna asomando detrás del selector de tema */}
       {oscuro ? (
-        <svg aria-hidden viewBox="0 0 100 100" className="absolute right-[40px] sm:right-[60px] top-[60px] size-[50px]">
+        <svg aria-hidden viewBox="0 0 100 100" className="absolute right-[40px] sm:right-[60px] top-[46px] size-[50px]">
           <path d="M62 4 A46 46 0 1 0 98 74 A40 40 0 1 1 62 4 Z" fill="#efcb68" />
         </svg>
       ) : (
-        <div aria-hidden className="absolute right-[45px] sm:right-[65px] top-[66px] size-[56px] rounded-full bg-(--l-acento)" />
+        <div aria-hidden className="absolute right-[45px] sm:right-[65px] top-[52px] size-[56px] rounded-full bg-(--l-acento)" />
       )}
 
       <CieloMovil oscuro={oscuro} />
 
       {/* Edificio: la hoja del formulario tapa su parte de abajo */}
-      <EscenaColegio tema={tema} recorte="44 100 690 360" conCielo={false} className="absolute left-0 sm:left-[12%] bottom-0 w-full sm:w-[76%] h-[calc(100%-84px)]" />
+      <EscenaColegio
+        tema={tema}
+        recorte="44 100 690 380"
+        conCielo={false}
+        estilo={{ bottom: revelar, height: `calc(100% - ${84 + revelar}px)` }}
+        className={`absolute left-0 sm:left-[12%] w-full sm:w-[76%]
+                    ${arrastrando ? '' : 'transition-[bottom,height] duration-300 ease-out'}`}
+      />
 
       <div className="relative flex items-center justify-between gap-3 px-5 sm:px-10 pt-10">
         <Marca compacto />
-        <SelectorTema tema={tema} onCambiar={onCambiarTema} />
+        <div className="relative -top-3.5">
+          <SelectorTema tema={tema} onCambiar={onCambiarTema} />
+        </div>
       </div>
     </header>
   )
@@ -455,10 +605,12 @@ function EscenaColegio({
   recorte = '40 0 696 484',
   className = 'absolute inset-0 size-full',
   conCielo = true,
+  estilo,
 }: {
   tema: Tema
   recorte?: string
   className?: string
+  estilo?: CSSProperties
   /** false = solo el edificio, sin nubes ni estrellas (en celular van aparte) */
   conCielo?: boolean
 }) {
@@ -473,6 +625,7 @@ function EscenaColegio({
       viewBox={recorte}
       preserveAspectRatio="xMidYMax meet"
       className={className}
+      style={estilo}
     >
       {!conCielo ? null : oscuro ? (
         /* Estrellas */
