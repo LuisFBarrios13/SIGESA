@@ -9,6 +9,7 @@ import {
   dineroCorto, documento, fechaEncabezado, iniciales, listaY, MESES_LARGOS, nombreGrado, saludo,
 } from '../../utils/formato';
 import * as I from '../../components/iconos';
+import { Progreso, Segmentos, Tarjeta } from '../../components/panel';
 
 interface Props {
   user: AuthUser;
@@ -19,30 +20,35 @@ interface Props {
   cargando: boolean;
   error: string;
   recargar: () => void;
+  /** Veces que han llegado datos: al recargar se repiten las animaciones. */
+  cargas: number;
 }
 
 /** Un mes terminado está atrasado si se recaudó menos de este porcentaje de lo facturado. */
 const UMBRAL_ATRASO = 0.8;
 
-export default function InicioPage({ user, year, onCambiarYear, onIr, data, cargando, error, recargar }: Props) {
+export default function InicioPage({ user, year, onCambiarYear, onIr, data, cargando, error, recargar, cargas }: Props) {
   const yearActual = new Date().getFullYear();
   const years = [yearActual + 1, yearActual, yearActual - 1, yearActual - 2, yearActual - 3];
   if (!years.includes(year)) years.push(year);
 
   return (
     <main className="flex-1 flex flex-col">
-      {/* Encabezado */}
-      <div className="aparecer flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[32px] leading-tight font-extrabold tracking-tight">
+      {/* Encabezado
+          Celular: saludo a lo ancho y debajo la fecha con el año.
+          Tablet y computador: saludo y fecha a la izquierda, año a la derecha. */}
+      <div className="aparecer flex flex-col gap-2.5 sm:flex-row sm:items-end sm:justify-between sm:gap-4 lg:flex-wrap lg:items-start">
+        <div className="min-w-0">
+          <h1 className="text-[clamp(21px,6.6vw,25px)] sm:text-[28px] lg:text-[32px] leading-[1.15] lg:leading-tight font-extrabold tracking-tight">
             {saludo()}, {primerNombre(user)}
           </h1>
-          <p className="mt-1 text-[11.5px] font-semibold tracking-[0.18em] text-(--p-suave)">{fechaEncabezado()}</p>
+          <p className="hidden sm:block mt-1 text-[10.5px] lg:text-[11.5px] font-semibold tracking-[0.18em] text-(--p-suave)">{fechaEncabezado()}</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-stretch h-11 rounded-xl bg-(--p-sup) border border-(--p-borde) overflow-hidden">
-            <label htmlFor="year" className="flex items-center px-4 text-[11px] font-bold tracking-[0.16em] text-(--p-suave) border-r border-(--p-borde)">
+        <div className="flex items-center justify-between gap-3">
+          <p className="sm:hidden min-w-0 text-[10px] font-semibold tracking-[0.14em] text-(--p-suave)">{fechaEncabezado()}</p>
+          <div className="shrink-0 flex items-stretch h-11 rounded-xl bg-(--p-sup) border border-(--p-borde) overflow-hidden">
+            <label htmlFor="year" className="hidden lg:flex items-center px-4 text-[11px] font-bold tracking-[0.16em] text-(--p-suave) border-r border-(--p-borde)">
               AÑO ACADÉMICO
             </label>
             <div className="relative flex items-center">
@@ -50,11 +56,12 @@ export default function InicioPage({ user, year, onCambiarYear, onIr, data, carg
                 id="year"
                 value={year}
                 onChange={e => onCambiarYear(Number(e.target.value))}
-                className="appearance-none h-full bg-transparent pl-4 pr-9 text-[17px] font-bold outline-none cursor-pointer"
+                aria-label="Año académico"
+                className="appearance-none h-full bg-transparent pl-3 pr-8 sm:pl-4 sm:pr-9 text-[15px] lg:text-[17px] font-bold outline-none cursor-pointer"
               >
                 {years.map(y => <option key={y} value={y} className="bg-(--p-sup)">{y}</option>)}
               </select>
-              <span className="pointer-events-none absolute right-3"><I.ChevronAbajo tam={16} /></span>
+              <span className="pointer-events-none absolute right-2.5 sm:right-3"><I.ChevronAbajo tam={16} /></span>
             </div>
             <button
               type="button"
@@ -70,7 +77,7 @@ export default function InicioPage({ user, year, onCambiarYear, onIr, data, carg
           <button
             type="button"
             onClick={() => onIr('matriculas')}
-            className="flex items-center gap-2 h-11 px-5 rounded-xl bg-(--p-banda) text-white text-[12.5px] font-bold tracking-[0.12em]
+            className="hidden lg:flex items-center gap-2 h-11 px-5 rounded-xl bg-(--p-banda) text-white text-[12.5px] font-bold tracking-[0.12em]
                        hover:brightness-125 transition"
           >
             <I.Mas tam={17} /> NUEVA MATRÍCULA
@@ -85,14 +92,27 @@ export default function InicioPage({ user, year, onCambiarYear, onIr, data, carg
         </div>
       )}
 
-      <Indicadores data={data} year={year} />
+      <Indicadores data={data} year={year} cargas={cargas} />
 
-      <div className="aparecer [--i:2] grid gap-5 mt-5 min-[1400px]:grid-cols-[minmax(0,2.15fr)_minmax(0,1fr)]">
-        <RecaudoPorMes meses={data?.monthlyChart ?? null} year={year} />
+      {/* Celular: todo en una columna. Tablet: gráfica a lo ancho y debajo deudores y pagos lado a lado.
+          Computador: gráfica y deudores (lado a lado en pantallas anchas) y la tabla de actividad aparte. */}
+      <div
+        className="aparecer [--i:2] grid gap-4 lg:gap-5 mt-4 lg:mt-5 md:max-lg:grid-cols-2
+                   min-[1400px]:grid-cols-[minmax(0,2.15fr)_minmax(0,1fr)]"
+      >
+        <RecaudoPorMes
+          meses={data?.monthlyChart ?? null}
+          year={year}
+          cargas={cargas}
+          className="min-w-0 md:max-lg:col-span-2"
+        />
         <MayoresDeudores data={data} onIr={onIr} />
+        <UltimosPagosMovil data={data} onIr={onIr} />
       </div>
 
-      <Actividad data={data} onIr={onIr} />
+      <div className="hidden lg:block">
+        <Actividad data={data} onIr={onIr} />
+      </div>
     </main>
   );
 }
@@ -105,26 +125,28 @@ const pct = (parte: number, total: number) => (total > 0 ? Math.min(100, Math.ro
 
 /* ── Indicadores (una sola tarjeta dividida en 4, como en el diseño) ── */
 
-function Indicadores({ data, year }: { data: DashboardData | null; year: number }) {
+function Indicadores({ data, year, cargas }: { data: DashboardData | null; year: number; cargas: number }) {
   const d = data;
   const recaudadoPct = d ? pct(d.totalRecaudado, d.totalDeuda) : 0;
   const vencidaPct = d ? pct(d.carteraVencida, d.totalDeuda) : 0;
   // Las barras se animan de nuevo cuando llegan los datos o cambia el año.
-  const clave = d ? `datos-${year}` : 'cargando';
+  const clave = d ? `datos-${year}-${cargas}` : 'cargando';
 
   return (
     <section
       aria-label="Indicadores"
-      className="aparecer [--i:1] grid mt-6 sm:grid-cols-2 xl:grid-cols-4 rounded-[22px] bg-(--p-sup) border border-(--p-borde) overflow-hidden
-                 divide-y sm:divide-y-0 xl:divide-x divide-(--p-borde) transition-colors"
+      // Celular y tablet: cuatro tarjetas sueltas. Computador: una sola tarjeta dividida.
+      className="aparecer [--i:1] grid grid-cols-2 md:grid-cols-4 gap-3 mt-5 lg:mt-6 lg:gap-0 lg:grid-cols-2 xl:grid-cols-4
+                 lg:rounded-[22px] lg:bg-(--p-sup) lg:border lg:border-(--p-borde) lg:overflow-hidden
+                 xl:divide-x divide-(--p-borde) transition-colors"
     >
       <Indicador
         Icono={I.Estudiantes}
         cuadro="bg-(--p-acento) text-[#170f27]"
-        titulo="Estudiantes activos"
+        titulo={<Corto movil="Estudiantes">Estudiantes activos</Corto>}
         valor={d ? d.estudiantesActivos.toLocaleString('es-CO') : '—'}
         barra={<Progreso key={clave} valor={d?.tasaMatricula ?? 0} relleno="bg-(--p-acento)" borde="border-(--p-acento)" />}
-        pie={d ? <>de {d.totalEstudiantes.toLocaleString('es-CO')} registrados · <b className="text-(--p-tinta)">{d.tasaMatricula}%</b></> : ' '}
+        pie={d ? <>de {d.totalEstudiantes.toLocaleString('es-CO')}<Corto movil=""> registrados</Corto> · <b className="text-(--p-tinta)">{d.tasaMatricula}%</b></> : ' '}
       />
       <Indicador
         Icono={I.Persona}
@@ -132,29 +154,42 @@ function Indicadores({ data, year }: { data: DashboardData | null; year: number 
         titulo="Docentes"
         valor={d ? d.totalDocentes.toLocaleString('es-CO') : '—'}
         barra={<Segmentos key={clave} n={d?.totalDocentes ?? 0} />}
-        pie="Planta docente activa"
+        pie={<Corto movil="Planta activa">Planta docente activa</Corto>}
       />
       <Indicador
         Icono={I.Billete}
         cuadro="bg-[#adb5b0] text-[#170f27]"
-        titulo={`Recaudado ${year}`}
+        titulo={<Corto movil="Recaudado">Recaudado {year}</Corto>}
         valor={d ? dineroCorto(d.totalRecaudado) : '—'}
         barra={<Progreso key={clave} valor={recaudadoPct} relleno="bg-(--p-acento)" borde="border-(--p-acento)" />}
-        pie={d ? <><b className="text-(--p-tinta)">{recaudadoPct}%</b> de {dineroCorto(d.totalDeuda)} facturado</> : ' '}
+        pie={d ? <><b className="text-(--p-tinta)">{recaudadoPct}%</b> de {dineroCorto(d.totalDeuda)}<Corto movil=""> facturado</Corto></> : ' '}
       />
       <Indicador
         Icono={I.Alerta}
         cuadro="bg-(--p-icono) text-(--p-acento)"
-        titulo="Cartera vencida"
+        titulo={<Corto movil="Cartera">Cartera vencida</Corto>}
         valor={d ? dineroCorto(d.carteraVencida) : '—'}
         barra={<Progreso key={clave} valor={vencidaPct} relleno="bg-(--p-linea)" borde="border-(--p-linea)" />}
         pie={
           d ? (
-            <><b className="text-(--p-tinta)">{d.totalDeudores} {d.totalDeudores === 1 ? 'estudiante' : 'estudiantes'}</b> con saldo vencido</>
+            <>
+              <b className="text-(--p-tinta)">{d.totalDeudores} {d.totalDeudores === 1 ? 'estudiante' : 'estudiantes'}</b>
+              <Corto movil=" en mora"> con saldo vencido</Corto>
+            </>
           ) : ' '
         }
       />
     </section>
+  );
+}
+
+/** Texto más corto en celular y tablet, donde las tarjetas son angostas. */
+function Corto({ movil, children }: { movil: string; children: ReactNode }) {
+  return (
+    <>
+      {movil && <span className="lg:hidden">{movil}</span>}
+      <span className="hidden lg:inline">{children}</span>
+    </>
   );
 }
 
@@ -163,69 +198,26 @@ function Indicador({
 }: {
   Icono: ComponentType<{ tam?: number }>;
   cuadro: string;
-  titulo: string;
+  titulo: ReactNode;
   valor: string;
   barra: ReactNode;
   pie: ReactNode;
 }) {
   return (
-    <div className="px-[22px] pt-5 pb-[22px]">
-      <div className="flex items-center gap-3">
-        <span className={`grid place-items-center shrink-0 size-9 rounded-[10px] ${cuadro}`}><Icono tam={18} /></span>
-        <p className="text-[11.5px] font-semibold tracking-[0.16em] uppercase text-(--p-suave) truncate">{titulo}</p>
+    <div
+      className="min-w-0 px-3 min-[400px]:px-3.5 pt-3.5 pb-4 lg:px-[22px] lg:pt-5 lg:pb-[22px]
+                 max-lg:rounded-[20px] max-lg:bg-(--p-sup) max-lg:border max-lg:border-(--p-borde) transition-colors"
+    >
+      <div className="flex items-center gap-2 min-[400px]:gap-2.5 lg:gap-3">
+        <span className={`grid place-items-center shrink-0 size-7 lg:size-9 rounded-lg lg:rounded-[10px] [&>svg]:size-[15px] lg:[&>svg]:size-[18px] ${cuadro}`}>
+          <Icono tam={18} />
+        </span>
+        <p className="text-[9px] min-[400px]:text-[9.5px] lg:text-[11.5px] font-semibold tracking-[0.1em] min-[400px]:tracking-[0.14em] lg:tracking-[0.12em] min-[1600px]:tracking-[0.16em] uppercase text-(--p-suave) truncate">{titulo}</p>
       </div>
-      <p className="mt-3 text-[31px] leading-none font-extrabold tracking-tight">{valor}</p>
-      <div className="mt-4">{barra}</div>
-      <p className="mt-3.5 text-[12.5px] text-(--p-suave) truncate">{pie}</p>
+      <p className="mt-3 text-[24px] lg:text-[31px] leading-none font-extrabold tracking-tight">{valor}</p>
+      <div className="mt-3.5 lg:mt-4">{barra}</div>
+      <p className="mt-3 lg:mt-3.5 text-[11px] lg:text-[12.5px] leading-snug text-(--p-suave) lg:truncate">{pie}</p>
     </div>
-  );
-}
-
-/** Barra con una perilla al final, como en el diseño. */
-function Progreso({ valor, relleno, borde }: { valor: number; relleno: string; borde: string }) {
-  return (
-    <div className="relative h-[5px] rounded-full bg-(--p-menta)" role="presentation">
-      <div className={`barra-llena absolute inset-y-0 left-0 rounded-full ${relleno}`} style={{ width: `${valor}%` }} />
-      <div
-        className={`perilla absolute top-1/2 size-3.5 -translate-y-1/2 -translate-x-1/2 rounded-full bg-(--p-sup) border-2 ${borde}`}
-        style={{ left: `${Math.max(3, Math.min(97, valor))}%` }}
-      />
-    </div>
-  );
-}
-
-/** Un segmento por docente (hasta 18, para que no se vuelvan puntos). */
-function Segmentos({ n }: { n: number }) {
-  if (n <= 0) return <div className="h-[5px] rounded-full bg-(--p-menta)" />;
-  return (
-    <div className="flex gap-1">
-      {Array.from({ length: Math.min(n, 18) }, (_, i) => (
-        <span key={i} className="barra-llena flex-1 h-[5px] rounded-full bg-(--p-acento)" style={{ '--i': i } as CSSProperties} />
-      ))}
-    </div>
-  );
-}
-
-/* ── Tarjeta con encabezado oscuro ─────────────────────────────── */
-
-function Tarjeta({
-  Icono, titulo, accion, children, className = '',
-}: {
-  Icono: ComponentType<{ tam?: number }>;
-  titulo: string;
-  accion?: ReactNode;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <section className={`flex flex-col rounded-[20px] bg-(--p-sup) border border-(--p-borde) overflow-hidden transition-colors ${className}`}>
-      <header className="shrink-0 flex items-center gap-3 h-12 pl-5 pr-2 bg-(--p-banda) text-white">
-        <span className="text-(--p-acento)"><Icono tam={17} /></span>
-        <h2 className="flex-1 min-w-0 truncate text-[12.5px] font-bold tracking-[0.14em] uppercase">{titulo}</h2>
-        {accion}
-      </header>
-      {children}
-    </section>
   );
 }
 
@@ -240,7 +232,9 @@ function escalaEje(max: number): { tope: number; paso: number } {
   return { tope: paso * 4, paso };
 }
 
-function RecaudoPorMes({ meses, year }: { meses: MesRecaudo[] | null; year: number }) {
+function RecaudoPorMes({
+  meses, year, cargas, className,
+}: { meses: MesRecaudo[] | null; year: number; cargas: number; className?: string }) {
   const hoy = new Date();
   // Meses ya terminados: todos en años pasados, ninguno en años futuros.
   const mesesCerrados = year < hoy.getFullYear() ? 12 : year > hoy.getFullYear() ? 0 : hoy.getMonth();
@@ -263,30 +257,33 @@ function RecaudoPorMes({ meses, year }: { meses: MesRecaudo[] | null; year: numb
     <Tarjeta
       Icono={I.Barras}
       titulo="Recaudo por mes"
-      accion={<span className="grid place-items-center size-8 text-white/60"><I.Puntos tam={18} /></span>}
+      className={className}
+      accion={<span className="hidden lg:grid place-items-center size-8 text-white/60"><I.Puntos tam={18} /></span>}
     >
-      <div className="flex-1 flex flex-col px-5 pt-4 pb-4">
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-          <p className="text-[13px] text-(--p-suave)">{enMillones ? 'Millones' : 'Miles'} de pesos · {year}</p>
-          <ul className="flex items-center gap-5 text-[13px]">
-            <li className="flex items-center gap-2">
-              <span className="size-3.5 rounded-full bg-(--p-acento) outline-2 outline-(--p-acento)/40 outline-offset-1" />
+      <div className="flex-1 flex flex-col px-3.5 pt-3.5 pb-3.5 lg:px-5 lg:pt-4 lg:pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 lg:gap-x-6 gap-y-1.5">
+          <p className="order-last lg:order-none text-[11.5px] lg:text-[13px] text-(--p-suave)">
+            {enMillones ? 'Millones' : 'Miles'}<span className="hidden lg:inline"> de pesos · {year}</span>
+          </p>
+          <ul className="flex items-center gap-2.5 lg:gap-5 text-[11.5px] lg:text-[13px]">
+            <li className="flex items-center gap-1.5 lg:gap-2">
+              <span className="size-2.5 lg:size-3.5 rounded-full bg-(--p-acento) lg:outline-2 outline-(--p-acento)/40 outline-offset-1" />
               Recaudado
             </li>
-            <li className="flex items-center gap-2">
-              <span className="size-3.5 rounded-full bg-(--p-gris) outline-2 outline-(--p-gris)/50 outline-offset-1" />
+            <li className="flex items-center gap-1.5 lg:gap-2">
+              <span className="size-2.5 lg:size-3.5 rounded-full bg-(--p-gris) lg:outline-2 outline-(--p-gris)/50 outline-offset-1" />
               Facturado
             </li>
-            <li className="flex items-center gap-2">
+            <li className="flex items-center gap-1.5 lg:gap-2">
               <span className="w-4 h-[2.5px] rounded-full bg-(--p-tinta)" />
-              Mes con atraso
+              <Corto movil="Atraso">Mes con atraso</Corto>
             </li>
           </ul>
         </div>
 
-        {/* Gráfica */}
+        {/* Gráfica (en celular sin eje de valores, para darle el ancho a las barras) */}
         <div className="flex mt-4">
-          <div className="relative w-8 h-[200px] shrink-0">
+          <div className="hidden lg:block relative w-8 h-[200px] shrink-0">
             {ticks.map((t, i) => (
               <span
                 key={t}
@@ -298,20 +295,20 @@ function RecaudoPorMes({ meses, year }: { meses: MesRecaudo[] | null; year: numb
             ))}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="relative h-[200px]">
+            <div className="relative h-[170px] lg:h-[200px]">
               {ticks.slice(0, -1).map((t, i) => (
                 <div key={t} className="absolute inset-x-0 border-t border-(--p-borde)" style={{ top: `${i * 25}%` }} />
               ))}
               <div className="absolute inset-x-0 bottom-0 border-t-[1.5px] border-(--p-tinta)/70" />
-              <div key={`${year}-${meses ? 'datos' : 'cargando'}`} className="relative h-full grid grid-cols-12">
+              <div key={`${year}-${meses ? cargas : 'cargando'}`} className="relative h-full grid grid-cols-12">
                 {datos.map((m, i) => (
                   <div
                     key={m.month}
-                    className="flex items-end justify-center gap-1"
+                    className="flex items-end justify-center gap-[3px] lg:gap-1"
                     title={`${MESES_LARGOS[i]}: recaudado ${dineroCorto(m.recaudado)} de ${dineroCorto(m.deuda)}`}
                   >
-                    <span className="barra-crece w-[14px] rounded-t-[3px] bg-(--p-acento)" style={{ height: alto(m.recaudado), '--i': i } as CSSProperties} />
-                    <span className="barra-crece w-[14px] rounded-t-[3px] bg-(--p-gris)" style={{ height: alto(m.deuda), '--i': i } as CSSProperties} />
+                    <span className="barra-crece w-[min(14px,36%)] rounded-t-[3px] bg-(--p-acento)" style={{ height: alto(m.recaudado), '--i': i } as CSSProperties} />
+                    <span className="barra-crece w-[min(14px,36%)] rounded-t-[3px] bg-(--p-gris)" style={{ height: alto(m.deuda), '--i': i } as CSSProperties} />
                   </div>
                 ))}
               </div>
@@ -321,7 +318,9 @@ function RecaudoPorMes({ meses, year }: { meses: MesRecaudo[] | null; year: numb
                 const marcado = atrasado(m, i);
                 return (
                   <div key={m.month} className="flex flex-col items-center">
-                    <span className={`text-[11px] ${marcado ? 'font-bold text-(--p-tinta)' : 'text-(--p-suave)'}`}>{m.month}</span>
+                    <span className={`text-[10.5px] lg:text-[11px] ${marcado ? 'font-bold text-(--p-tinta)' : 'text-(--p-suave)'}`}>
+                      <Corto movil={m.month.charAt(0)}>{m.month}</Corto>
+                    </span>
                     {marcado && <span className="mt-1 w-4 h-[2.5px] rounded-full bg-(--p-tinta)" />}
                   </div>
                 );
@@ -330,14 +329,15 @@ function RecaudoPorMes({ meses, year }: { meses: MesRecaudo[] | null; year: numb
           </div>
         </div>
 
-        <p className="mt-auto pt-3 border-t border-(--p-borde) text-[13px] text-(--p-suave)">
+        <p className="mt-auto pt-3 border-t border-(--p-borde) text-[12px] lg:text-[13px] text-(--p-suave)">
           {!meses ? (
             'Cargando…'
           ) : max === 0 ? (
             <>Todavía no hay cuentas de cobro en {year}.</>
           ) : atrasados.length ? (
             <>
-              Atrasos en <b className="text-(--p-tinta)">{listaY(atrasados)}</b> (menos del {UMBRAL_ATRASO * 100}% recaudado).
+              Atrasos en <b className="text-(--p-tinta)">{listaY(atrasados)}</b>
+              <span className="hidden lg:inline"> (menos del {UMBRAL_ATRASO * 100}% recaudado)</span>.
             </>
           ) : (
             <>Sin meses atrasados.</>
@@ -359,13 +359,14 @@ function MayoresDeudores({ data, onIr }: { data: DashboardData | null; onIr: (s:
     <Tarjeta
       Icono={I.Billete}
       titulo="Mayores deudores"
+      className="min-w-0"
       accion={
         <button
           type="button"
           onClick={() => onIr('deudores')}
-          className="shrink-0 h-8 px-3 rounded-[10px] bg-(--p-acento) text-[#170f27] text-[11.5px] font-bold tracking-[0.12em] hover:brightness-105 transition"
+          className="shrink-0 h-8 px-2.5 min-[400px]:px-3 rounded-[10px] bg-(--p-acento) text-[#170f27] text-[10.5px] min-[400px]:text-[11.5px] font-bold tracking-[0.1em] min-[400px]:tracking-[0.12em] hover:brightness-105 transition"
         >
-          VER CARTERA
+          <Corto movil="VER TODO">VER CARTERA</Corto>
         </button>
       }
     >
@@ -393,16 +394,78 @@ function MayoresDeudores({ data, onIr }: { data: DashboardData | null; onIr: (s:
               </span>
               <div className="flex-1 min-w-0 leading-tight">
                 <p className="text-[14px] font-semibold truncate">{d.nombre}</p>
-                <p className="text-[12px] text-(--p-suave) truncate">{d.grado} · Doc. {documento(d.identidad)}</p>
+                <p className="text-[12px] text-(--p-suave) truncate">
+                  {d.grado}<span className="hidden lg:inline"> · Doc. {documento(d.identidad)}</span>
+                </p>
               </div>
               <span className="shrink-0 text-[14px] font-bold">{dineroCorto(d.saldo)}</span>
               <button
                 type="button"
                 onClick={() => onIr('pagos')}
                 aria-label={`Ver pagos de ${d.nombre}`}
-                className="shrink-0 grid place-items-center size-8 rounded-full border border-(--p-borde) hover:bg-(--p-hover) transition-colors"
+                className="shrink-0 grid place-items-center size-7 lg:size-8 rounded-full text-(--p-suave) lg:text-current lg:border border-(--p-borde) hover:bg-(--p-hover) transition-colors"
               >
                 <I.ChevronDerecha tam={15} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Tarjeta>
+  );
+}
+
+/* ── Celular y tablet: últimos pagos ───────────────────────────── */
+// La tabla del computador no cabe a lo ancho: cada pago va en una fila con
+// estudiante y concepto a la izquierda, monto y fecha a la derecha.
+
+function UltimosPagosMovil({ data, onIr }: { data: DashboardData | null; onIr: (s: Seccion) => void }) {
+  const pagos = data?.ultimosPagos ?? [];
+  return (
+    <Tarjeta
+      Icono={I.Tarjeta}
+      titulo="Últimos pagos"
+      className="min-w-0 lg:hidden"
+      accion={
+        <button
+          type="button"
+          onClick={() => onIr('pagos')}
+          className="shrink-0 h-8 px-2.5 min-[400px]:px-3 rounded-[10px] bg-(--p-acento) text-[#170f27] text-[10.5px] min-[400px]:text-[11.5px] font-bold tracking-[0.1em] min-[400px]:tracking-[0.12em] hover:brightness-105 transition"
+        >
+          VER TODO
+        </button>
+      }
+    >
+      {!data ? (
+        <p className="px-5 py-6 text-[14px] text-(--p-suave)">Cargando…</p>
+      ) : pagos.length === 0 ? (
+        <p className="px-5 py-6 text-[14px] text-(--p-suave)">Todavía no hay pagos registrados este año.</p>
+      ) : (
+        <ul className="py-1">
+          {pagos.map((p, i) => (
+            <li
+              key={p.idPago}
+              className="aparecer-fila border-b last:border-b-0 border-(--p-borde)"
+              style={{ '--i': i } as CSSProperties}
+            >
+              <button
+                type="button"
+                onClick={() => onIr('pagos')}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-(--p-hover) transition-colors"
+              >
+                <span className="grid place-items-center shrink-0 size-9 rounded-full bg-(--p-menta) text-[12px] font-bold">
+                  {iniciales(p.estudiante)}
+                </span>
+                <span className="flex-1 min-w-0 leading-tight">
+                  <span className="block text-[14px] font-semibold truncate">{p.estudiante}</span>
+                  <span className="block mt-0.5 text-[12px] text-(--p-suave) truncate">
+                    {capitalizar(p.concepto.toLowerCase())} de {MESES_LARGOS[p.mes - 1] ?? ''}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right leading-tight">
+                  <span className="block text-[14px] font-bold">${p.monto.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
+                  <span className="block mt-0.5 text-[11.5px] text-(--p-suave) whitespace-nowrap">{fechaCorta(p.fecha)}</span>
+                </span>
               </button>
             </li>
           ))}

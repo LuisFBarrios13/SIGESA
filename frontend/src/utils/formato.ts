@@ -31,9 +31,10 @@ export const MESES_LARGOS = [
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
 ];
 
-/** "DOMINGO · 15 DE NOVIEMBRE" */
-export function fechaEncabezado(d = new Date()): string {
-  return `${DIAS[d.getDay()]} · ${d.getDate()} de ${MESES_LARGOS[d.getMonth()]}`.toUpperCase();
+/** "DOMINGO · 15 DE NOVIEMBRE" (con conYear: "… DE 2026") */
+export function fechaEncabezado(d = new Date(), conYear = false): string {
+  const texto = `${DIAS[d.getDay()]} · ${d.getDate()} de ${MESES_LARGOS[d.getMonth()]}${conYear ? ` de ${d.getFullYear()}` : ''}`;
+  return texto.toUpperCase();
 }
 
 /** Saludo según la hora del día. */
@@ -53,4 +54,22 @@ export function listaY(items: string[]): string {
 /** "Primero · Mañana" */
 export function nombreGrado(nombre: string, jornada: string): string {
   return `${nombre} · ${jornada === 'TARDE' ? 'Tarde' : 'Mañana'}`;
+}
+
+/** "2020-05-05" → "05 may 2020" (sin pasar por Date, así no cambia por la zona horaria). */
+export function fechaDia(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return iso;
+  return `${String(d).padStart(2, '0')} ${MESES_LARGOS[m - 1].slice(0, 3)} ${y}`;
+}
+
+/** Años cumplidos a partir de "AAAA-MM-DD". */
+export function edad(iso: string | null | undefined, hoy = new Date()): number | null {
+  if (!iso) return null;
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  let anos = hoy.getFullYear() - y;
+  if (hoy.getMonth() + 1 < m || (hoy.getMonth() + 1 === m && hoy.getDate() < d)) anos--;
+  return anos;
 }

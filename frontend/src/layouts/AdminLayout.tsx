@@ -1,15 +1,18 @@
 // src/layouts/AdminLayout.tsx — estructura del panel del administrador:
 // barra lateral, barra superior (buscador, avisos, tema y usuario) y contenido.
-import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type ComponentType, type ReactNode } from 'react';
 import { useTema, type Tema } from '../hooks/useTema';
 import { useDashboard } from '../hooks/useDashboard';
 import { useClickFuera } from '../hooks/useClickFuera';
+import { useScrollVisible } from '../hooks/useScrollVisible';
 import { estudiantesApi } from '../services/api';
 import type { AuthUser } from '../types/auth';
 import type { EstudianteListItem } from '../types/estudiantes';
 import type { DashboardData } from '../types/dashboard';
 import { documento, iniciales, nombreGrado } from '../utils/formato';
 import InicioPage from '../pages/admin/InicioPage';
+import EstudiantesPage from '../pages/admin/EstudiantesPage';
+import { ESCALA_CONTENIDO, ID_CAPA } from './escala';
 import * as I from '../components/iconos';
 
 export type Seccion =
@@ -40,11 +43,6 @@ const TITULOS: Record<Seccion, string> = {
   deudores: 'Deudores', pagos: 'Pagos', cuenta: 'Cambiar contraseña',
 };
 
-/**
- * Tamaño de todo el contenido (barra superior y sección), sin contar la barra lateral.
- * 1 = tamaño del diseño; 0.85 = un 15 % más pequeño.
- */
-const ESCALA_CONTENIDO = 0.85;
 
 interface Props {
   user: AuthUser;
@@ -53,28 +51,45 @@ interface Props {
 
 export default function AdminLayout({ user, onLogout }: Props) {
   const { tema, cambiarTema } = useTema();
+  useScrollVisible();
   const [seccion, setSeccion] = useState<Seccion>('inicio');
   const [year, setYear] = useState(() => new Date().getFullYear());
   const dashboard = useDashboard(year);
+  /** Estudiante cuya ficha se abre al llegar a Estudiantes (desde el buscador). */
+  const [estudianteAbierto, setEstudianteAbierto] = useState<string | null>(null);
+  /** Menú lateral del celular y la tablet. */
+  const [menuAbierto, setMenuAbierto] = useState(false);
+
+  function verEstudiante(id: string) {
+    setEstudianteAbierto(id);
+    setSeccion('estudiantes');
+  }
+
+  function ir(s: Seccion) {
+    setMenuAbierto(false);
+    setSeccion(s);
+    window.scrollTo({ top: 0 });
+  }
+
+  const propsMenu = {
+    seccion,
+    tema,
+    onCambiarTema: cambiarTema,
+    onLogout,
+    year,
+    periodo: dashboard.data?.academico.periodoActual ?? null,
+  };
 
   return (
     <div
       data-tema={tema}
-      className="panel min-h-dvh bg-(--p-fondo) text-(--p-tinta) p-4 sm:px-6 lg:px-8 transition-colors
+      className="panel min-h-dvh bg-(--p-fondo) text-(--p-tinta) p-3 min-[400px]:p-4 pb-[104px] min-[400px]:pb-[104px] sm:px-6 lg:px-8 lg:pb-4 transition-colors
                  lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-5"
     >
-      <BarraLateral
-        seccion={seccion}
-        onIr={setSeccion}
-        tema={tema}
-        onCambiarTema={cambiarTema}
-        onLogout={onLogout}
-        year={year}
-        periodo={dashboard.data?.academico.periodoActual ?? null}
-      />
+      <BarraLateral {...propsMenu} onIr={ir} />
 
       <div
-        className="min-w-0 flex flex-col gap-5"
+        className="min-w-0 flex flex-col gap-3 lg:gap-5"
         // El zoom también achica las unidades de pantalla, así que el alto mínimo se compensa.
         style={{ zoom: ESCALA_CONTENIDO, minHeight: `calc((100dvh - 2rem) / ${ESCALA_CONTENIDO})` }}
       >
@@ -82,13 +97,24 @@ export default function AdminLayout({ user, onLogout }: Props) {
           user={user}
           tema={tema}
           onCambiarTema={cambiarTema}
-          onIr={setSeccion}
+          onIr={ir}
           onLogout={onLogout}
+          onVerEstudiante={verEstudiante}
+          data={dashboard.data}
+        />
+        <BarraSuperiorMovil
+          user={user}
+          tema={tema}
+          onCambiarTema={cambiarTema}
+          onIr={ir}
+          onLogout={onLogout}
+          onVerEstudiante={verEstudiante}
+          onAbrirMenu={() => setMenuAbierto(true)}
           data={dashboard.data}
         />
 
         {/* Contenedor grande con todo el contenido de la sección */}
-        <div className="flex-1 flex flex-col rounded-[28px] bg-(--p-contenedor) border border-(--p-borde) p-5 xl:p-7 transition-colors">
+        <div className="flex-1 flex flex-col rounded-[24px] lg:rounded-[28px] bg-(--p-contenedor) border border-(--p-borde) p-3 min-[400px]:p-3.5 sm:p-5 xl:p-7 transition-colors">
         {seccion === 'inicio' ? (
           <InicioPage
             user={user}
@@ -97,19 +123,93 @@ export default function AdminLayout({ user, onLogout }: Props) {
             onIr={setSeccion}
             {...dashboard}
           />
+        ) : seccion === 'estudiantes' ? (
+          <EstudiantesPage
+            onIr={setSeccion}
+            abrirId={estudianteAbierto}
+            onAbierto={() => setEstudianteAbierto(null)}
+          />
         ) : (
           <EnConstruccion titulo={TITULOS[seccion]} onVolver={() => setSeccion('inicio')} />
         )}
         </div>
       </div>
+
+      <NavegacionInferior seccion={seccion} onIr={ir} onMas={() => setMenuAbierto(true)} />
+      {menuAbierto && <MenuMovil {...propsMenu} onIr={ir} onCerrar={() => setMenuAbierto(false)} />}
+
+      {/* Ficha lateral y diálogos: fuera del zoom para poder cubrir toda la pantalla */}
+      <div id={ID_CAPA} />
     </div>
+  );
+}
+
+/* ── Celular y tablet: menú lateral y barra de abajo ───────────── */
+
+function MenuMovil({ onCerrar, ...props }: ComponentProps<typeof BarraLateral> & { onCerrar: () => void }) {
+  useEffect(() => {
+    const alTecla = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar(); };
+    document.addEventListener('keydown', alTecla);
+    const antes = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', alTecla);
+      document.body.style.overflow = antes;
+    };
+  }, [onCerrar]);
+
+  return (
+    <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menú">
+      <div className="velo absolute inset-0 bg-black/45" onClick={onCerrar} />
+      <div className="cajon-izq absolute inset-y-3 left-3 w-[min(300px,calc(100vw-56px))]">
+        <BarraLateral {...props} enCajon onCerrar={onCerrar} />
+      </div>
+    </div>
+  );
+}
+
+const NAV_INFERIOR: { id: Seccion; label: string; Icono: IconoComp }[] = [
+  { id: 'inicio', label: 'Inicio', Icono: I.Casa },
+  { id: 'estudiantes', label: 'Estudiantes', Icono: I.Estudiantes },
+  { id: 'pagos', label: 'Pagos', Icono: I.Tarjeta },
+];
+
+function NavegacionInferior({ seccion, onIr, onMas }: { seccion: Seccion; onIr: (s: Seccion) => void; onMas: () => void }) {
+  const enMas = !NAV_INFERIOR.some(n => n.id === seccion);
+  const clase = (activo: boolean) =>
+    `flex flex-col items-center justify-center gap-1 rounded-2xl text-[11px] transition-colors ${
+      activo ? 'bg-(--p-acento) text-[#170f27] font-bold' : 'text-(--p-suave) font-medium hover:text-(--p-tinta)'
+    }`;
+  return (
+    <nav
+      aria-label="Secciones"
+      className="lg:hidden fixed z-30 left-1/2 -translate-x-1/2 w-[calc(100%-24px)] min-[400px]:w-[calc(100%-32px)] max-w-[560px] bottom-[max(16px,env(safe-area-inset-bottom))] grid grid-cols-4 gap-1 h-[68px] p-1.5
+                 rounded-[22px] bg-(--p-sup) border border-(--p-borde) shadow-lg shadow-black/5 transition-colors"
+    >
+      {NAV_INFERIOR.map(({ id, label, Icono }) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => onIr(id)}
+          aria-current={seccion === id ? 'page' : undefined}
+          className={clase(seccion === id)}
+        >
+          <Icono tam={18} />
+          {label}
+        </button>
+      ))}
+      <button type="button" onClick={onMas} className={clase(enMas)}>
+        <I.Grilla tam={18} />
+        Más
+      </button>
+    </nav>
   );
 }
 
 /* ── Barra lateral ─────────────────────────────────────────────── */
 
 function BarraLateral({
-  seccion, onIr, tema, onCambiarTema, onLogout, year, periodo,
+  seccion, onIr, tema, onCambiarTema, onLogout, year, periodo, enCajon = false, onCerrar,
 }: {
   seccion: Seccion;
   onIr: (s: Seccion) => void;
@@ -118,22 +218,36 @@ function BarraLateral({
   onLogout: () => void;
   year: number;
   periodo: number | null;
+  /** Dibujada dentro del menú deslizable del celular. */
+  enCajon?: boolean;
+  onCerrar?: () => void;
 }) {
   return (
     <aside
-      // Fija al hacer scroll y del alto de la pantalla.
-      className="hidden lg:flex flex-col sticky top-4 h-[calc(100dvh-2rem)] overflow-hidden
-                 rounded-[22px] bg-(--p-sup) border border-(--p-borde) transition-colors"
+      // En computador: fija al hacer scroll y del alto de la pantalla.
+      className={`flex-col overflow-hidden rounded-[22px] bg-(--p-sup) border border-(--p-borde) transition-colors ${
+        enCajon ? 'flex h-full' : 'hidden lg:flex sticky top-4 h-[calc(100dvh-2rem)]'
+      }`}
     >
       {/* Marca */}
       <div className="shrink-0 flex items-center gap-2.5 h-[clamp(56px,7.5dvh,72px)] px-3.5 bg-(--p-banda) text-white">
         <span className="grid place-items-center shrink-0 size-9 rounded-xl bg-(--p-acento) text-[#170f27]">
           <I.Libro tam={18.32} />
         </span>
-        <div className="leading-tight min-w-0">
+        <div className="flex-1 leading-tight min-w-0">
           <p className="text-[14.15px] font-extrabold tracking-[0.08em]">SIGESA</p>
           <p className="text-[8.74px] tracking-[-0.01em] text-white/80 whitespace-nowrap">Colegio Pedagógico San Agustín</p>
         </div>
+        {onCerrar && (
+          <button
+            type="button"
+            onClick={onCerrar}
+            aria-label="Cerrar menú"
+            className="grid place-items-center shrink-0 size-9 rounded-xl text-white/80 hover:bg-white/10"
+          >
+            <I.Cerrar tam={18} />
+          </button>
+        )}
       </div>
 
       {/* Menú */}
@@ -231,19 +345,20 @@ function BotonBarra({
 /* ── Barra superior ────────────────────────────────────────────── */
 
 function BarraSuperior({
-  user, tema, onCambiarTema, onIr, onLogout, data,
+  user, tema, onCambiarTema, onIr, onLogout, onVerEstudiante, data,
 }: {
   user: AuthUser;
   tema: Tema;
   onCambiarTema: (t: Tema) => void;
   onIr: (s: Seccion) => void;
   onLogout: () => void;
+  onVerEstudiante: (id: string) => void;
   data: DashboardData | null;
 }) {
   return (
-    <header className="relative z-20 flex items-stretch gap-4 h-[64px]">
+    <header className="hidden lg:flex relative z-20 items-stretch gap-4 h-[64px]">
       <div className="flex-1 min-w-0 flex items-center px-3 rounded-[22px] bg-(--p-sup) border border-(--p-borde) transition-colors">
-        <Buscador onIr={onIr} />
+        <Buscador onIr={onIr} onVerEstudiante={onVerEstudiante} />
       </div>
       <div className="shrink-0 flex items-center gap-2.5 px-3 rounded-[22px] bg-(--p-sup) border border-(--p-borde) transition-colors">
         <Campanita data={data} onIr={onIr} />
@@ -254,7 +369,42 @@ function BarraSuperior({
   );
 }
 
-function Buscador({ onIr }: { onIr: (s: Seccion) => void }) {
+/** Celular y tablet: marca con menú, tema y usuario; debajo, buscador y avisos. */
+function BarraSuperiorMovil({
+  user, tema, onCambiarTema, onIr, onLogout, onVerEstudiante, onAbrirMenu, data,
+}: ComponentProps<typeof BarraSuperior> & { onAbrirMenu: () => void }) {
+  return (
+    <header className="lg:hidden relative z-20 flex flex-col gap-3">
+      <div className="flex items-center gap-2.5 h-[58px] px-2 rounded-[20px] bg-(--p-sup) border border-(--p-borde) transition-colors">
+        <button
+          type="button"
+          onClick={onAbrirMenu}
+          aria-label="Abrir menú"
+          className="grid place-items-center shrink-0 size-10 rounded-xl bg-(--p-icono) text-(--p-acento) hover:brightness-125"
+        >
+          <I.Lista tam={19} />
+        </button>
+        <div className="flex-1 min-w-0 leading-tight">
+          <p className="text-[14px] font-extrabold tracking-[0.08em]">SIGESA</p>
+          <p className="text-[9.5px] text-(--p-suave) truncate">Colegio Pedagógico San Agustín</p>
+        </div>
+        <SelectorTema tema={tema} onCambiar={onCambiarTema} />
+        <MenuUsuario user={user} onIr={onIr} onLogout={onLogout} compacto />
+      </div>
+
+      <div className="flex items-stretch gap-2.5 h-[50px]">
+        <div className="flex-1 min-w-0 flex items-center rounded-2xl bg-(--p-sup) border border-(--p-borde) transition-colors">
+          <Buscador onIr={onIr} onVerEstudiante={onVerEstudiante} movil />
+        </div>
+        <Campanita data={data} onIr={onIr} movil />
+      </div>
+    </header>
+  );
+}
+
+function Buscador({
+  onIr, onVerEstudiante, movil = false,
+}: { onIr: (s: Seccion) => void; onVerEstudiante: (id: string) => void; movil?: boolean }) {
   const [texto, setTexto] = useState('');
   const [abierto, setAbierto] = useState(false);
   const [resultados, setResultados] = useState<EstudianteListItem[]>([]);
@@ -305,8 +455,9 @@ function Buscador({ onIr }: { onIr: (s: Seccion) => void }) {
   return (
     <div ref={caja} className="relative w-full">
       <label
-        className="flex items-center gap-3 h-10 px-3.5 rounded-xl border border-(--p-borde)
-                   focus-within:border-(--p-acento) transition-colors"
+        className={`flex items-center gap-3 px-3.5 rounded-xl transition-colors ${
+          movil ? 'h-[48px] px-4' : 'h-10 border border-(--p-borde) focus-within:border-(--p-acento)'
+        }`}
       >
         <span className="text-(--p-suave)"><I.Buscar tam={17.85} /></span>
         <input
@@ -315,7 +466,7 @@ function Buscador({ onIr }: { onIr: (s: Seccion) => void }) {
           value={texto}
           onChange={e => { setTexto(e.target.value); setAbierto(true); }}
           onFocus={() => setAbierto(true)}
-          placeholder="Buscar estudiante por nombre o documento"
+          placeholder="Buscar estudiante…"
           aria-label="Buscar estudiante"
           className="flex-1 min-w-0 bg-transparent text-[14.7px] outline-none placeholder:text-(--p-suave)"
         />
@@ -350,7 +501,7 @@ function Buscador({ onIr }: { onIr: (s: Seccion) => void }) {
                     </div>
                     <button
                       type="button"
-                      onClick={() => ir('estudiantes')}
+                      onClick={() => { setAbierto(false); setTexto(''); onVerEstudiante(e.numero_identidad); }}
                       className="h-8 px-3 rounded-lg border border-(--p-borde) text-[12.6px] font-semibold hover:bg-(--p-sup)"
                     >
                       Ver ficha
@@ -408,7 +559,9 @@ function calcularAvisos(d: DashboardData | null): Aviso[] {
   return avisos;
 }
 
-function Campanita({ data, onIr }: { data: DashboardData | null; onIr: (s: Seccion) => void }) {
+function Campanita({
+  data, onIr, movil = false,
+}: { data: DashboardData | null; onIr: (s: Seccion) => void; movil?: boolean }) {
   const [abierto, setAbierto] = useState(false);
   const caja = useRef<HTMLDivElement>(null);
   useClickFuera(caja, abierto, () => setAbierto(false));
@@ -421,7 +574,9 @@ function Campanita({ data, onIr }: { data: DashboardData | null; onIr: (s: Secci
         onClick={() => setAbierto(a => !a)}
         aria-label={avisos.length ? `Pendientes: ${avisos.length}` : 'Pendientes'}
         aria-expanded={abierto}
-        className="relative grid place-items-center size-10 rounded-xl border border-(--p-borde) hover:bg-(--p-hover) transition-colors"
+        className={`relative grid place-items-center border border-(--p-borde) hover:bg-(--p-hover) transition-colors ${
+          movil ? 'size-[50px] rounded-2xl bg-(--p-sup)' : 'size-10 rounded-xl'
+        }`}
       >
         <I.Campana tam={18.9} />
         {avisos.length > 0 && (
@@ -436,7 +591,7 @@ function Campanita({ data, onIr }: { data: DashboardData | null; onIr: (s: Secci
 
       {abierto && (
         <div
-          className="emergente absolute right-0 top-[calc(100%+8px)] w-[340px] rounded-2xl bg-(--p-sup) border border-(--p-borde)
+          className="emergente absolute right-0 top-[calc(100%+8px)] w-[min(340px,calc(100vw-32px))] rounded-2xl bg-(--p-sup) border border-(--p-borde)
                      shadow-xl shadow-black/10 overflow-hidden"
         >
           <p className="px-4 h-11 flex items-center bg-(--p-banda) text-white text-[12.6px] font-bold tracking-[0.14em]">
@@ -497,14 +652,26 @@ function SelectorTema({ tema, onCambiar }: { tema: Tema; onCambiar: (t: Tema) =>
 }
 
 function MenuUsuario({
-  user, onIr, onLogout,
-}: { user: AuthUser; onIr: (s: Seccion) => void; onLogout: () => void }) {
+  user, onIr, onLogout, compacto = false,
+}: { user: AuthUser; onIr: (s: Seccion) => void; onLogout: () => void; compacto?: boolean }) {
   const [abierto, setAbierto] = useState(false);
   const caja = useRef<HTMLDivElement>(null);
   useClickFuera(caja, abierto, () => setAbierto(false));
 
   return (
-    <div ref={caja} className="relative">
+    <div ref={caja} className="relative shrink-0">
+      {compacto ? (
+        <button
+          type="button"
+          onClick={() => setAbierto(a => !a)}
+          aria-expanded={abierto}
+          aria-haspopup="menu"
+          aria-label="Menú de usuario"
+          className="grid place-items-center size-10 rounded-full bg-(--p-acento) text-[#170f27] text-[13px] font-bold hover:brightness-105"
+        >
+          {iniciales(user.nombre || user.username)}
+        </button>
+      ) : (
       <button
         type="button"
         onClick={() => setAbierto(a => !a)}
@@ -521,6 +688,7 @@ function MenuUsuario({
         </span>
         <span className="text-(--p-suave)"><I.ChevronAbajo tam={16.8} /></span>
       </button>
+      )}
 
       {abierto && (
         <div

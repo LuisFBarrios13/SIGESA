@@ -34,3 +34,14 @@ describe('formato', () => {
     expect(saludo(new Date(2026, 10, 15, 21))).toBe('Buenas noches');
   });
 });
+
+describe('fechas de estudiantes', () => {
+  it('fechaDia y edad', async () => {
+    const { fechaDia, edad, fechaEncabezado } = await import('./formato');
+    expect(fechaDia('2020-05-05')).toBe('05 may 2020');
+    expect(fechaDia(null)).toBe('—');
+    expect(edad('2016-11-20', new Date(2026, 10, 15))).toBe(9);
+    expect(edad('2016-11-15', new Date(2026, 10, 15))).toBe(10);
+    expect(fechaEncabezado(new Date(2026, 10, 15), true)).toBe('DOMINGO · 15 DE NOVIEMBRE DE 2026');
+  });
+});

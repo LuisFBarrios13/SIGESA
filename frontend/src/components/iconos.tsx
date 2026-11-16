@@ -105,3 +105,44 @@ export const Libro = ({ tam = 22 }: { tam?: number }) => (
     <path d="M21 5.5c-2.8-1.2-5.8-1.1-8 .6v13c2.2-1.6 5.2-1.8 8-.6Z" />
   </svg>
 );
+
+/* ── Estudiantes ─────────────────────────────────────────────── */
+export const CheckCirculo = (p: Props) => (
+  <Icono {...p}><circle cx="12" cy="12" r="8.5" /><path d="m8.5 12.3 2.4 2.4 4.6-4.9" /></Icono>
+);
+export const PersonaX = (p: Props) => (
+  <Icono {...p}><circle cx="9.5" cy="8" r="3.5" /><path d="M3 20c0-3.6 2.9-6.2 6.5-6.2 1.4 0 2.6.4 3.6 1" /><path d="m16 14 4.5 4.5M20.5 14 16 18.5" /></Icono>
+);
+export const PersonaCheck = (p: Props) => (
+  <Icono {...p}><circle cx="9.5" cy="8" r="3.5" /><path d="M3 20c0-3.6 2.9-6.2 6.5-6.2 1.4 0 2.6.4 3.6 1" /><path d="m15 17 2 2 4-4.5" /></Icono>
+);
+export const PersonaMenos = (p: Props) => (
+  <Icono {...p}><circle cx="9.5" cy="8" r="3.5" /><path d="M3 20c0-3.6 2.9-6.2 6.5-6.2 1.4 0 2.6.4 3.6 1" /><path d="M15.5 16.5h5" /></Icono>
+);
+export const PersonaMas = (p: Props) => (
+  <Icono {...p}><circle cx="9.5" cy="8" r="3.5" /><path d="M3 20c0-3.6 2.9-6.2 6.5-6.2 1.4 0 2.6.4 3.6 1" /><path d="M18 13.5v6M15 16.5h6" /></Icono>
+);
+export const Birrete = (p: Props) => (
+  <Icono {...p}><path d="M2.5 9.5 12 5l9.5 4.5L12 14Z" /><path d="M6.5 11.5V16c1.5 1.5 3.4 2.2 5.5 2.2s4-.7 5.5-2.2v-4.5" /><path d="M21.5 9.5v5" /></Icono>
+);
+export const Lapiz = (p: Props) => (
+  <Icono {...p}><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16Z" /><path d="m13.5 6.5 4 4" /></Icono>
+);
+export const Lista = (p: Props) => (
+  <Icono {...p}><path d="M5 7h14M5 12h14M5 17h14" /></Icono>
+);
+export const Bandera = (p: Props) => (
+  <Icono {...p}><path d="M5 21V4" /><path d="M5 4.5h11l-2 3.5 2 3.5H5" /></Icono>
+);
+export const Atardecer = (p: Props) => (
+  <Icono {...p}><path d="M7 16a5 5 0 0 1 10 0" /><path d="M3 19.5h18M12 5v3M4.6 9.6l1.8 1.8M19.4 9.6l-1.8 1.8" /></Icono>
+);
+export const Cerrar = (p: Props) => (
+  <Icono {...p}><path d="M6 6l12 12M18 6 6 18" /></Icono>
+);
+export const Telefono = (p: Props) => (
+  <Icono {...p}><path d="M5 4h3.5l1.5 4-2 1.3a10 10 0 0 0 6.7 6.7L16 14l4 1.5V19a1.5 1.5 0 0 1-1.6 1.5C10.6 20 4 13.4 3.5 5.6A1.5 1.5 0 0 1 5 4Z" /></Icono>
+);
+export const Correo = (p: Props) => (
+  <Icono {...p}><rect x="3" y="5.5" width="18" height="13" rx="2" /><path d="m4 7 8 6 8-6" /></Icono>
+);

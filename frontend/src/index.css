@@ -171,3 +171,48 @@
     .emergente { transform: none; }
   }
 }
+
+/* Panel lateral (ficha) y diálogos */
+.panel { --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); }
+.velo { transition: opacity 200ms ease; }
+@starting-style { .velo { opacity: 0; } }
+.cajon { transition: transform 320ms var(--ease-drawer); }
+@starting-style { .cajon { transform: translateX(100%); } }
+/* Los diálogos no salen de un botón: crecen desde el centro. */
+.dialogo { transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out); }
+@starting-style { .dialogo { opacity: 0; transform: scale(0.96); } }
+@media (prefers-reduced-motion: reduce) {
+  .cajon { transition: opacity 200ms ease; }
+  @starting-style { .cajon { transform: none; opacity: 0; } }
+  @starting-style { .dialogo { transform: none; } }
+}
+
+/* Barra de scroll de la página: invisible hasta que la persona se desplaza.
+   Conserva su espacio (solo se vuelve transparente) para que el contenido no salte. */
+html:has(.panel) {
+  scrollbar-color: transparent transparent;
+  background: #e1eee5;
+}
+html:has(.panel[data-tema="oscuro"]) { background: #0b0910; }
+html:has(.panel).desplazando { scrollbar-color: rgb(23 15 39 / 0.35) transparent; }
+html:has(.panel[data-tema="oscuro"]).desplazando { scrollbar-color: rgb(244 242 247 / 0.3) transparent; }
+
+/* Relleno gris mientras cargan los datos (pulso suave, sin desplazamiento). */
+@keyframes pulso { 50% { opacity: 0.45; } }
+.esqueleto {
+  background: var(--p-menta);
+  animation: pulso 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .esqueleto { animation: none; } }
+
+/* Escala del contenido (ver layouts/escala.ts): solo se reduce en computador. */
+.panel { --p-escala: 1; }
+@media (min-width: 64rem) { .panel { --p-escala: 0.85; } }
+
+/* Menú lateral del celular: entra desde la izquierda. */
+.cajon-izq { transition: transform 320ms var(--ease-drawer); }
+@starting-style { .cajon-izq { transform: translateX(-100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .cajon-izq { transition: opacity 200ms ease; }
+  @starting-style { .cajon-izq { transform: none; opacity: 0; } }
+}
