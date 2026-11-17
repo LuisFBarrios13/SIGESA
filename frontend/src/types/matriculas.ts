@@ -2,13 +2,17 @@
 // Tipos del dominio de matrículas.
 
 import type { JornadaEstudiante } from './shared';
+import type { Sexo, TipoDocumento } from './estudiantes';
 
 export interface MatriculaPayload {
   estudiante: {
     numero_identidad: string;
     nombre:           string;
     fecha_nacimiento: string;
+    tipo_documento?:  TipoDocumento;
+    sexo?:            Sexo;
     rh?:              string;
+    eps?:             string;
     direccion?:       string;
     observaciones?:   string;
   };
@@ -24,6 +28,8 @@ export interface MatriculaPayload {
     telefono?: string;
     correo?:   string;
     direccion?: string;
+    telefono_trabajo?:  string;
+    direccion_trabajo?: string;
   };
   relacion?: {
     parentesco?: string;

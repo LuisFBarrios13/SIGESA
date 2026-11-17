@@ -549,14 +549,13 @@ function Avatar({ nombre, destacado = false, tam = 'size-9' }: { nombre: string;
   );
 }
 
+/** Etiqueta de jornada. En claro: tinte dorado (Mañana) o gris (Tarde). En oscuro: fondo
+ *  violeta elevado y el color solo en el ícono (sol dorado, atardecer gris ceniza). */
 function ChipJornada({ jornada, sobreMenta = false }: { jornada: 'MAÑANA' | 'TARDE'; sobreMenta?: boolean }) {
   const manana = jornada === 'MAÑANA';
   return (
-    <span className={`inline-flex items-center gap-1.5 h-6 px-2.5 rounded-[8px] text-[12px] font-semibold ${
-      // Sobre un fondo menta, el chip de la tarde necesita un tono propio para notarse.
-      manana ? 'bg-(--p-acento)/25' : sobreMenta ? 'bg-(--p-gris)/35' : 'bg-(--p-menta)'
-    }`}>
-      {manana ? <I.SolRayos tam={13} /> : <I.Atardecer tam={13} />}
+    <span className={`chip-jornada ${manana ? 'manana' : 'tarde'} ${sobreMenta ? 'sobre-menta' : ''} inline-flex items-center gap-1.5 h-6 px-2.5 rounded-[9px] text-[12px] font-bold`}>
+      <span className="icono inline-flex">{manana ? <I.SolRayos tam={13} /> : <I.Atardecer tam={13} />}</span>
       {manana ? 'Mañana' : 'Tarde'}
     </span>
   );

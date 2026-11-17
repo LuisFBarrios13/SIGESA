@@ -56,7 +56,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   // Una respuesta que no es JSON (p. ej. un proxy caído) no debe romper con un error críptico.
   const body = (await res.json().catch(() => null)) as ApiResponse<T> | null;
-  if (!res.ok) throw new Error(body?.message ?? `Error en la solicitud (${res.status})`);
+  // El código HTTP viaja en el error (p. ej. 404 = no existe) para quien lo necesite.
+  if (!res.ok) throw Object.assign(new Error(body?.message ?? `Error en la solicitud (${res.status})`), { status: res.status });
   if (!body) throw new Error('Respuesta inválida del servidor');
   return body.data;
 }
@@ -73,6 +74,7 @@ import type { LoginResult, Grado, Credenciales }   from '../types/shared';
 import type { MatriculaPayload, MatriculaResult, MatriculaListItem }  from '../types/matriculas';
 import type { DocentePayload, DocenteResult, DocenteListItem, GradoDisponibilidad } from '../types/docentes';
 import type { EstudianteListItem, EstudianteDetalle, ActualizarEstudiantePayload }  from '../types/estudiantes';
+import type { AcudienteDetalle } from '../types/acudientes-admin';
 
 // ── Re-exports ────────────────────────────────────────────────
 // Las páginas siguen importando desde este archivo sin necesidad de cambios.
@@ -95,6 +97,13 @@ export const authApi = {
 
 export const gradosApi = {
   listar: () => api.get<Grado[]>('/grados'),
+};
+
+// ── Acudientes ────────────────────────────────────────────────
+
+export const acudientesApi = {
+  /** null si no existe (en la matrícula eso significa "acudiente nuevo"). */
+  buscar: (cedula: string) => api.get<AcudienteDetalle | null>(`/acudientes/${encodeURIComponent(cedula)}`),
 };
 
 // ── Matrículas ────────────────────────────────────────────────

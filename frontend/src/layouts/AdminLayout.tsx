@@ -12,6 +12,7 @@ import type { DashboardData } from '../types/dashboard';
 import { documento, iniciales, nombreGrado } from '../utils/formato';
 import InicioPage from '../pages/admin/InicioPage';
 import EstudiantesPage from '../pages/admin/EstudiantesPage';
+import MatriculaPage from '../pages/admin/MatriculaPage';
 import { ESCALA_CONTENIDO, ID_CAPA } from './escala';
 import * as I from '../components/iconos';
 
@@ -131,6 +132,8 @@ export default function AdminLayout({ user, onLogout }: Props) {
             abrirId={estudianteAbierto}
             onAbierto={() => setEstudianteAbierto(null)}
           />
+        ) : seccion === 'matriculas' ? (
+          <MatriculaPage onIr={ir} onVerEstudiante={verEstudiante} />
         ) : (
           <EnConstruccion titulo={TITULOS[seccion]} onVolver={() => setSeccion('inicio')} />
         )}
