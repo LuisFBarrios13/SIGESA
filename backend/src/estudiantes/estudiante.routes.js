@@ -4,6 +4,7 @@ import { listar, buscar, obtener, actualizar } from './estudiante.controller.js'
 import { authenticate, authorize } from '../middlewares/auth.middleware.js';
 import { ROLES } from '../constants/roles.js';
 import { validar, v } from '../middlewares/validar.middleware.js';
+import { TIPOS_DOCUMENTO, SEXOS, TIPOS_SANGRE } from '../constants/estudiantes.js';
 
 const router = Router();
 
@@ -39,7 +40,10 @@ router.patch(
     v.documento('id', 'El documento', 'param'),
     v.texto('nombre', 'El nombre', 150).optional(),
     v.fecha('fecha_nacimiento', 'La fecha de nacimiento', { opcional: true }),
-    v.textoOpcional('rh', 'El RH', 5),
+    v.enLista('tipo_documento', TIPOS_DOCUMENTO, 'El tipo de documento', { opcional: true }),
+    v.enLista('sexo', SEXOS, 'El sexo', { opcional: true }),
+    v.enLista('rh', TIPOS_SANGRE, 'El tipo de sangre', { opcional: true }),
+    v.textoOpcional('eps', 'La EPS', 100),
     v.textoOpcional('direccion', 'La dirección', 200),
     v.textoOpcional('observaciones', 'Las observaciones', 2000),
   ]),

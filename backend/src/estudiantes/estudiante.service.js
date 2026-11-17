@@ -56,8 +56,8 @@ export const actualizarEstudiante = async (numero_identidad, dto) => {
   const estudiante = await Estudiante.findByPk(numero_identidad);
   if (!estudiante) throw new AppError(404, 'Estudiante no encontrado');
 
-  const camposPermitidos = ['nombre', 'fecha_nacimiento', 'rh', 'direccion', 'observaciones'];
-  const opcionales = new Set(['rh', 'direccion', 'observaciones']);
+  const opcionales = new Set(['tipo_documento', 'sexo', 'rh', 'eps', 'direccion', 'observaciones']);
+  const camposPermitidos = ['nombre', 'fecha_nacimiento', ...opcionales];
   const actualizaciones = {};
 
   for (const campo of camposPermitidos) {

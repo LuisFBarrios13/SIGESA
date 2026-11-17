@@ -1,10 +1,10 @@
 // src/pages/admin/EstudiantesPage.tsx — listado y ficha de estudiantes.
 // Diseño: docs/Estudiantes · Modo claro@1x.png y Estudiantes · Modo oscuro@1x.png.
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type ComponentType, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentType, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { estudiantesApi, gradosApi, matriculasApi, clavesApi } from '../../services/api';
 import { pagosApi, type ResumenPagos } from '../../services/pagosApi';
-import type { EstudianteDetalle, EstudianteListItem, MatriculaListItem } from '../../types/estudiantes';
+import type { EstudianteDetalle, EstudianteListItem, MatriculaListItem, Sexo, TipoDocumento } from '../../types/estudiantes';
 import type { Grado, Credenciales } from '../../types/shared';
 import type { Seccion } from '../../layouts/AdminLayout';
 import { ESCALA_CONTENIDO, ID_CAPA } from '../../layouts/escala';
@@ -57,10 +57,16 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
   const [fJornada, setFJornada] = useState<'' | 'MAÑANA' | 'TARDE'>('');
   const [fYear, setFYear] = useState<FiltroYear>('actual');
   const [fEstado, setFEstado] = useState<'' | Estado>('');
-  const [vista, setVista] = useState<'lista' | 'tarjetas'>('lista');
+  // En celular y tablet la tabla no cabe: ahí arranca en tarjetas.
+  const [vista, setVista] = useState<'lista' | 'tarjetas'>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 64rem)').matches ? 'lista' : 'tarjetas');
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
 
   // Ficha y diálogos
-  const [ficha, setFicha] = useState<{ id: string; pestana: PestanaFicha; editar: boolean } | null>(null);
+  const [ficha, setFicha] = useState<{ id: string; pestana: PestanaFicha } | null>(null);
+  /** Veces que se guardaron datos: la ficha abierta se vuelve a cargar. */
+  const [versionFicha, setVersionFicha] = useState(0);
+  const [editando, setEditando] = useState<EstudianteListItem | null>(null);
   const [rematricular, setRematricular] = useState<EstudianteListItem | null>(null);
   const [cambioEstado, setCambioEstado] = useState<{ e: EstudianteListItem; m: MatriculaListItem } | null>(null);
   const [aviso, setAviso] = useState('');
@@ -89,7 +95,7 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
   // Ficha pedida desde el buscador de arriba
   useEffect(() => {
     if (!abrirId) return;
-    setFicha({ id: abrirId, pestana: 'datos', editar: false });
+    setFicha({ id: abrirId, pestana: 'datos' });
     onAbierto();
   }, [abrirId, onAbierto]);
 
@@ -135,17 +141,57 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
   }, [estudiantes]);
 
 
-  const abrirFicha = (id: string, pestana: PestanaFicha = 'datos', editar = false) => setFicha({ id, pestana, editar });
+  const abrirFicha = (id: string, pestana: PestanaFicha = 'datos') => setFicha({ id, pestana });
+
+  const filtrosActivos = [fGrado !== '', fJornada !== '', fYear !== 'actual', fEstado !== ''].filter(Boolean).length;
+  const limpiarFiltros = () => { setFGrado(''); setFJornada(''); setFYear('actual'); setFEstado(''); };
+
+  /** Los mismos cuatro filtros en la fila del computador y en el panel del celular. */
+  const filtros = (ancho: string) => (
+    <>
+      <Filtro ancho={ancho} Icono={I.Birrete} etiqueta="Grado" valor={String(fGrado)} onCambio={v => setFGrado(v ? Number(v) : '')}
+        opciones={[['', 'Todos los grados'], ...gradosUnicos(grados).map(g => [String(g.id_grado), `${g.nombre} · ${capitalizar(g.jornada)}`] as [string, string])]} />
+      <Filtro ancho={ancho} Icono={I.SolRayos} etiqueta="Jornada" valor={fJornada} onCambio={v => setFJornada(v as typeof fJornada)}
+        opciones={[['', 'Todas las jornadas'], ['MAÑANA', 'Mañana'], ['TARDE', 'Tarde']]} />
+      <Filtro ancho={ancho} Icono={I.Calendario} etiqueta="Año" valor={String(fYear)} onCambio={v => setFYear(v === 'actual' || v === 'todos' ? v : Number(v))}
+        opciones={[['actual', 'Año en curso'], ...years.filter(y => y !== YEAR_ACTUAL).map(y => [String(y), String(y)] as [string, string]), ['todos', 'Todos los años']]} />
+      <Filtro ancho={ancho} Icono={I.Bandera} etiqueta="Estado" valor={fEstado} onCambio={v => setFEstado(v as typeof fEstado)}
+        opciones={[['', 'Todos los estados'], ['ACTIVO', 'Activos'], ['RETIRADO', 'Retirados'], ['GRADUADO', 'Graduados']]} />
+    </>
+  );
 
   return (
     <main className="flex-1 flex flex-col">
       {/* Encabezado */}
-      <div className="aparecer flex flex-wrap items-start justify-between gap-4">
+      <div className="aparecer flex flex-col gap-3.5 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between lg:gap-4">
         <div>
-          <h1 className="text-[32px] leading-tight font-extrabold tracking-tight">Estudiantes</h1>
-          <p className="mt-1 text-[11.5px] font-semibold tracking-[0.18em] text-(--p-suave)">{fechaEncabezado(new Date(), true)}</p>
+          <h1 className="text-[28px] lg:text-[32px] leading-tight font-extrabold tracking-tight">Estudiantes</h1>
+          <p className="mt-1 text-[10px] lg:text-[11.5px] font-semibold tracking-[0.18em] text-(--p-suave)">{fechaEncabezado(new Date(), true)}</p>
         </div>
-        <div className="flex items-center gap-3">
+
+        {/* Celular y tablet */}
+        <div className="lg:hidden flex items-stretch gap-3 h-12">
+          <button
+            type="button"
+            onClick={recargar}
+            aria-label="Actualizar datos"
+            title="Actualizar datos"
+            className="grid place-items-center shrink-0 w-12 rounded-xl bg-(--p-sup) border border-(--p-borde) hover:bg-(--p-hover)"
+          >
+            <span className={cargando ? 'animate-[spin_0.7s_linear_infinite]' : ''}><I.Recargar tam={18} /></span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onIr('matriculas')}
+            className="flex-1 flex items-stretch rounded-xl overflow-hidden bg-(--p-banda) text-white hover:brightness-125 transition"
+          >
+            <span className="grid place-items-center shrink-0 w-12 bg-white/10"><I.PersonaMas tam={18} /></span>
+            <span className="flex-1 grid place-items-center text-[12.5px] font-bold tracking-[0.14em]">NUEVA MATRÍCULA</span>
+          </button>
+        </div>
+
+        {/* Computador */}
+        <div className="hidden lg:flex items-center gap-3">
           {/* Mismos botones y misma posición que en Inicio (ahí el de recargar va dentro del
               recuadro del año, con su borde; aquí se conserva ese borde para que no se mueva). */}
           <div className="flex items-stretch h-11 rounded-xl bg-(--p-sup) border border-(--p-borde) overflow-hidden">
@@ -180,8 +226,9 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
       {/* Indicadores */}
       <section
         aria-label="Resumen"
-        className="aparecer [--i:1] grid mt-6 sm:grid-cols-2 xl:grid-cols-4 rounded-[22px] bg-(--p-sup) border border-(--p-borde) overflow-hidden
-                   divide-y sm:divide-y-0 xl:divide-x divide-(--p-borde) transition-colors"
+        className="aparecer [--i:1] grid grid-cols-2 md:grid-cols-4 gap-3 mt-5 lg:mt-6 lg:gap-0 lg:grid-cols-2 xl:grid-cols-4
+                   lg:rounded-[22px] lg:bg-(--p-sup) lg:border lg:border-(--p-borde) lg:overflow-hidden
+                   xl:divide-x divide-(--p-borde) transition-colors"
       >
         <Indicador Icono={I.Estudiantes} cuadro="bg-(--p-acento) text-[#170f27]" titulo="Total" insignia="Todos"
           valor={estudiantes ? conteo.total : '—'} pct={conteo.total ? 100 : 0} clave={`t-${version}-${!!estudiantes}`} />
@@ -193,12 +240,24 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
           valor={estudiantes ? conteo.GRADUADO : '—'} pct={pct(conteo.GRADUADO, conteo.total)} clave={`g-${version}-${!!estudiantes}`} />
       </section>
 
+      {/* Aviso flotante: va por encima de la página y no mueve la tabla,
+          así nadie hace clic en el estudiante equivocado cuando aparece. */}
       {aviso && (
-        <div role="status" className="fundido mt-5 flex items-center gap-3 rounded-2xl bg-(--p-sup) border border-(--p-borde) px-5 py-3 text-[14px]">
-          <span className="text-(--p-acento)"><I.CheckCirculo tam={19} /></span>
-          <span className="flex-1">{aviso}</span>
-          <button type="button" onClick={() => setAviso('')} aria-label="Cerrar aviso" className="text-(--p-suave)"><I.Cerrar tam={16} /></button>
-        </div>
+        <Capa>
+          <div
+            role="status"
+            style={zoomCapa}
+            className="toast fixed z-[60] left-3 right-3 bottom-[96px] sm:left-auto sm:right-6 lg:bottom-6 sm:w-[400px]
+                       flex items-center gap-3 rounded-2xl bg-(--p-banda) text-white px-4 py-3.5 shadow-2xl shadow-black/25"
+          >
+            <span className="grid place-items-center shrink-0 size-8 rounded-full bg-(--p-acento) text-[#170f27]"><I.Check tam={17} /></span>
+            <span className="flex-1 min-w-0 text-[14px] font-medium leading-snug">{aviso}</span>
+            <button type="button" onClick={() => setAviso('')} aria-label="Cerrar aviso"
+              className="grid place-items-center shrink-0 size-8 rounded-lg text-white/70 hover:text-white hover:bg-white/10">
+              <I.Cerrar tam={16} />
+            </button>
+          </div>
+        </Capa>
       )}
 
       {/* Lista */}
@@ -213,26 +272,33 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
         </header>
 
         {/* Filtros */}
-        <div className="flex flex-wrap items-center gap-3 p-4 border-b border-(--p-borde)">
-          <label className="flex-1 min-w-[240px] flex items-center gap-3 h-11 px-4 rounded-xl border border-(--p-borde) focus-within:border-(--p-acento) transition-colors">
+        <div className="flex flex-wrap items-center gap-2.5 lg:gap-3 p-3 min-[400px]:p-4 border-b border-(--p-borde)">
+          <label className="flex-1 min-w-0 lg:min-w-[240px] flex items-center gap-3 h-11 px-4 rounded-xl border border-(--p-borde) focus-within:border-(--p-acento) transition-colors">
             <span className="text-(--p-suave)"><I.Buscar tam={17} /></span>
             <input
               type="search"
               value={q}
               onChange={e => setQ(e.target.value)}
-              placeholder="Buscar por nombre o número de identidad"
+              placeholder="Nombre o identidad"
               aria-label="Buscar por nombre o número de identidad"
               className="flex-1 min-w-0 bg-transparent text-[14px] outline-none placeholder:text-(--p-suave)"
             />
           </label>
-          <Filtro Icono={I.Birrete} etiqueta="Grado" valor={String(fGrado)} onCambio={v => setFGrado(v ? Number(v) : '')}
-            opciones={[['', 'Todos los grados'], ...gradosUnicos(grados).map(g => [String(g.id_grado), `${g.nombre} · ${capitalizar(g.jornada)}`] as [string, string])]} />
-          <Filtro Icono={I.SolRayos} etiqueta="Jornada" valor={fJornada} onCambio={v => setFJornada(v as typeof fJornada)}
-            opciones={[['', 'Todas las jornadas'], ['MAÑANA', 'Mañana'], ['TARDE', 'Tarde']]} />
-          <Filtro Icono={I.Calendario} etiqueta="Año" valor={String(fYear)} onCambio={v => setFYear(v === 'actual' || v === 'todos' ? v : Number(v))}
-            opciones={[['actual', 'Año en curso'], ...years.filter(y => y !== YEAR_ACTUAL).map(y => [String(y), String(y)] as [string, string]), ['todos', 'Todos los años']]} />
-          <Filtro Icono={I.Bandera} etiqueta="Estado" valor={fEstado} onCambio={v => setFEstado(v as typeof fEstado)}
-            opciones={[['', 'Todos los estados'], ['ACTIVO', 'Activos'], ['RETIRADO', 'Retirados'], ['GRADUADO', 'Graduados']]} />
+          {/* Celular y tablet: los filtros van en un panel aparte */}
+          <button
+            type="button"
+            onClick={() => setFiltrosAbiertos(true)}
+            className="lg:hidden flex items-center gap-2 h-11 px-4 rounded-xl bg-(--p-banda) text-white text-[13.5px] font-bold hover:brightness-125"
+          >
+            <span className="text-(--p-acento)"><I.Filtros tam={17} /></span>
+            Filtros
+            {filtrosActivos > 0 && (
+              <span className="grid place-items-center min-w-5 h-5 px-1 rounded-full bg-(--p-acento) text-[#170f27] text-[11px] font-bold">
+                {filtrosActivos}
+              </span>
+            )}
+          </button>
+          <div className="hidden lg:contents">{filtros('w-[210px]')}</div>
         </div>
 
         {!estudiantes && !cargando ? (
@@ -243,7 +309,8 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
             <p className="mt-1 text-[13px] text-(--p-suave)">Prueba con otro nombre o quita algún filtro.</p>
           </div>
         ) : vista === 'lista' ? (
-          <div>
+          <>
+          <div className="hidden lg:block">
             {/* table-fixed + colgroup: los anchos no dependen del contenido, así no se reacomoda al cargar */}
             <table className="w-full table-fixed text-left">
               <colgroup>
@@ -293,17 +360,8 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
                     <td className="py-2.5 text-[13.5px] whitespace-nowrap">{e.rh || <span className="text-(--p-tenue)">—</span>}</td>
                     <td className="pr-5 py-2.5">
                       <div className="flex items-center gap-2">
-                        <BotonAccion etiqueta="Editar datos" onClick={() => abrirFicha(e.numero_identidad, 'datos', true)}><I.Lapiz tam={16} /></BotonAccion>
-                        <BotonAccion etiqueta="Acudientes" onClick={() => abrirFicha(e.numero_identidad, 'acudientes')}><I.Familia tam={16} /></BotonAccion>
-                        <BotonAccion etiqueta="Rematricular" onClick={() => setRematricular(e)}><I.PersonaCheck tam={16} /></BotonAccion>
-                        {m && m.estado !== 'GRADUADO' && (
-                          <BotonAccion
-                            etiqueta={m.estado === 'RETIRADO' ? 'Reactivar' : 'Retirar'}
-                            onClick={() => setCambioEstado({ e, m })}
-                          >
-                            {m.estado === 'RETIRADO' ? <I.PersonaMas tam={16} /> : <I.PersonaMenos tam={16} />}
-                          </BotonAccion>
-                        )}
+                        <BotonAccion etiqueta="Editar datos" onClick={() => setEditando(e)}><I.Lapiz tam={16} /></BotonAccion>
+                        <BotonAccion etiqueta="Ver ficha" onClick={() => abrirFicha(e.numero_identidad)}><I.ChevronDerecha tam={16} /></BotonAccion>
                       </div>
                     </td>
                   </tr>
@@ -311,51 +369,91 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
               </tbody>
             </table>
           </div>
-        ) : !estudiantes ? (
-          <ul className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {Array.from({ length: FILAS_ESQUELETO }, (_, i) => <li key={i} className="h-[188px] rounded-[16px] border border-(--p-borde) esqueleto" />)}
-          </ul>
-        ) : (
-          <ul className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {filas.map(({ e, m }, i) => (
-              <li key={e.numero_identidad} className="aparecer-fila rounded-[16px] border border-(--p-borde) p-4" style={{ '--i': Math.min(i, 12) } as CSSProperties}>
-                <div className="flex items-start gap-3">
-                  <Avatar nombre={e.nombre} destacado={i === 0} />
-                  <div className="flex-1 min-w-0 leading-tight">
-                    <p className="text-[14px] font-semibold truncate">{e.nombre}</p>
-                    <p className="text-[12px] text-(--p-suave) truncate">Doc. {documento(e.numero_identidad)}</p>
-                  </div>
-                  {m && <ChipEstado estado={m.estado} />}
-                </div>
-                <dl className="mt-4 grid grid-cols-2 gap-y-2 text-[12.5px]">
-                  <dt className="text-(--p-suave)">Grado</dt><dd className="font-medium">{m?.grado?.nombre ?? '—'}</dd>
-                  <dt className="text-(--p-suave)">Jornada</dt><dd>{m ? capitalizar(m.jornada) : '—'}</dd>
-                  <dt className="text-(--p-suave)">Edad</dt><dd>{edad(e.fecha_nacimiento) ?? '—'} años</dd>
-                </dl>
+
+          {/* Celular y tablet: lista compacta; al tocar una fila se abre la ficha */}
+          <ul className="lg:hidden">
+            {!estudiantes && Array.from({ length: FILAS_ESQUELETO }, (_, i) => (
+              <li key={i} className="flex items-center gap-3 px-4 h-[64px] border-b last:border-b-0 border-(--p-borde)" aria-hidden>
+                <span className="size-10 shrink-0 rounded-full esqueleto" />
+                <span className="flex-1 space-y-1.5"><span className="block h-3 w-3/5 rounded-full esqueleto" /><span className="block h-3 w-2/5 rounded-full esqueleto" /></span>
+              </li>
+            ))}
+            {estudiantes && filas.map(({ e, m }, i) => (
+              <li key={e.numero_identidad} className="aparecer-fila border-b last:border-b-0 border-(--p-borde)" style={{ '--i': Math.min(i, 12) } as CSSProperties}>
                 <button
                   type="button"
                   onClick={() => abrirFicha(e.numero_identidad)}
-                  className="mt-4 w-full h-9 rounded-[10px] bg-(--p-banda) text-white text-[11.5px] font-bold tracking-[0.12em]"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-(--p-hover)"
                 >
-                  VER FICHA
+                  <Avatar nombre={e.nombre} destacado={i === 0} tam="size-10" />
+                  <span className="flex-1 min-w-0 leading-tight">
+                    <span className="block text-[14.5px] font-semibold truncate">{e.nombre}</span>
+                    <span className="block mt-0.5 text-[12px] text-(--p-suave) truncate">
+                      {m ? `${m.grado?.nombre ?? 'Sin grado'} · ${capitalizar(m.jornada)}` : documentoCompleto(e)}
+                    </span>
+                  </span>
+                  {m && <ChipEstado estado={m.estado} />}
+                  <span className="text-(--p-suave)"><I.ChevronDerecha tam={16} /></span>
                 </button>
               </li>
             ))}
           </ul>
+          </>
+        ) : !estudiantes ? (
+          <ul className="grid sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 sm:gap-4 sm:p-4">
+            {Array.from({ length: FILAS_ESQUELETO }, (_, i) => (
+              <li key={i} className="h-[300px] max-sm:border-b border-(--p-borde) sm:rounded-[18px] sm:border p-4" aria-hidden>
+                <div className="h-full rounded-2xl esqueleto" />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ul className="grid sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 sm:gap-4 sm:p-4">
+            {filas.map(({ e, m, otrosYears }, i) => (
+              <TarjetaEstudiante
+                key={e.numero_identidad}
+                indice={i}
+                e={e}
+                m={m}
+                otrosYears={otrosYears}
+                onFicha={() => abrirFicha(e.numero_identidad)}
+                onEditar={() => setEditando(e)}
+              />
+            ))}
+          </ul>
         )}
       </section>
+
+      {filtrosAbiertos && (
+        <PanelFiltros
+          activos={filtrosActivos}
+          resultados={filas.length}
+          onLimpiar={limpiarFiltros}
+          onCerrar={() => setFiltrosAbiertos(false)}
+        >
+          {filtros('w-full')}
+        </PanelFiltros>
+      )}
 
       {ficha && (
         <FichaEstudiante
           key={ficha.id}
           id={ficha.id}
           pestanaInicial={ficha.pestana}
-          editarInicial={ficha.editar}
+          version={versionFicha}
+          onEditar={setEditando}
           onCerrar={() => setFicha(null)}
-          onCambio={msg => { setAviso(msg); recargar(); }}
           onRematricular={e => setRematricular(e)}
           onCambiarEstado={(e, m) => setCambioEstado({ e, m })}
           onIr={onIr}
+        />
+      )}
+
+      {editando && (
+        <DialogoEditarEstudiante
+          estudiante={editando}
+          onCerrar={() => setEditando(null)}
+          onGuardado={msg => { setEditando(null); setAviso(msg); setVersionFicha(v => v + 1); recargar(); }}
         />
       )}
 
@@ -417,14 +515,17 @@ function Indicador({
   clave: string;
 }) {
   return (
-    <div className="px-[22px] pt-5 pb-[22px]">
-      <div className="flex items-center gap-3">
-        <span className={`grid place-items-center shrink-0 size-9 rounded-[10px] ${cuadro}`}><Icono tam={18} /></span>
-        <p className="flex-1 text-[11.5px] font-semibold tracking-[0.16em] uppercase text-(--p-suave) truncate">{titulo}</p>
-        <span className="h-6 px-2.5 flex items-center rounded-full bg-(--p-menta) text-[12px] font-bold">{insignia}</span>
+    <div
+      className="min-w-0 px-3 min-[400px]:px-3.5 pt-3.5 pb-4 lg:px-[22px] lg:pt-5 lg:pb-[22px]
+                 max-lg:rounded-[20px] max-lg:bg-(--p-sup) max-lg:border max-lg:border-(--p-borde) transition-colors"
+    >
+      <div className="flex items-center gap-1.5 min-[420px]:gap-2 lg:gap-3">
+        <span className={`grid place-items-center shrink-0 size-6 min-[420px]:size-7 lg:size-9 rounded-lg lg:rounded-[10px] [&>svg]:size-[15px] lg:[&>svg]:size-[18px] ${cuadro}`}><Icono tam={18} /></span>
+        <p className="flex-1 min-w-0 text-[9px] min-[420px]:text-[9.5px] lg:text-[11.5px] font-semibold tracking-[0.06em] min-[420px]:tracking-[0.12em] lg:tracking-[0.16em] uppercase text-(--p-suave) truncate">{titulo}</p>
+        <span className="shrink-0 h-5 lg:h-6 px-1.5 min-[420px]:px-2 lg:px-2.5 flex items-center rounded-full bg-(--p-menta) text-[10.5px] lg:text-[12px] font-bold">{insignia}</span>
       </div>
-      <p className="mt-3 text-[31px] leading-none font-extrabold tracking-tight">{valor}</p>
-      <div className="mt-4">
+      <p className="mt-2.5 lg:mt-3 text-[24px] lg:text-[31px] leading-none font-extrabold tracking-tight">{valor}</p>
+      <div className="mt-3.5 lg:mt-4">
         {pct > 0 ? (
           <Progreso
             key={clave}
@@ -448,11 +549,12 @@ function Avatar({ nombre, destacado = false, tam = 'size-9' }: { nombre: string;
   );
 }
 
-function ChipJornada({ jornada }: { jornada: 'MAÑANA' | 'TARDE' }) {
+function ChipJornada({ jornada, sobreMenta = false }: { jornada: 'MAÑANA' | 'TARDE'; sobreMenta?: boolean }) {
   const manana = jornada === 'MAÑANA';
   return (
     <span className={`inline-flex items-center gap-1.5 h-6 px-2.5 rounded-[8px] text-[12px] font-semibold ${
-      manana ? 'bg-(--p-acento)/25' : 'bg-(--p-menta)'
+      // Sobre un fondo menta, el chip de la tarde necesita un tono propio para notarse.
+      manana ? 'bg-(--p-acento)/25' : sobreMenta ? 'bg-(--p-gris)/35' : 'bg-(--p-menta)'
     }`}>
       {manana ? <I.SolRayos tam={13} /> : <I.Atardecer tam={13} />}
       {manana ? 'Mañana' : 'Tarde'}
@@ -460,14 +562,14 @@ function ChipJornada({ jornada }: { jornada: 'MAÑANA' | 'TARDE' }) {
   );
 }
 
-function ChipEstado({ estado }: { estado: Estado }) {
+function ChipEstado({ estado, tam = 'text-[12px]' }: { estado: Estado; tam?: string }) {
   const estilos: Record<Estado, string> = {
     ACTIVO: 'bg-(--p-acento) text-[#170f27]',
     RETIRADO: 'bg-(--p-menta) text-(--p-suave)',
     GRADUADO: 'bg-(--p-icono) text-(--p-icono-txt)',
   };
   return (
-    <span className={`inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[12px] font-bold ${estilos[estado]}`}>
+    <span className={`inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full ${tam} font-bold ${estilos[estado]}`}>
       <span className="size-1.5 rounded-full bg-current" />
       {capitalizar(estado)}
     </span>
@@ -488,6 +590,129 @@ function BotonAccion({ etiqueta, onClick, children }: { etiqueta: string; onClic
   );
 }
 
+/* ── Tarjeta del estudiante (vista Tarjetas) ───────────────────────
+   Diseño: docs/Estudiantes móvil · Modo claro@1x.png y -oscuro. */
+
+function TarjetaEstudiante({
+  indice, e, m, otrosYears, onFicha, onEditar,
+}: {
+  indice: number;
+  e: EstudianteListItem;
+  m: MatriculaListItem | null;
+  otrosYears: number[];
+  onFicha: () => void;
+  onEditar: () => void;
+}) {
+  return (
+    <li
+      className="aparecer-fila min-w-0 p-4 min-[400px]:p-5 max-sm:border-b max-sm:last:border-b-0 border-(--p-borde) sm:rounded-[18px] sm:border"
+      style={{ '--i': Math.min(indice, 12) } as CSSProperties}
+    >
+      <div className="flex items-start gap-3">
+        <button type="button" onClick={onFicha} className="flex flex-1 min-w-0 items-center gap-3 text-left" aria-label={`Ver ficha de ${e.nombre}`}>
+          <Avatar nombre={e.nombre} destacado={indice === 0} tam="size-11" />
+          <span className="min-w-0 leading-tight">
+            <span className="block text-[16px] font-bold truncate">{e.nombre}</span>
+            <span className="block mt-0.5 text-[12.5px] text-(--p-suave) truncate">{documentoCompleto(e)}</span>
+          </span>
+        </button>
+        {m && <span className="shrink-0 mt-1"><ChipEstado estado={m.estado} /></span>}
+      </div>
+
+      <div className="mt-3.5 rounded-2xl bg-(--p-menta) px-3.5 py-3">
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+          <DatoTarjeta etiqueta="Grado">{m?.grado?.nombre ?? '—'}</DatoTarjeta>
+          <DatoTarjeta etiqueta="Jornada">{m ? <ChipJornada jornada={m.jornada} sobreMenta /> : '—'}</DatoTarjeta>
+          <DatoTarjeta etiqueta="Año" ajustar>
+            {m ? <>{m.year}{otrosYears.length > 0 && <span className="font-medium text-(--p-suave)"> · también {otrosYears.join(', ')}</span>}</> : '—'}
+          </DatoTarjeta>
+          <DatoTarjeta etiqueta="Nacimiento">{fechaDia(e.fecha_nacimiento)}</DatoTarjeta>
+        </dl>
+        {m?.fecha_matricula && (
+          <p className="mt-2.5 flex items-center gap-2 text-[12.5px] text-(--p-suave)">
+            <I.Calendario tam={14} /> Matriculado el <b className="text-(--p-tinta)">{fechaDia(m.fecha_matricula)}</b>
+          </p>
+        )}
+      </div>
+
+      {/* Matricular, retirar y acudientes están dentro de la ficha */}
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <AccionTarjeta etiqueta="Editar" onClick={onEditar}><I.Lapiz tam={16} /></AccionTarjeta>
+        <AccionTarjeta etiqueta="Ver ficha" onClick={onFicha} alFinal><I.ChevronDerecha tam={16} /></AccionTarjeta>
+      </div>
+    </li>
+  );
+}
+
+function DatoTarjeta({ etiqueta, ajustar = false, children }: { etiqueta: string; ajustar?: boolean; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[9.5px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">{etiqueta}</dt>
+      <dd className={`mt-0.5 text-[14px] font-bold ${ajustar ? 'leading-snug' : 'truncate'}`}>{children}</dd>
+    </div>
+  );
+}
+
+function AccionTarjeta({
+  etiqueta, onClick, alFinal = false, children,
+}: { etiqueta: string; onClick: () => void; /** Ícono después del texto (p. ej. la flecha de «Ver ficha»). */ alFinal?: boolean; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="presionable min-w-0 flex items-center justify-center gap-2 h-11 rounded-xl border border-(--p-borde) bg-(--p-sup)
+                 text-[13.5px] font-semibold hover:bg-(--p-hover)"
+    >
+      {!alFinal && children}
+      <span className="truncate">{etiqueta}</span>
+      {alFinal && children}
+    </button>
+  );
+}
+
+/* ── Panel de filtros (celular y tablet) ───────────────────────── */
+
+function PanelFiltros({
+  activos, resultados, onLimpiar, onCerrar, children,
+}: { activos: number; resultados: number; onLimpiar: () => void; onCerrar: () => void; children: ReactNode }) {
+  useEscape(onCerrar);
+  return (
+    <Capa>
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
+        <div className="velo absolute inset-0 bg-black/45" onClick={onCerrar} />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Filtros"
+          style={zoomCapa}
+          className="hoja relative w-full sm:max-w-[440px] rounded-t-[24px] sm:rounded-[24px] bg-(--p-sup) text-(--p-tinta) shadow-2xl overflow-hidden
+                     pb-[env(safe-area-inset-bottom)]"
+        >
+          <header className="flex items-center gap-3 h-14 pl-5 pr-3 bg-(--p-banda) text-white">
+            <span className="text-(--p-acento)"><I.Filtros tam={18} /></span>
+            <h2 className="flex-1 text-[12.5px] font-bold tracking-[0.14em] uppercase">Filtros</h2>
+            <button type="button" onClick={onCerrar} aria-label="Cerrar filtros"
+              className="grid place-items-center size-9 rounded-xl bg-white/10 hover:bg-white/20">
+              <I.Cerrar tam={17} />
+            </button>
+          </header>
+          <div className="flex flex-col gap-3 p-4">{children}</div>
+          <div className="grid grid-cols-2 gap-3 px-4 pb-4">
+            <button type="button" onClick={onLimpiar} disabled={!activos}
+              className="h-12 rounded-xl border border-(--p-borde) text-[14px] font-bold hover:bg-(--p-hover) disabled:opacity-45">
+              Limpiar
+            </button>
+            <button type="button" onClick={onCerrar}
+              className="h-12 rounded-xl bg-(--p-acento) text-[#170f27] text-[12.5px] font-bold tracking-[0.12em] hover:brightness-105">
+              VER {resultados} {resultados === 1 ? 'ESTUDIANTE' : 'ESTUDIANTES'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Capa>
+  );
+}
+
 function BotonVista({ activo, etiqueta, onClick, children }: { activo: boolean; etiqueta: string; onClick: () => void; children: ReactNode }) {
   return (
     <button
@@ -504,8 +729,9 @@ function BotonVista({ activo, etiqueta, onClick, children }: { activo: boolean; 
 }
 
 function Filtro({
-  Icono, etiqueta, valor, onCambio, opciones,
+  Icono, etiqueta, valor, onCambio, opciones, ancho = 'w-[210px]',
 }: {
+  ancho?: string;
   Icono: ComponentType<{ tam?: number }>;
   etiqueta: string;
   valor: string;
@@ -513,7 +739,7 @@ function Filtro({
   opciones: [string, string][];
 }) {
   return (
-    <label className="relative flex items-center w-[210px] h-11 rounded-xl border border-(--p-borde) focus-within:border-(--p-acento) transition-colors">
+    <label className={`relative flex items-center ${ancho} h-11 rounded-xl border border-(--p-borde) focus-within:border-(--p-acento) transition-colors`}>
       <span className="pointer-events-none absolute left-3.5 text-(--p-suave)"><Icono tam={16} /></span>
       <select
         value={valor}
@@ -688,16 +914,47 @@ function DialogoEstado({
   );
 }
 
-/* ── Ficha del estudiante ──────────────────────────────────────── */
+/* ── Ficha del estudiante ──────────────────────────────────────────
+   Diseño: docs/Ficha del estudiante (panel lateral) · Modo claro@1x.png y -oscuro.
+   Se quitaron los íconos de cada dato y de las cajas de la matrícula:
+   la etiqueta ya dice qué es y así la ficha se lee más limpia. */
+
+/** Alto (sin zoom) de la ficha completa en la pestaña Datos: encabezado + contenido + botones. */
+const ALTO_FICHA = 1030;
+/** Hueco arriba y abajo del panel flotante en computador (lg:p-4). */
+const HUECO_FICHA = 32;
+
+/**
+ * Zoom de la ficha. En computador se achica según el alto de la ventana para que
+ * todo quepa sin desplazarse, como en la referencia (nunca más que el resto del
+ * panel, 0,85, ni menos de 0,7 para que se siga leyendo). En celular, el normal.
+ */
+function useZoomFicha() {
+  const calcular = () => {
+    if (!window.matchMedia("(min-width: 64rem)").matches) return null;
+    return Math.min(0.85, Math.max(0.7, (window.innerHeight - HUECO_FICHA) / ALTO_FICHA));
+  };
+  const [zoom, setZoom] = useState(calcular);
+  useEffect(() => {
+    const alCambiar = () => setZoom(calcular());
+    window.addEventListener("resize", alCambiar);
+    return () => window.removeEventListener("resize", alCambiar);
+  }, []);
+  return zoom;
+}
+
+/** Lo que dura la salida del panel (más corta que la entrada, como pide el CSS). */
+const SALIDA_FICHA_MS = 220;
 
 function FichaEstudiante({
-  id, pestanaInicial, editarInicial, onCerrar, onCambio, onRematricular, onCambiarEstado, onIr,
+  id, pestanaInicial, version, onEditar, onCerrar, onRematricular, onCambiarEstado, onIr,
 }: {
   id: string;
   pestanaInicial: PestanaFicha;
-  editarInicial: boolean;
+  /** Cambia cuando se guardan datos desde fuera (modal de edición). */
+  version: number;
+  onEditar: (e: EstudianteListItem) => void;
   onCerrar: () => void;
-  onCambio: (msg: string) => void;
   onRematricular: (e: EstudianteListItem) => void;
   onCambiarEstado: (e: EstudianteListItem, m: MatriculaListItem) => void;
   onIr: (s: Seccion) => void;
@@ -705,8 +962,28 @@ function FichaEstudiante({
   const [detalle, setDetalle] = useState<EstudianteDetalle | null>(null);
   const [error, setError] = useState('');
   const [pestana, setPestana] = useState<PestanaFicha>(pestanaInicial);
-  const [version, setVersion] = useState(0);
-  useEscape(onCerrar);
+  const [saliendo, setSaliendo] = useState(false);
+  const cerrado = useRef(false);
+  const zoom = useZoomFicha();
+
+  // Salida: el panel se desliza a la derecha y el velo se desvanece; al terminar se desmonta.
+  const cerrar = useCallback(() => {
+    if (cerrado.current) return;
+    cerrado.current = true;
+    setSaliendo(true);
+    window.setTimeout(onCerrar, SALIDA_FICHA_MS);
+  }, [onCerrar]);
+
+  // Escape cierra la ficha solo si no hay un modal abierto encima (ese se cierra primero).
+  useEffect(() => {
+    const alTecla = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (document.querySelectorAll(`#${ID_CAPA} [aria-modal="true"]`).length > 1) return;
+      cerrar();
+    };
+    document.addEventListener('keydown', alTecla);
+    return () => document.removeEventListener('keydown', alTecla);
+  }, [cerrar]);
 
   useEffect(() => {
     let vigente = true;
@@ -717,91 +994,193 @@ function FichaEstudiante({
   }, [id, version]);
 
   const pestanas: [PestanaFicha, string][] = [['datos', 'Datos'], ['acudientes', 'Acudientes'], ['matriculas', 'Matrículas'], ['pagos', 'Pagos']];
-  const actual = detalle ? [...detalle.matriculas].sort((a, b) => b.year - a.year)[0] : undefined;
+  const actual = detalle ? matriculaActual(detalle.matriculas) : undefined;
+  const puedeCambiarEstado = !!actual && actual.estado !== 'GRADUADO';
 
   return (
     <Capa>
-      <div className="fixed inset-0 z-40 flex justify-end">
-        <div className="velo absolute inset-0 bg-black/35" onClick={onCerrar} />
+      <div className="fixed inset-0 z-40 flex justify-end lg:p-4">
+        <div className={`velo absolute inset-0 bg-black/35 ${saliendo ? 'saliendo' : ''}`} onClick={cerrar} />
         <aside
           role="dialog"
           aria-modal="true"
           aria-label="Ficha del estudiante"
-          style={{ ...zoomCapa, height: `calc(100dvh / ${ESCALA_CONTENIDO})` }}
-          className="cajon relative w-full max-w-[540px] flex flex-col bg-(--p-sup) text-(--p-tinta) border-l border-(--p-borde) shadow-2xl"
+          style={zoom === null
+            ? { ...zoomCapa, height: `calc(100dvh / ${ESCALA_CONTENIDO})` }
+            : { zoom, height: `calc((100dvh - ${HUECO_FICHA}px) / ${zoom})` }}
+          className={`cajon ${saliendo ? 'saliendo' : ''} relative w-full max-w-[600px] flex flex-col overflow-hidden bg-(--p-sup) text-(--p-tinta) shadow-2xl lg:rounded-[24px]`}
         >
-          <header className="shrink-0 bg-(--p-banda) text-white px-5 pt-4 pb-0">
-            <div className="flex items-start gap-3">
-              {detalle ? <Avatar nombre={detalle.nombre} destacado tam="size-11" /> : <span className="size-11" />}
-              <div className="flex-1 min-w-0 leading-tight">
-                <p className="text-[11px] font-bold tracking-[0.16em] text-white/60">FICHA DEL ESTUDIANTE</p>
-                <h2 className="mt-1 text-[19px] font-extrabold truncate">{detalle?.nombre ?? 'Cargando…'}</h2>
-                {detalle && (
-                  <p className="mt-0.5 text-[12.5px] text-white/70">
-                    Doc. {documento(detalle.numero_identidad)}
-                    {actual?.grado && ` · ${actual.grado.nombre} ${actual.year}`}
-                  </p>
-                )}
-              </div>
-              <button type="button" onClick={onCerrar} aria-label="Cerrar ficha" className="grid place-items-center size-8 text-white/70 hover:text-white">
+          <header className="shrink-0 bg-(--p-banda) text-white px-5 sm:px-6 py-5">
+            <div className="flex items-center gap-3.5 sm:gap-4">
+              {detalle ? <Avatar nombre={detalle.nombre} destacado tam="size-12 sm:size-14 text-[16px]! sm:text-[18px]!" /> : <span className="size-12 sm:size-14" />}
+              <h2 className="flex-1 min-w-0 text-[19px] sm:text-[22px] font-extrabold leading-tight truncate">{detalle?.nombre ?? 'Cargando…'}</h2>
+              <button
+                type="button"
+                onClick={cerrar}
+                aria-label="Cerrar ficha"
+                className="presionable grid place-items-center size-10 rounded-[12px] bg-white/10 text-white/80 hover:bg-white/15 hover:text-white"
+              >
                 <I.Cerrar tam={18} />
               </button>
             </div>
-            <nav className="mt-4 flex gap-1" role="tablist">
-              {pestanas.map(([p, t]) => (
-                <button
-                  key={p}
-                  type="button"
-                  role="tab"
-                  aria-selected={pestana === p}
-                  onClick={() => setPestana(p)}
-                  className={`h-10 px-3.5 rounded-t-[10px] text-[11.5px] font-bold tracking-[0.12em] uppercase ${
-                    pestana === p ? 'bg-(--p-sup) text-(--p-tinta)' : 'text-white/70 hover:text-white'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </nav>
           </header>
 
-          <div className="flex-1 min-h-0 overflow-y-auto p-5">
+          {/* El espacio de la barra queda reservado siempre: así el contenido no cambia
+              de ancho al pasar de una pestaña corta a una larga. */}
+          <div className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] pl-4 pr-2 sm:pl-6 sm:pr-4 pt-5 pb-4">
             {error ? (
-              <p role="alert" className="text-[14px] text-red-600">{error}</p>
+              <p role="alert" className="text-[14.7px] text-red-600">{error}</p>
             ) : !detalle ? (
-              <p className="text-[14px] text-(--p-suave)">Cargando…</p>
+              <FichaEsqueleto />
             ) : (
-              <div key={pestana} className="fundido">
-                {pestana === 'datos' && (
-                  <PestanaDatos
-                    detalle={detalle}
-                    editarInicial={editarInicial}
-                    onGuardado={() => { setVersion(v => v + 1); onCambio('Datos del estudiante actualizados.'); }}
-                  />
-                )}
-                {pestana === 'acudientes' && <PestanaAcudientes detalle={detalle} />}
-                {pestana === 'matriculas' && (
-                  <PestanaMatriculas
-                    detalle={detalle}
-                    onRematricular={() => onRematricular(detalle)}
-                    onCambiarEstado={m => onCambiarEstado(detalle, m)}
-                  />
-                )}
-                {pestana === 'pagos' && <PestanaPagos detalle={detalle} onIr={onIr} />}
-              </div>
+              <>
+                <MatriculaActual matriculas={detalle.matriculas} actual={actual} />
+
+                <nav role="tablist" aria-label="Secciones de la ficha" className="mt-4 grid grid-cols-4 gap-1 p-1 rounded-[14px] bg-(--p-menta)">
+                  {pestanas.map(([p, t]) => (
+                    <button
+                      key={p}
+                      type="button"
+                      role="tab"
+                      aria-selected={pestana === p}
+                      onClick={() => setPestana(p)}
+                      className={`h-10 sm:h-11 rounded-[11px] text-[13.13px] min-[400px]:text-[14.18px] font-semibold transition-colors ${
+                        pestana === p ? 'bg-(--p-acento) text-[#170f27] font-bold shadow-sm' : 'text-(--p-suave) hover:text-(--p-tinta)'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </nav>
+
+                <div key={pestana} className="fundido mt-4">
+                  {pestana === 'datos' && <PestanaDatos detalle={detalle} />}
+                  {pestana === 'acudientes' && <PestanaAcudientes detalle={detalle} />}
+                  {pestana === 'matriculas' && (
+                    <PestanaMatriculas detalle={detalle} idActual={actual?.id_matricula} />
+                  )}
+                  {pestana === 'pagos' && <PestanaPagos detalle={detalle} onIr={onIr} />}
+                </div>
+              </>
             )}
           </div>
+
+          {detalle && (
+            <footer className="shrink-0 flex gap-2.5 sm:gap-3 px-4 sm:px-6 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-(--p-borde)">
+              {puedeCambiarEstado && (
+                <BotonFicha
+                  estilo="borde"
+                  onClick={() => onCambiarEstado(detalle, actual)}
+                  Icono={actual.estado === 'RETIRADO' ? I.PersonaMas : I.PersonaMenos}
+                >
+                  {actual.estado === 'RETIRADO' ? 'Reactivar' : 'Retirar'}
+                </BotonFicha>
+              )}
+              {/* En la pestaña Matrículas, «Matricular» es la acción principal y «Editar» no aplica. */}
+              <BotonFicha estilo={pestana === 'matriculas' ? 'acento' : 'oscuro'} onClick={() => onRematricular(detalle)} Icono={I.PersonaCheck}>
+                Matricular
+              </BotonFicha>
+              {pestana !== 'matriculas' && (
+                <BotonFicha estilo="acento" onClick={() => onEditar(detalle)} Icono={I.Lapiz}>
+                  Editar
+                </BotonFicha>
+              )}
+            </footer>
+          )}
         </aside>
       </div>
     </Capa>
   );
 }
 
-function Bloque({ titulo, accion, children }: { titulo: string; accion?: ReactNode; children: ReactNode }) {
+/** La matrícula del año en curso; si no hay, la más reciente. */
+function matriculaActual(matriculas: MatriculaListItem[]) {
+  return matriculas.find(m => m.year === YEAR_ACTUAL) ?? [...matriculas].sort((a, b) => b.year - a.year)[0];
+}
+
+function BotonFicha({
+  estilo, onClick, Icono, children,
+}: {
+  estilo: 'borde' | 'oscuro' | 'acento';
+  onClick: () => void;
+  Icono: ComponentType<{ tam?: number }>;
+  children: ReactNode;
+}) {
+  const estilos = {
+    borde: 'shrink-0 px-3.5 sm:px-4 border border-(--p-borde) hover:bg-(--p-hover)',
+    oscuro: 'flex-1 bg-(--p-boton-2) text-(--p-boton-2-txt) hover:brightness-110',
+    acento: 'flex-1 bg-(--p-acento) text-[#170f27] hover:brightness-105',
+  } as const;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`presionable flex items-center justify-center gap-2 h-12 rounded-[12px] text-[12.6px] min-[400px]:text-[13.13px] font-bold tracking-[0.1em] uppercase ${estilos[estilo]}`}
+    >
+      {/* En pantallas muy angostas solo el texto, para que quepan los tres botones */}
+      <span className="hidden min-[420px]:inline-flex"><Icono tam={16} /></span>
+      {children}
+    </button>
+  );
+}
+
+function MatriculaActual({ matriculas, actual }: { matriculas: MatriculaListItem[]; actual: MatriculaListItem | undefined }) {
+  if (!actual) {
+    return (
+      <section className="rounded-[18px] bg-(--p-menta) p-4 sm:p-5">
+        <h3 className="text-[12.6px] font-bold tracking-[0.14em] uppercase">Matrícula actual</h3>
+        <p className="mt-2 text-[14.7px] text-(--p-suave)">Este estudiante todavía no tiene matrícula. Usa «Matricular» para crearla.</p>
+      </section>
+    );
+  }
+  const posteriores = matriculas.filter(m => m.year > actual.year).map(m => m.year).sort();
+  return (
+    <section className="rounded-[18px] bg-(--p-menta) p-3 sm:p-4">
+      <div className="flex items-center gap-2.5 px-1 pb-3">
+        <span className="grid place-items-center size-8 rounded-[10px] bg-(--p-acento) text-[#170f27]"><I.Birrete tam={17} /></span>
+        <h3 className="flex-1 text-[12.6px] sm:text-[13.13px] font-bold tracking-[0.14em] uppercase">Matrícula actual</h3>
+        <ChipEstado estado={actual.estado} tam="text-[12.6px]" />
+      </div>
+      <dl className="grid grid-cols-2 gap-2 sm:gap-2.5">
+        <CajaMatricula etiqueta="Grado" valor={actual.grado?.nombre ?? '—'} />
+        <CajaMatricula etiqueta="Jornada" valor={capitalizar(actual.jornada)} />
+        <CajaMatricula
+          etiqueta="Año"
+          valor={String(actual.year)}
+          nota={posteriores.length ? `También tiene matrícula en ${posteriores.join(', ')}` : undefined}
+        />
+        <CajaMatricula etiqueta="Matriculado el" valor={fechaDia(actual.fecha_matricula)} />
+      </dl>
+    </section>
+  );
+}
+
+function CajaMatricula({ etiqueta, valor, nota }: { etiqueta: string; valor: string; nota?: string }) {
+  return (
+    <div className="rounded-[12px] bg-(--p-sup) px-3.5 py-2.5 min-w-0">
+      <dt className="text-[11.03px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">{etiqueta}</dt>
+      <dd className="mt-1 text-[15.75px] sm:text-[16.8px] font-bold truncate">{valor}</dd>
+      {nota && <p className="mt-0.5 text-[12.08px] text-(--p-suave) leading-snug">{nota}</p>}
+    </div>
+  );
+}
+
+function FichaEsqueleto() {
+  return (
+    <div aria-hidden>
+      <div className="esqueleto h-[188px] rounded-[18px]" />
+      <div className="esqueleto mt-5 h-12 rounded-[14px]" />
+      {[0, 1, 2, 3].map(i => <div key={i} className="esqueleto mt-4 h-12 rounded-[10px]" />)}
+      <span className="sr-only">Cargando…</span>
+    </div>
+  );
+}
+
+function Bloque({ titulo, accion, children }: { titulo: ReactNode; accion?: ReactNode; children: ReactNode }) {
   return (
     <section className="mb-6 last:mb-0">
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <h3 className="text-[11px] font-bold tracking-[0.16em] uppercase text-(--p-suave)">{titulo}</h3>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <h3 className="text-[16.28px] font-bold">{titulo}</h3>
         {accion}
       </div>
       {children}
@@ -809,100 +1188,290 @@ function Bloque({ titulo, accion, children }: { titulo: string; accion?: ReactNo
   );
 }
 
-function Dato({ etiqueta, valor }: { etiqueta: string; valor: ReactNode }) {
+/** Fila de dato: etiqueta pequeña arriba y valor debajo, con una línea divisoria. */
+function Dato({ etiqueta, valor, accion }: { etiqueta: string; valor: ReactNode; accion?: ReactNode }) {
   return (
-    <div>
-      <dt className="text-[12px] text-(--p-suave)">{etiqueta}</dt>
-      <dd className="mt-0.5 text-[14px] font-medium break-words">{valor || <span className="text-(--p-tenue)">Sin dato</span>}</dd>
+    <div className="flex items-center gap-3 py-3 border-t border-(--p-borde) min-w-0">
+      <div className="flex-1 min-w-0">
+        <dt className="text-[11.03px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">{etiqueta}</dt>
+        <dd className="mt-1 text-[15.75px] font-semibold break-words">{valor || <span className="font-normal text-(--p-tenue)">Sin dato</span>}</dd>
+      </div>
+      {accion}
     </div>
   );
 }
 
-function PestanaDatos({ detalle, editarInicial, onGuardado }: { detalle: EstudianteDetalle; editarInicial: boolean; onGuardado: () => void }) {
-  const [editando, setEditando] = useState(editarInicial);
-  const [form, setForm] = useState({
-    nombre: detalle.nombre,
-    fecha_nacimiento: detalle.fecha_nacimiento?.slice(0, 10) ?? '',
-    rh: detalle.rh ?? '',
-    direccion: detalle.direccion ?? '',
-    observaciones: detalle.observaciones ?? '',
-  });
-  const [enviando, setEnviando] = useState(false);
+function BotonCopiar({ texto, etiqueta }: { texto: string; etiqueta: string }) {
+  const [copiado, setCopiado] = useState(false);
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiado(true);
+      window.setTimeout(() => setCopiado(false), 1500);
+    } catch { /* sin permiso del portapapeles: no pasa nada */ }
+  }
+  return (
+    <button
+      type="button"
+      onClick={copiar}
+      aria-label={copiado ? 'Copiado' : etiqueta}
+      title={copiado ? 'Copiado' : etiqueta}
+      className="presionable grid place-items-center size-9 shrink-0 rounded-[10px] border border-(--p-borde) text-(--p-suave) hover:bg-(--p-hover) hover:text-(--p-tinta)"
+    >
+      {copiado ? <I.Check tam={16} /> : <I.Copiar tam={16} />}
+    </button>
+  );
+}
+
+function PestanaDatos({ detalle }: { detalle: EstudianteDetalle }) {
+  const anos = edad(detalle.fecha_nacimiento);
+  return (
+    <Bloque titulo="Datos personales">
+      <dl>
+        <Dato
+          etiqueta="Documento"
+          valor={documentoCompleto(detalle)}
+          accion={<BotonCopiar texto={detalle.numero_identidad} etiqueta="Copiar número de documento" />}
+        />
+        <Dato
+          etiqueta="Fecha de nacimiento"
+          valor={<>{fechaDia(detalle.fecha_nacimiento)}{anos !== null && <span className="font-normal text-(--p-suave)"> · {anos} años</span>}</>}
+        />
+        <div className="grid grid-cols-2 gap-x-5">
+          <Dato etiqueta="Sexo" valor={detalle.sexo ? SEXOS[detalle.sexo] : null} />
+          <Dato etiqueta="Tipo de sangre (RH)" valor={detalle.rh} />
+        </div>
+        <Dato etiqueta="EPS" valor={detalle.eps} />
+        <Dato etiqueta="Dirección" valor={detalle.direccion} />
+      </dl>
+      <div className="pt-3 border-t border-(--p-borde)">
+        <p className="text-[11.03px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">Observaciones</p>
+        <p className={`mt-2 rounded-[12px] bg-(--p-menta) px-4 py-3 text-[14.7px] leading-relaxed whitespace-pre-line ${detalle.observaciones ? '' : 'text-(--p-suave)'}`}>
+          {detalle.observaciones || 'Sin observaciones registradas. Aquí van alergias, condiciones médicas y notas importantes.'}
+        </p>
+      </div>
+    </Bloque>
+  );
+}
+
+/* ── Editar estudiante (modal) ─────────────────────────────────────
+   Diseño: docs/Modal · Editar estudiante · Modo claro@1x.png y -oscuro. */
+
+const TIPOS_DOCUMENTO: Record<TipoDocumento, string> = {
+  RC: 'Registro civil',
+  TI: 'Tarjeta de identidad',
+  CC: 'Cédula de ciudadanía',
+  CE: 'Cédula de extranjería',
+  PPT: 'Permiso por protección temporal',
+  PA: 'Pasaporte',
+};
+const SEXOS: Record<Sexo, string> = { F: 'Femenino', M: 'Masculino' };
+const TIPOS_SANGRE = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+/** "TI 1.034.567.210", o "Doc. …" si todavía no tiene tipo. */
+function documentoCompleto(e: EstudianteListItem) {
+  return `${e.tipo_documento ?? 'Doc.'} ${documento(e.numero_identidad)}`;
+}
+
+const hoyISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const claseCampoModal =
+  'w-full h-12 px-4 rounded-xl border border-(--p-borde) bg-(--p-campo) text-[14.5px] outline-none transition-colors ' +
+  'focus:border-(--p-acento) focus:ring-3 focus:ring-(--p-acento)/25 aria-invalid:border-red-500';
+
+function Campo({
+  etiqueta, requerido = false, error, className = '', children,
+}: { etiqueta: string; requerido?: boolean; error?: string; className?: string; children: ReactNode }) {
+  return (
+    <label className={`block min-w-0 ${className}`}>
+      <span className="block mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">
+        {etiqueta}{requerido && <span className="text-(--p-tinta)"> *</span>}
+      </span>
+      {children}
+      {error && <span className="block mt-1.5 text-[12.5px] font-medium text-red-600">{error}</span>}
+    </label>
+  );
+}
+
+function SelectModal({ value, onChange, children, invalido }: {
+  value: string; onChange: (e: ChangeEvent<HTMLSelectElement>) => void; children: ReactNode; invalido?: boolean;
+}) {
+  return (
+    <span className="relative block">
+      <select value={value} onChange={onChange} aria-invalid={invalido || undefined}
+        className={`${claseCampoModal} appearance-none pr-10 cursor-pointer`}>
+        {children}
+      </select>
+      <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-(--p-suave)"><I.ChevronAbajo tam={16} /></span>
+    </span>
+  );
+}
+
+type FormEstudiante = {
+  nombre: string; tipo_documento: TipoDocumento | ''; sexo: Sexo | ''; fecha_nacimiento: string;
+  rh: string; eps: string; direccion: string; observaciones: string;
+};
+
+function DialogoEditarEstudiante({
+  estudiante, onCerrar, onGuardado,
+}: { estudiante: EstudianteListItem; onCerrar: () => void; onGuardado: (msg: string) => void }) {
+  useEscape(onCerrar);
+  const inicial = useMemo<FormEstudiante>(() => ({
+    nombre: estudiante.nombre,
+    tipo_documento: estudiante.tipo_documento ?? '',
+    sexo: estudiante.sexo ?? '',
+    fecha_nacimiento: estudiante.fecha_nacimiento?.slice(0, 10) ?? '',
+    rh: estudiante.rh ?? '',
+    eps: estudiante.eps ?? '',
+    direccion: estudiante.direccion ?? '',
+    observaciones: estudiante.observaciones ?? '',
+  }), [estudiante]);
+  const [form, setForm] = useState(inicial);
+  const [errores, setErrores] = useState<Partial<Record<keyof FormEstudiante, string>>>({});
   const [error, setError] = useState('');
-  const cambiar = (campo: keyof typeof form) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm(f => ({ ...f, [campo]: e.target.value }));
+  const [enviando, setEnviando] = useState(false);
+
+  const cambiar = (campo: keyof FormEstudiante) =>
+    (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      setForm(f => ({ ...f, [campo]: e.target.value }));
+      setErrores(er => ({ ...er, [campo]: undefined }));
+    };
+
+  const cambios = (Object.keys(form) as (keyof FormEstudiante)[]).filter(k => form[k] !== inicial[k]);
+  const actual = [...estudiante.matriculas].sort((a, b) => b.year - a.year)[0];
 
   async function guardar(ev: FormEvent) {
     ev.preventDefault();
-    if (!form.nombre.trim()) { setError('El nombre no puede quedar vacío.'); return; }
+    const nuevos: typeof errores = {};
+    if (!form.nombre.trim()) nuevos.nombre = 'Escribe el nombre del estudiante.';
+    if (!form.fecha_nacimiento) nuevos.fecha_nacimiento = 'Elige la fecha de nacimiento.';
+    else if (form.fecha_nacimiento > hoyISO()) nuevos.fecha_nacimiento = 'La fecha no puede ser futura.';
+    setErrores(nuevos);
+    if (Object.keys(nuevos).length) return;
+    if (!cambios.length) { onCerrar(); return; }
+
+    // Solo se envía lo que cambió.
+    const payload = Object.fromEntries(cambios.map(k => [k, typeof form[k] === 'string' ? form[k].trim() : form[k]]));
     setEnviando(true);
     setError('');
     try {
-      await estudiantesApi.actualizar(detalle.numero_identidad, { ...form, nombre: form.nombre.trim() });
-      setEditando(false);
-      onGuardado();
+      await estudiantesApi.actualizar(estudiante.numero_identidad, payload);
+      onGuardado(`Datos de ${form.nombre.trim()} actualizados.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudieron guardar los cambios.');
-    } finally {
       setEnviando(false);
     }
   }
 
-  if (!editando) {
-    const anos = edad(detalle.fecha_nacimiento);
-    return (
-      <Bloque
-        titulo="Datos personales"
-        accion={
-          <button type="button" onClick={() => setEditando(true)}
-            className="flex items-center gap-2 h-8 px-3 rounded-[10px] bg-(--p-acento) text-[#170f27] text-[11.5px] font-bold tracking-[0.12em]">
-            <I.Lapiz tam={14} /> EDITAR
-          </button>
-        }
-      >
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
-          <Dato etiqueta="Nombre completo" valor={detalle.nombre} />
-          <Dato etiqueta="Documento" valor={documento(detalle.numero_identidad)} />
-          <Dato etiqueta="Fecha de nacimiento" valor={`${fechaDia(detalle.fecha_nacimiento)}${anos !== null ? ` · ${anos} años` : ''}`} />
-          <Dato etiqueta="RH" valor={detalle.rh} />
-          <div className="col-span-2"><Dato etiqueta="Dirección" valor={detalle.direccion} /></div>
-          <div className="col-span-2"><Dato etiqueta="Observaciones" valor={detalle.observaciones} /></div>
-        </dl>
-      </Bloque>
-    );
-  }
-
   return (
-    <form onSubmit={guardar} noValidate>
-      <Bloque titulo="Editar datos personales">
-        <div className="grid grid-cols-2 gap-4">
-          <label className="col-span-2 text-[12.5px] font-semibold">
-            Nombre completo
-            <input value={form.nombre} onChange={cambiar('nombre')} maxLength={150} className={`${claseCampo} mt-1.5`} />
-          </label>
-          <label className="text-[12.5px] font-semibold">
-            Fecha de nacimiento
-            <input type="date" value={form.fecha_nacimiento} onChange={cambiar('fecha_nacimiento')} className={`${claseCampo} mt-1.5`} />
-          </label>
-          <label className="text-[12.5px] font-semibold">
-            RH
-            <input value={form.rh} onChange={cambiar('rh')} maxLength={5} placeholder="O+" className={`${claseCampo} mt-1.5`} />
-          </label>
-          <label className="col-span-2 text-[12.5px] font-semibold">
-            Dirección
-            <input value={form.direccion} onChange={cambiar('direccion')} maxLength={200} className={`${claseCampo} mt-1.5`} />
-          </label>
-          <label className="col-span-2 text-[12.5px] font-semibold">
-            Observaciones
-            <textarea value={form.observaciones} onChange={cambiar('observaciones')} rows={4} maxLength={2000}
-              className={`${claseCampo} mt-1.5 h-auto py-2.5 resize-y`} />
-          </label>
-        </div>
-        <p className="mt-3 text-[12px] text-(--p-suave)">El documento no se puede cambiar.</p>
-        <ErrorFormulario texto={error} />
-        <BotonesDialogo onCancelar={() => setEditando(false)} texto="Guardar" enviando={enviando} />
-      </Bloque>
-    </form>
+    <Capa>
+      <div className="fixed inset-0 z-50 grid place-items-center p-3 sm:p-6">
+        <div className="velo absolute inset-0 bg-black/45" onClick={onCerrar} />
+        <form
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-editar"
+          onSubmit={guardar}
+          noValidate
+          style={{ ...zoomCapa, maxHeight: `calc((100dvh - 24px) / ${ESCALA_CONTENIDO})` }}
+          // Sin borde y sin fondo propio: así no asoma una línea clara en las esquinas del encabezado oscuro.
+          className="dialogo relative w-full max-w-[720px] flex flex-col rounded-[24px] text-(--p-tinta) shadow-2xl overflow-hidden"
+        >
+          <header className="shrink-0 flex items-center gap-4 px-5 sm:px-6 py-5 bg-(--p-banda) text-white">
+            <Avatar nombre={estudiante.nombre} destacado tam="size-12" />
+            <div className="flex-1 min-w-0 leading-tight">
+              <h2 id="titulo-editar" className="text-[18px] font-extrabold">Editar estudiante</h2>
+              <p className="mt-1 text-[12.5px] text-white/70 truncate">
+                {documentoCompleto(estudiante)}
+                {actual?.grado && ` · ${actual.grado.nombre} ${actual.year}`}
+              </p>
+            </div>
+            <button type="button" onClick={onCerrar} aria-label="Cerrar"
+              className="grid place-items-center shrink-0 size-10 rounded-xl bg-white/10 text-white hover:bg-white/20">
+              <I.Cerrar tam={18} />
+            </button>
+          </header>
+
+          <div className="flex-1 min-h-0 overflow-y-auto bg-(--p-sup) px-5 sm:px-6 pt-5 pb-6">
+            <div className="grid grid-cols-2 items-end gap-x-3 sm:gap-x-4 gap-y-4">
+              <Campo etiqueta="Nombre completo" requerido error={errores.nombre} className="col-span-2">
+                <input value={form.nombre} onChange={cambiar('nombre')} maxLength={150} autoFocus
+                  aria-invalid={!!errores.nombre || undefined} className={claseCampoModal} />
+              </Campo>
+
+              <Campo etiqueta="Tipo de documento">
+                <SelectModal value={form.tipo_documento} onChange={cambiar('tipo_documento')}>
+                  <option value="" className="bg-(--p-sup)">Elegir…</option>
+                  {(Object.entries(TIPOS_DOCUMENTO) as [TipoDocumento, string][]).map(([k, t]) => (
+                    <option key={k} value={k} className="bg-(--p-sup)">{k} · {t}</option>
+                  ))}
+                </SelectModal>
+              </Campo>
+              <Campo etiqueta="Sexo">
+                <SelectModal value={form.sexo} onChange={cambiar('sexo')}>
+                  <option value="" className="bg-(--p-sup)">Elegir…</option>
+                  {(Object.entries(SEXOS) as [Sexo, string][]).map(([k, t]) => (
+                    <option key={k} value={k} className="bg-(--p-sup)">{t}</option>
+                  ))}
+                </SelectModal>
+              </Campo>
+
+              <Campo etiqueta="Fecha de nacimiento" requerido error={errores.fecha_nacimiento}>
+                <input type="date" value={form.fecha_nacimiento} onChange={cambiar('fecha_nacimiento')} max={hoyISO()}
+                  aria-invalid={!!errores.fecha_nacimiento || undefined} className={claseCampoModal} />
+              </Campo>
+              <Campo etiqueta="Tipo de sangre (RH)">
+                <SelectModal value={form.rh} onChange={cambiar('rh')}>
+                  <option value="" className="bg-(--p-sup)">Elegir…</option>
+                  {TIPOS_SANGRE.map(t => <option key={t} value={t} className="bg-(--p-sup)">{t}</option>)}
+                </SelectModal>
+              </Campo>
+
+              <Campo etiqueta="Dirección de residencia" className="col-span-2 sm:col-span-1">
+                <input value={form.direccion} onChange={cambiar('direccion')} maxLength={200} className={claseCampoModal} />
+              </Campo>
+              <Campo etiqueta="EPS" className="col-span-2 sm:col-span-1">
+                <input value={form.eps} onChange={cambiar('eps')} maxLength={100} placeholder="Ej.: Sura, Nueva EPS…"
+                  className={`${claseCampoModal} placeholder:text-(--p-tenue)`} />
+              </Campo>
+
+              <Campo etiqueta="Observaciones" className="col-span-2">
+                <textarea value={form.observaciones} onChange={cambiar('observaciones')} rows={4} maxLength={2000}
+                  placeholder="Condiciones médicas, necesidades especiales…"
+                  className={`${claseCampoModal} h-auto min-h-[104px] py-3 resize-y placeholder:text-(--p-tenue)`} />
+              </Campo>
+            </div>
+
+            <div className="mt-5 flex rounded-xl border border-(--p-borde) bg-(--p-menta) overflow-hidden">
+              <span className="grid place-items-center shrink-0 w-12 bg-(--p-icono) text-(--p-acento)"><I.Escudo tam={17} /></span>
+              <p className="px-4 py-3 text-[13px] leading-relaxed text-(--p-suave)">
+                El número de identidad <b className="text-(--p-tinta)">{documento(estudiante.numero_identidad)}</b> no puede
+                modificarse. Si necesitas corregirlo, comunícate con el administrador del sistema.
+              </p>
+            </div>
+
+            {error && <p role="alert" className="mt-4 text-[13.5px] font-medium text-red-600">{error}</p>}
+
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-4">
+              <button type="button" onClick={onCerrar}
+                className="h-12 rounded-xl border border-(--p-borde) bg-(--p-campo) text-[14px] font-bold hover:bg-(--p-hover)">
+                Cancelar
+              </button>
+              <button type="submit" disabled={enviando}
+                className="flex items-stretch h-12 rounded-xl overflow-hidden bg-(--p-acento) text-[#170f27] hover:brightness-105 disabled:opacity-60">
+                <span className="grid place-items-center shrink-0 w-12 bg-(--p-acento-2)"><I.Guardar tam={17} /></span>
+                <span className="flex-1 grid place-items-center px-2 text-[12px] sm:text-[12.5px] font-bold tracking-[0.14em]">
+                  {enviando ? 'GUARDANDO…' : 'GUARDAR CAMBIOS'}
+                </span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </Capa>
   );
 }
 
@@ -925,45 +1494,57 @@ function PestanaAcudientes({ detalle }: { detalle: EstudianteDetalle }) {
   }
 
   if (!detalle.acudientes.length) {
-    return <p className="text-[14px] text-(--p-suave)">Este estudiante no tiene acudientes registrados.</p>;
+    return <p className="text-[14.7px] text-(--p-suave)">Este estudiante no tiene acudientes registrados.</p>;
   }
 
   const ordenados = [...detalle.acudientes].sort((a, b) => Number(!!b.RelacionEA?.acudiente_principal) - Number(!!a.RelacionEA?.acudiente_principal));
   return (
-    <Bloque titulo={`Acudientes (${ordenados.length})`}>
+    <Bloque titulo={<>Acudientes <span className="font-medium text-(--p-suave)">({ordenados.length})</span></>}>
       <ErrorFormulario texto={error} />
       <ul className="space-y-3">
         {ordenados.map(a => {
           const c = credenciales[a.cedula];
           return (
-            <li key={a.cedula} className="rounded-[14px] border border-(--p-borde) p-4">
-              <div className="flex items-start gap-3">
-                <Avatar nombre={a.nombre} destacado={!!a.RelacionEA?.acudiente_principal} />
+            // Diseño: docs/Ficha del estudiante · Pestaña Acudientes (sin los íconos de cada dato).
+            <li key={a.cedula} className="rounded-[18px] border border-(--p-borde) overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-3.5 bg-(--p-menta)">
+                <span className="grid place-items-center shrink-0 size-11 rounded-full bg-(--p-gris)/45 text-[13.65px] font-bold">
+                  {iniciales(a.nombre)}
+                </span>
                 <div className="flex-1 min-w-0 leading-tight">
-                  <p className="text-[14px] font-semibold">{a.nombre}</p>
-                  <p className="text-[12px] text-(--p-suave)">
-                    {a.RelacionEA?.parentesco ?? 'Acudiente'} · C.C. {documento(a.cedula)}
+                  <p className="text-[16.3px] font-bold truncate">{a.nombre}</p>
+                  <p className="mt-0.5 text-[13.13px] text-(--p-suave)">
+                    {a.RelacionEA?.parentesco ? capitalizar(a.RelacionEA.parentesco) : 'Acudiente'} · CC {documento(a.cedula)}
                   </p>
                 </div>
                 {a.RelacionEA?.acudiente_principal && (
-                  <span className="h-6 px-2.5 flex items-center rounded-full bg-(--p-acento) text-[#170f27] text-[11.5px] font-bold">Principal</span>
+                  <span className="shrink-0 h-6 px-2.5 flex items-center rounded-full bg-(--p-acento) text-[#170f27] text-[12.6px] font-bold">Principal</span>
                 )}
               </div>
-              <dl className="mt-3 space-y-1.5 text-[13px]">
-                <div className="flex items-center gap-2"><span className="text-(--p-suave)"><I.Telefono tam={15} /></span>{a.telefono || <span className="text-(--p-tenue)">Sin teléfono</span>}</div>
-                <div className="flex items-center gap-2"><span className="text-(--p-suave)"><I.Correo tam={15} /></span>{a.correo || <span className="text-(--p-tenue)">Sin correo</span>}</div>
+              <dl className="px-4">
+                <DatoAcudiente etiqueta="Teléfono" valor={a.telefono} copiar="Copiar teléfono" telefono />
+                <DatoAcudiente etiqueta="Correo" valor={a.correo} copiar="Copiar correo" />
+                <DatoAcudiente etiqueta="Dirección" valor={a.direccion} />
+                <DatoAcudiente etiqueta="Teléfono del trabajo" valor={a.telefono_trabajo} copiar="Copiar teléfono del trabajo" telefono />
+                <DatoAcudiente etiqueta="Dirección del trabajo" valor={a.direccion_trabajo} />
               </dl>
-              {c ? (
-                <div className="mt-3 rounded-[10px] bg-(--p-menta) px-3.5 py-2.5 text-[13px]">
-                  Usuario <b>{c.username}</b> · Contraseña temporal <b>{c.passwordTemporal}</b>
-                  <p className="mt-0.5 text-[12px] text-(--p-suave)">{c.nota}</p>
-                </div>
-              ) : (
-                <button type="button" onClick={() => restablecer(a.cedula)} disabled={enviando === a.cedula}
-                  className="mt-3 flex items-center gap-2 h-8 px-3 rounded-[10px] border border-(--p-borde) text-[12.5px] font-semibold hover:bg-(--p-hover) disabled:opacity-60">
-                  <I.Llave tam={14} /> {enviando === a.cedula ? 'Restableciendo…' : 'Restablecer contraseña'}
-                </button>
-              )}
+              <div className="p-4 border-t border-(--p-borde)">
+                {c ? (
+                  <div className="rounded-[12px] bg-(--p-menta) px-4 py-3 text-[13.65px]">
+                    Usuario <b>{c.username}</b> · Contraseña temporal <b>{c.passwordTemporal}</b>
+                    <p className="mt-0.5 text-[12.6px] text-(--p-suave)">{c.nota}</p>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => restablecer(a.cedula)}
+                    disabled={enviando === a.cedula}
+                    className="presionable w-full h-11 rounded-[12px] border border-(--p-borde) text-[12.6px] font-bold tracking-[0.12em] uppercase hover:bg-(--p-hover) disabled:opacity-60"
+                  >
+                    {enviando === a.cedula ? 'Restableciendo…' : 'Restablecer contraseña'}
+                  </button>
+                )}
+              </div>
             </li>
           );
         })}
@@ -972,40 +1553,70 @@ function PestanaAcudientes({ detalle }: { detalle: EstudianteDetalle }) {
   );
 }
 
-function PestanaMatriculas({
-  detalle, onRematricular, onCambiarEstado,
-}: { detalle: EstudianteDetalle; onRematricular: () => void; onCambiarEstado: (m: MatriculaListItem) => void }) {
+/** "3114564410" → "311 456 4410" para leerlo fácil; si no son solo dígitos, se deja igual. */
+function telefonoLegible(t: string | null) {
+  if (!t) return t;
+  const m = t.replace(/\s+/g, '').match(/^(\d{3})(\d{3})(\d+)$/);
+  return m ? `${m[1]} ${m[2]} ${m[3]}` : t;
+}
+
+/** Fila de dato del acudiente; con `copiar`, muestra el botón de copiar si hay valor. */
+function DatoAcudiente({
+  etiqueta, valor, copiar, telefono = false,
+}: { etiqueta: string; valor: string | null; copiar?: string; telefono?: boolean }) {
+  return (
+    <div className="flex items-center gap-3 py-3 border-t border-(--p-borde) first:border-t-0 min-w-0">
+      <div className="flex-1 min-w-0">
+        <dt className="text-[11.03px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">{etiqueta}</dt>
+        <dd className="mt-0.5 text-[15.2px] font-semibold break-words">
+          {(telefono ? telefonoLegible(valor) : valor) || <span className="font-normal italic text-(--p-tenue)">Sin dato</span>}
+        </dd>
+      </div>
+      {valor && copiar && <BotonCopiar texto={valor} etiqueta={copiar} />}
+    </div>
+  );
+}
+
+/* Diseño: docs/Ficha del estudiante · Pestaña Matrículas (línea de tiempo, sin íconos de jornada). */
+function PestanaMatriculas({ detalle, idActual }: { detalle: EstudianteDetalle; idActual: number | undefined }) {
   const matriculas = [...detalle.matriculas].sort((a, b) => b.year - a.year);
+  const anos = new Set(matriculas.map(m => m.year)).size;
   return (
     <Bloque
       titulo="Historial de matrículas"
-      accion={
-        <button type="button" onClick={onRematricular}
-          className="flex items-center gap-2 h-8 px-3 rounded-[10px] bg-(--p-acento) text-[#170f27] text-[11.5px] font-bold tracking-[0.12em]">
-          <I.PersonaCheck tam={14} /> REMATRICULAR
-        </button>
-      }
+      accion={matriculas.length > 0 && <span className="text-[13.65px] text-(--p-suave)">{anos} {anos === 1 ? 'año' : 'años'}</span>}
     >
       {matriculas.length === 0 ? (
-        <p className="text-[14px] text-(--p-suave)">Sin matrículas.</p>
+        <p className="text-[14.7px] text-(--p-suave)">Sin matrículas. Usa «Matricular» para crear la primera.</p>
       ) : (
-        <ul className="space-y-3">
-          {matriculas.map(m => (
-            <li key={m.id_matricula} className="flex items-center gap-4 rounded-[14px] border border-(--p-borde) p-4">
-              <span className="text-[22px] font-extrabold tabular-nums">{m.year}</span>
-              <div className="flex-1 min-w-0 leading-tight">
-                <p className="text-[14px] font-semibold">{m.grado?.nombre ?? '—'}</p>
-                <p className="text-[12px] text-(--p-suave)">{capitalizar(m.jornada)} · desde {fechaDia(m.fecha_matricula)}</p>
-              </div>
-              <ChipEstado estado={m.estado} />
-              {m.estado !== 'GRADUADO' && (
-                <BotonAccion etiqueta={m.estado === 'RETIRADO' ? 'Reactivar' : 'Retirar'} onClick={() => onCambiarEstado(m)}>
-                  {m.estado === 'RETIRADO' ? <I.PersonaMas tam={16} /> : <I.PersonaMenos tam={16} />}
-                </BotonAccion>
-              )}
-            </li>
-          ))}
-        </ul>
+        <ol>
+          {matriculas.map((m, i) => {
+            const esActual = m.id_matricula === idActual;
+            const ultima = i === matriculas.length - 1;
+            return (
+              <li key={m.id_matricula} className="grid grid-cols-[auto_1fr] gap-x-3">
+                {/* Año y la línea que lo une con el siguiente */}
+                <div className="flex flex-col items-center">
+                  <span className={`grid place-items-center h-8 px-3 rounded-[10px] text-[14.2px] font-bold tabular-nums ${
+                    esActual ? 'bg-(--p-acento) text-[#170f27]' : 'bg-(--p-menta)'
+                  }`}>
+                    {m.year}
+                  </span>
+                  {!ultima && <span className="flex-1 w-px my-1.5 bg-(--p-borde)" aria-hidden />}
+                </div>
+                <div className={`flex items-center gap-3 min-w-0 rounded-[14px] border px-4 py-3 ${ultima ? '' : 'mb-3'} ${
+                  esActual ? 'border-(--p-acento) border-[1.5px]' : 'border-(--p-borde)'
+                }`}>
+                  <div className="flex-1 min-w-0 leading-tight">
+                    <p className="text-[15.75px] font-bold truncate">{m.grado?.nombre ?? '—'}</p>
+                    <p className="mt-1 text-[13.13px] text-(--p-suave)">{capitalizar(m.jornada)} · desde {fechaDia(m.fecha_matricula)}</p>
+                  </div>
+                  <ChipEstado estado={m.estado} />
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       )}
     </Bloque>
   );
@@ -1027,22 +1638,22 @@ function PestanaPagos({ detalle, onIr }: { detalle: EstudianteDetalle; onIr: (s:
     return () => { vigente = false; };
   }, [idMatricula]);
 
-  if (!idMatricula) return <p className="text-[14px] text-(--p-suave)">Sin matrículas, así que no hay pagos.</p>;
+  if (!idMatricula) return <p className="text-[14.7px] text-(--p-suave)">Sin matrículas, así que no hay pagos.</p>;
 
   return (
     <Bloque
       titulo="Estado de cuenta"
       accion={
         <select value={idMatricula} onChange={e => setIdMatricula(Number(e.target.value))}
-          className="h-8 px-2.5 rounded-[10px] border border-(--p-borde) bg-transparent text-[12.5px] font-semibold outline-none cursor-pointer">
+          className="h-8 px-2.5 rounded-[10px] border border-(--p-borde) bg-transparent text-[13.13px] font-semibold outline-none cursor-pointer">
           {matriculas.map(m => <option key={m.id_matricula} value={m.id_matricula} className="bg-(--p-sup)">{m.year}</option>)}
         </select>
       }
     >
       {error ? (
-        <p role="alert" className="text-[14px] text-red-600">{error}</p>
+        <p role="alert" className="text-[14.7px] text-red-600">{error}</p>
       ) : !resumen ? (
-        <p className="text-[14px] text-(--p-suave)">Cargando…</p>
+        <p className="text-[14.7px] text-(--p-suave)">Cargando…</p>
       ) : (
         <>
           <div className="grid grid-cols-3 rounded-[14px] border border-(--p-borde) divide-x divide-(--p-borde)">
@@ -1051,7 +1662,7 @@ function PestanaPagos({ detalle, onIr }: { detalle: EstudianteDetalle; onIr: (s:
             <Total etiqueta="Pendiente" valor={resumen.totales.pendiente} fuerte />
           </div>
           {resumen.cuentas.length === 0 ? (
-            <p className="mt-4 text-[14px] text-(--p-suave)">Todavía no hay cuentas de cobro para este año.</p>
+            <p className="mt-4 text-[14.7px] text-(--p-suave)">Todavía no hay cuentas de cobro para este año.</p>
           ) : (
             <ul className="mt-4 divide-y divide-(--p-borde) rounded-[14px] border border-(--p-borde)">
               {[...resumen.cuentas].sort((a, b) => a.mes - b.mes).map(c => {
@@ -1059,10 +1670,10 @@ function PestanaPagos({ detalle, onIr }: { detalle: EstudianteDetalle; onIr: (s:
                 return (
                   <li key={c.id_cuenta} className="flex items-center gap-3 px-4 h-[54px]">
                     <div className="flex-1 min-w-0 leading-tight">
-                      <p className="text-[13.5px] font-semibold">{capitalizar(c.concepto.nombre)}</p>
-                      <p className="text-[12px] text-(--p-suave)">{capitalizar(MESES_LARGOS[c.mes - 1] ?? '')}{pagado > 0 && c.estado !== 'PAGADO' ? ` · abonado ${dineroCorto(pagado)}` : ''}</p>
+                      <p className="text-[14.18px] font-semibold">{capitalizar(c.concepto.nombre)}</p>
+                      <p className="text-[12.6px] text-(--p-suave)">{capitalizar(MESES_LARGOS[c.mes - 1] ?? '')}{pagado > 0 && c.estado !== 'PAGADO' ? ` · abonado ${dineroCorto(pagado)}` : ''}</p>
                     </div>
-                    <span className="text-[13.5px] font-bold">{dineroCorto(parseFloat(c.valor_deuda))}</span>
+                    <span className="text-[14.18px] font-bold">{dineroCorto(parseFloat(c.valor_deuda))}</span>
                     <ChipCuenta estado={c.estado} />
                   </li>
                 );
@@ -1070,7 +1681,7 @@ function PestanaPagos({ detalle, onIr }: { detalle: EstudianteDetalle; onIr: (s:
             </ul>
           )}
           <button type="button" onClick={() => onIr('pagos')}
-            className="mt-4 w-full h-10 rounded-[10px] bg-(--p-banda) text-white text-[11.5px] font-bold tracking-[0.12em]">
+            className="mt-4 w-full h-10 rounded-[10px] bg-(--p-banda) text-white text-[12.08px] font-bold tracking-[0.12em]">
             REGISTRAR PAGO
           </button>
         </>
@@ -1082,8 +1693,8 @@ function PestanaPagos({ detalle, onIr }: { detalle: EstudianteDetalle; onIr: (s:
 function Total({ etiqueta, valor, fuerte = false }: { etiqueta: string; valor: number; fuerte?: boolean }) {
   return (
     <div className="px-4 py-3">
-      <p className="text-[11px] font-semibold tracking-[0.14em] uppercase text-(--p-suave)">{etiqueta}</p>
-      <p className={`mt-1 text-[18px] font-extrabold ${fuerte && valor > 0 ? 'text-red-600' : ''}`}>{dineroCorto(valor)}</p>
+      <p className="text-[11.55px] font-semibold tracking-[0.14em] uppercase text-(--p-suave)">{etiqueta}</p>
+      <p className={`mt-1 text-[18.9px] font-extrabold ${fuerte && valor > 0 ? 'text-red-600' : ''}`}>{dineroCorto(valor)}</p>
     </div>
   );
 }
@@ -1094,5 +1705,5 @@ function ChipCuenta({ estado }: { estado: 'PENDIENTE' | 'PAGADO' | 'VENCIDO' }) 
     PENDIENTE: 'bg-(--p-menta)',
     VENCIDO: 'bg-red-600 text-white',
   } as const;
-  return <span className={`w-[84px] justify-center h-6 inline-flex items-center rounded-full text-[11.5px] font-bold ${estilos[estado]}`}>{capitalizar(estado)}</span>;
+  return <span className={`w-[84px] justify-center h-6 inline-flex items-center rounded-full text-[12.08px] font-bold ${estilos[estado]}`}>{capitalizar(estado)}</span>;
 }

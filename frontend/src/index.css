@@ -68,6 +68,9 @@
   --p-icono-txt: #ffffff;
   --p-hover: #f2f6f3;
   --p-linea: #170f27;          /* barra de progreso oscura */
+  --p-campo: #ffffff;          /* fondo de los campos de formulario */
+  --p-boton-2: #170f27;        /* botón secundario relleno (p. ej. «Matricular») */
+  --p-boton-2-txt: #ffffff;
 }
 .panel[data-tema="oscuro"] {
   --p-fondo: #0b0910;
@@ -84,6 +87,11 @@
   --p-icono-txt: #efcb68;
   --p-hover: #1f1829;
   --p-linea: #f4f2f7;
+  --p-campo: #07060b;
+  --p-boton-2: #e1eee5;
+  --p-boton-2-txt: #170f27;
+  /* Controles nativos (calendario, listas desplegables) en oscuro */
+  color-scheme: dark;
 }
 
 /* ── Movimiento del panel ─────────────────────────────────────────
@@ -177,13 +185,22 @@
 .velo { transition: opacity 200ms ease; }
 @starting-style { .velo { opacity: 0; } }
 .cajon { transition: transform 320ms var(--ease-drawer); }
-@starting-style { .cajon { transform: translateX(100%); } }
+/* +2rem: en computador el panel flota separado del borde y debe salir del todo. */
+@starting-style { .cajon { transform: translateX(calc(100% + 2rem)); } }
+/* Salida: más corta que la entrada y con ease-out, para que responda al instante al cerrar. */
+.cajon.saliendo { transform: translateX(calc(100% + 2rem)); transition: transform 220ms var(--ease-out); }
+.velo.saliendo { opacity: 0; pointer-events: none; transition: opacity 220ms var(--ease-out); }
+/* Botones que se hunden un poco al presionarlos. */
+.presionable { transition: transform 140ms var(--ease-out), background-color 150ms ease, filter 150ms ease, color 150ms ease; }
+.presionable:active { transform: scale(0.97); }
 /* Los diálogos no salen de un botón: crecen desde el centro. */
 .dialogo { transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out); }
 @starting-style { .dialogo { opacity: 0; transform: scale(0.96); } }
 @media (prefers-reduced-motion: reduce) {
   .cajon { transition: opacity 200ms ease; }
   @starting-style { .cajon { transform: none; opacity: 0; } }
+  .cajon.saliendo { transform: none; opacity: 0; transition: opacity 200ms ease; }
+  .presionable:active { transform: none; }
   @starting-style { .dialogo { transform: none; } }
 }
 
@@ -215,4 +232,21 @@ html:has(.panel[data-tema="oscuro"]).desplazando { scrollbar-color: rgb(244 242 
 @media (prefers-reduced-motion: reduce) {
   .cajon-izq { transition: opacity 200ms ease; }
   @starting-style { .cajon-izq { transform: none; opacity: 0; } }
+}
+
+/* Aviso flotante (p. ej. "Datos actualizados"): sube desde abajo sin mover nada de la página. */
+.toast { transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out); }
+@starting-style { .toast { opacity: 0; transform: translateY(12px); } }
+@media (prefers-reduced-motion: reduce) {
+  @starting-style { .toast { transform: none; } }
+}
+
+/* Panel que sube desde abajo (filtros en el celular); en pantallas más anchas solo aparece. */
+.hoja { transition: transform 320ms var(--ease-drawer), opacity 200ms ease; }
+@starting-style { .hoja { transform: translateY(100%); } }
+@media (min-width: 40rem) {
+  @starting-style { .hoja { transform: scale(0.96); opacity: 0; } }
+}
+@media (prefers-reduced-motion: reduce) {
+  @starting-style { .hoja { transform: none; opacity: 0; } }
 }

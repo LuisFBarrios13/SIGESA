@@ -111,6 +111,8 @@ export default function AdminLayout({ user, onLogout }: Props) {
           onVerEstudiante={verEstudiante}
           onAbrirMenu={() => setMenuAbierto(true)}
           data={dashboard.data}
+          // Estudiantes tiene su propio buscador en la lista: ahí se omite esta fila.
+          conBuscador={seccion !== 'estudiantes'}
         />
 
         {/* Contenedor grande con todo el contenido de la sección */}
@@ -369,10 +371,10 @@ function BarraSuperior({
   );
 }
 
-/** Celular y tablet: marca con menú, tema y usuario; debajo, buscador y avisos. */
+/** Celular y tablet: marca con menú, tema y usuario; debajo (si aplica), buscador y avisos. */
 function BarraSuperiorMovil({
-  user, tema, onCambiarTema, onIr, onLogout, onVerEstudiante, onAbrirMenu, data,
-}: ComponentProps<typeof BarraSuperior> & { onAbrirMenu: () => void }) {
+  user, tema, onCambiarTema, onIr, onLogout, onVerEstudiante, onAbrirMenu, data, conBuscador = true,
+}: ComponentProps<typeof BarraSuperior> & { onAbrirMenu: () => void; conBuscador?: boolean }) {
   return (
     <header className="lg:hidden relative z-20 flex flex-col gap-3">
       <div className="flex items-center gap-2.5 h-[58px] px-2 rounded-[20px] bg-(--p-sup) border border-(--p-borde) transition-colors">
@@ -392,12 +394,14 @@ function BarraSuperiorMovil({
         <MenuUsuario user={user} onIr={onIr} onLogout={onLogout} compacto />
       </div>
 
-      <div className="flex items-stretch gap-2.5 h-[50px]">
-        <div className="flex-1 min-w-0 flex items-center rounded-2xl bg-(--p-sup) border border-(--p-borde) transition-colors">
-          <Buscador onIr={onIr} onVerEstudiante={onVerEstudiante} movil />
+      {conBuscador && (
+        <div className="flex items-stretch gap-2.5 h-[50px]">
+          <div className="flex-1 min-w-0 flex items-center rounded-2xl bg-(--p-sup) border border-(--p-borde) transition-colors">
+            <Buscador onIr={onIr} onVerEstudiante={onVerEstudiante} movil />
+          </div>
+          <Campanita data={data} onIr={onIr} movil />
         </div>
-        <Campanita data={data} onIr={onIr} movil />
-      </div>
+      )}
     </header>
   );
 }

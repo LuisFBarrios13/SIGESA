@@ -146,3 +146,15 @@ export const Telefono = (p: Props) => (
 export const Correo = (p: Props) => (
   <Icono {...p}><rect x="3" y="5.5" width="18" height="13" rx="2" /><path d="m4 7 8 6 8-6" /></Icono>
 );
+export const Escudo = (p: Props) => (
+  <Icono {...p}><path d="M12 3 5 6v5.5c0 4.2 2.9 7.9 7 9.5 4.1-1.6 7-5.3 7-9.5V6Z" /></Icono>
+);
+export const Guardar = (p: Props) => (
+  <Icono {...p}><path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" /><path d="M8 4v5h7V4M8 20v-6h8v6" /></Icono>
+);
+export const Filtros = (p: Props) => (
+  <Icono {...p}><path d="M4 7h16M7 12h10M10 17h4" /></Icono>
+);
+export const Copiar = (p: Props) => (
+  <Icono {...p}><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2" /><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5" /></Icono>
+);

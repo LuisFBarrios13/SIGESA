@@ -26,8 +26,20 @@ export const Estudiante = sequelize.define(
         isDate: { msg: 'La fecha de nacimiento no es válida' },
       },
     },
+    tipo_documento: {
+      type: DataTypes.STRING(5),
+      allowNull: true,
+    },
+    sexo: {
+      type: DataTypes.STRING(1),
+      allowNull: true,
+    },
     rh: {
       type: DataTypes.STRING(5),
+      allowNull: true,
+    },
+    eps: {
+      type: DataTypes.STRING(100),
       allowNull: true,
     },
     direccion: {

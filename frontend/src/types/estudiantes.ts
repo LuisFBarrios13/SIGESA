@@ -11,11 +11,18 @@ export interface GradoResumen {
   jornada:  JornadaEstudiante;
 }
 
+/** Registro civil, tarjeta de identidad, cédula, cédula de extranjería, PPT y pasaporte. */
+export type TipoDocumento = 'RC' | 'TI' | 'CC' | 'CE' | 'PPT' | 'PA';
+export type Sexo = 'F' | 'M';
+
 export interface EstudianteListItem {
   numero_identidad: string;
   nombre:           string;
   fecha_nacimiento: string;
+  tipo_documento?:  TipoDocumento | null;
+  sexo?:            Sexo | null;
   rh?:              string;
+  eps?:             string | null;
   direccion?:       string;
   observaciones?:   string;
   matriculas:       MatriculaListItem[];
@@ -29,7 +36,10 @@ export interface EstudianteDetalle extends EstudianteListItem {
 export interface ActualizarEstudiantePayload {
   nombre?:           string;
   fecha_nacimiento?: string;
+  tipo_documento?:   TipoDocumento | '';
+  sexo?:             Sexo | '';
   rh?:               string;
+  eps?:              string;
   direccion?:        string;
   observaciones?:    string;
 }
