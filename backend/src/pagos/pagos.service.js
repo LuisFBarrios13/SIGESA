@@ -15,6 +15,7 @@ import {
 } from '../models/index.js';
 import { Op } from 'sequelize';
 import { AppError } from '../utils/AppError.js';
+import { ESTADOS_VIGENTES } from '../matriculas/periodo.js';
 
 // ── Constants ──────────────────────────────────────────────────
 
@@ -121,7 +122,8 @@ export const listarCuentasPorMatricula = (id_matricula) =>
   });
 
 export const buscarMatriculas = async (query, year) => {
-  const whereMatricula = { estado: 'ACTIVO' };
+  // Activas y de promoción (matriculados en diciembre para el año siguiente)
+  const whereMatricula = { estado: { [Op.in]: ESTADOS_VIGENTES } };
   if (year) whereMatricula.year = year;
 
   return Matricula.findAll({
@@ -180,6 +182,19 @@ export const obtenerResumenPagos = async (id_matricula) => {
 // ── Commands ───────────────────────────────────────────────────
 
 /**
+ * Solo se cobra a una matrícula vigente (ACTIVO o PROMOCION) y para su propio año:
+ * nada de pensiones 2026 en una matrícula 2027, ni cobros a un retirado o finalizado.
+ */
+const validarMatriculaCobrable = (matricula, year) => {
+  if (Number(year) !== matricula.year) {
+    throw new AppError(400, `La matrícula es del año ${matricula.year}; no se le pueden generar cobros de ${year}`);
+  }
+  if (!ESTADOS_VIGENTES.includes(matricula.estado)) {
+    throw new AppError(400, `La matrícula está ${matricula.estado === 'RETIRADO' ? 'retirada' : 'finalizada'}; no se le generan cobros`);
+  }
+};
+
+/**
  * Generates monthly "pensión" cuentas de cobro using the global tarifa.
  * Idempotent: skips months that already have a cuenta.
  *
@@ -189,6 +204,7 @@ export const obtenerResumenPagos = async (id_matricula) => {
 export const generarCuentasPension = async (id_matricula, year) => {
   const matricula = await Matricula.findByPk(id_matricula);
   if (!matricula) throw new AppError(404, 'Matrícula no encontrada');
+  validarMatriculaCobrable(matricula, year);
 
   const tarifa = await getTarifa(year);
   if (!tarifa) {
@@ -225,6 +241,7 @@ export const generarCuentasPension = async (id_matricula, year) => {
 export const crearCuentaMatricula = async (id_matricula, year) => {
   const matricula = await Matricula.findByPk(id_matricula);
   if (!matricula) throw new AppError(404, 'Matrícula no encontrada');
+  validarMatriculaCobrable(matricula, year);
 
   const tarifa = await getTarifa(year);
   if (!tarifa) {

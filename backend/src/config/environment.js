@@ -1,6 +1,14 @@
 // src/config/environment.js
 import 'dotenv/config';
 
+// Las fechas (año en curso, cierre del 1 de enero, cuentas vencidas…) se calculan en la hora
+// del colegio aunque el servidor esté en otra zona (los de la nube suelen estar en UTC).
+process.env.TZ ||= 'America/Bogota';
+
+if (process.env.FECHA_SIMULADA && !['production', 'test'].includes(process.env.NODE_ENV)) {
+  console.warn(`⚠️  FECHA_SIMULADA=${process.env.FECHA_SIMULADA}: el sistema usa esa fecha en vez de la real. Quítala del .env al terminar de probar.`);
+}
+
 const REQUIRED_VARS = [
   'DB_HOST',
   'DB_PORT',

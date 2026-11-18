@@ -15,7 +15,7 @@ export interface MatriculaResumenAcudiente {
   year:            number;
   jornada:         'MAÑANA' | 'TARDE';
   fecha_matricula: string;
-  estado:          'ACTIVO' | 'RETIRADO' | 'GRADUADO';
+  estado:          'ACTIVO' | 'PROMOCION' | 'RETIRADO' | 'FINALIZADO';
   grado:           GradoResumenAcudiente;
 }
 

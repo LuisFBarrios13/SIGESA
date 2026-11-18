@@ -2,6 +2,7 @@
 import { env } from './config/environment.js';
 import { connectDB } from './config/database.js';
 import { migrarPendientes } from './config/migrator.js';
+import { programarCierreDeYear } from './matriculas/periodo.js';
 import app from './config/app.js';
 
 // Importar modelos para que Sequelize registre modelos y asociaciones
@@ -13,6 +14,9 @@ const startServer = async () => {
   // El esquema se maneja con migraciones (carpeta /migrations), no con sync().
   const aplicadas = await migrarPendientes();
   aplicadas.forEach((nombre) => console.log(`🗃️  Migración aplicada: ${nombre}`));
+
+  // 1 de enero: las matrículas del año que terminó pasan a FINALIZADO y las de PROMOCION a ACTIVO.
+  await programarCierreDeYear();
 
   app.listen(env.port, () => {
     console.log(`🚀 Servidor corriendo en http://localhost:${env.port}`);

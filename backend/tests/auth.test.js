@@ -7,7 +7,17 @@ let s;
 before(async () => {
   s = await iniciarServidor();
   await s.crearUsuario('admin', 'clave123', 'ADMINISTRADOR', { nombre: 'Rectoría' });
-  await s.crearUsuario('nuevo', 'temporal1', 'ACUDIENTE', { primer_login: true });
+  const nuevo = await s.crearUsuario('nuevo', 'temporal1', 'ACUDIENTE', { primer_login: true });
+  // Un acudiente solo entra si tiene un estudiante con matrícula vigente
+  const { Acudiente, Estudiante, RelacionEA, Matricula, Grado } = s.modelos;
+  await Acudiente.create({ cedula: '5100', nombre: 'Acudiente Nuevo', id_usuario: nuevo.id_usuario });
+  await Estudiante.create({ numero_identidad: '1100', nombre: 'Hijo Nuevo', fecha_nacimiento: '2019-01-01' });
+  await RelacionEA.create({ id_estudiante: '1100', id_acudiente: '5100', acudiente_principal: true });
+  const grado = await Grado.findOne();
+  await Matricula.create({
+    id_grado: grado.id_grado, id_estudiante: '1100', year: Number(process.env.FECHA_SIMULADA.slice(0, 4)),
+    jornada: grado.jornada, fecha_matricula: new Date(), estado: 'ACTIVO',
+  });
   await s.crearUsuario('profe', 'clave123', 'DOCENTE');
   await s.crearUsuario('inactivo', 'clave123', 'ADMINISTRADOR', { estado: false });
 });

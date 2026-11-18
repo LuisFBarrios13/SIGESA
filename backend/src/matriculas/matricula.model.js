@@ -47,7 +47,7 @@ export const Matricula = sequelize.define(
       defaultValue: DataTypes.NOW,
     },
     estado: {
-      type: DataTypes.ENUM('ACTIVO', 'RETIRADO', 'GRADUADO'),
+      type: DataTypes.ENUM('ACTIVO', 'PROMOCION', 'RETIRADO', 'FINALIZADO'),
       allowNull: false,
       defaultValue: 'ACTIVO',
     },

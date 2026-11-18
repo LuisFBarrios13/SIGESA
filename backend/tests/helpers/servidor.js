@@ -11,6 +11,9 @@ if (!/^[a-z0-9_]+$/i.test(BASE_TEST) || BASE_TEST === BASE_DEV) {
   throw new Error(`Nombre de base de pruebas no válido: "${BASE_TEST}"`);
 }
 
+/** 15 de junio del año en curso: fecha que ve la API durante las pruebas. */
+export const FECHA_BASE = `${new Date().getFullYear()}-06-15`;
+
 /** Borra y vuelve a crear la base de pruebas (conectándose a "postgres"). */
 const recrearBase = async () => {
   const admin = new Sequelize('postgres', process.env.DB_USER, process.env.DB_PASSWORD, {
@@ -29,6 +32,9 @@ export const iniciarServidor = async () => {
   await recrearBase();
   process.env.DB_NAME  = BASE_TEST;
   process.env.NODE_ENV = 'test';
+  // Fecha fija a mitad del año en curso: las matrículas son del año actual (ACTIVO).
+  // Una prueba puede cambiarla para simular diciembre o el 1 de enero.
+  process.env.FECHA_SIMULADA = FECHA_BASE;
 
   // Importes dinámicos: deben leer el DB_NAME de pruebas.
   const { sequelize }        = await import('../../src/config/database.js');

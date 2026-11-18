@@ -2,10 +2,10 @@
 // Rematricular, retirar/reactivar y restablecer contraseñas.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { iniciarServidor } from './helpers/servidor.js';
+import { iniciarServidor, FECHA_BASE } from './helpers/servidor.js';
 
 const YEAR = new Date().getFullYear();
-const MES  = new Date().getMonth() + 1;
+const MES  = 6; // la API ve el 15 de junio (FECHA_BASE)
 
 let s, admin, idPrimero, idSegundo, idMatricula;
 
@@ -33,12 +33,15 @@ before(async () => {
 });
 after(() => s?.cerrar());
 
-test('rematricular: año siguiente en otro grado; la jornada sale del grado', async () => {
+test('rematricular a un activo: queda para el año siguiente en PROMOCION; la jornada sale del grado', async () => {
+  // El año que se envíe no importa: lo decide la fecha del servidor
   const r = await s.api('POST', '/matriculas/rematricula', {
-    token: admin, body: { id_estudiante: '1001', id_grado: idSegundo, year: YEAR + 1 },
+    token: admin, body: { id_estudiante: '1001', id_grado: idSegundo, year: YEAR + 5 },
   });
+  process.env.FECHA_SIMULADA = FECHA_BASE;
   assert.equal(r.status, 201);
   assert.equal(r.body.data.year, YEAR + 1);
+  assert.equal(r.body.data.estado, 'PROMOCION');
   assert.equal(r.body.data.jornada, 'TARDE');
   assert.equal(r.body.data.grado.nombre, 'Segundo');
 

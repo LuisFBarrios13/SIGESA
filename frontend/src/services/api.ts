@@ -71,7 +71,7 @@ export const api = {
 // ── Imports desde types/ ──────────────────────────────────────
 
 import type { LoginResult, Grado, Credenciales }   from '../types/shared';
-import type { MatriculaPayload, MatriculaResult, MatriculaListItem }  from '../types/matriculas';
+import type { MatriculaPayload, MatriculaResult, MatriculaListItem, DuenoDocumento, PeriodoInfo, DestinoRematricula }  from '../types/matriculas';
 import type { DocentePayload, DocenteResult, DocenteListItem, GradoDisponibilidad } from '../types/docentes';
 import type { EstudianteListItem, EstudianteDetalle, ActualizarEstudiantePayload }  from '../types/estudiantes';
 import type { AcudienteDetalle } from '../types/acudientes-admin';
@@ -80,7 +80,7 @@ import type { AcudienteDetalle } from '../types/acudientes-admin';
 // Las páginas siguen importando desde este archivo sin necesidad de cambios.
 
 export type { LoginResult, JornadaEstudiante, JornadaDocente, Grado, Credenciales } from '../types/shared';
-export type { MatriculaPayload, MatriculaResult, MatriculaListItem }   from '../types/matriculas';
+export type { MatriculaPayload, MatriculaResult, MatriculaListItem, DuenoDocumento, PeriodoMatricula, PeriodoInfo, DestinoRematricula }   from '../types/matriculas';
 export type { DocentePayload, GradoAsignado, DocenteResult, DocenteListItem, GradoDisponibilidad } from '../types/docentes';
 export type { GradoResumen, EstudianteListItem, EstudianteDetalle, ActualizarEstudiantePayload }    from '../types/estudiantes';
 
@@ -110,12 +110,21 @@ export const acudientesApi = {
 
 export const matriculasApi = {
   crear: (p: MatriculaPayload) => api.post<MatriculaResult>('/matriculas', p),
-  /** Matricular a un estudiante que ya existe. */
-  rematricular: (p: { id_estudiante: string; id_grado: number; year: number }) =>
+  /** Años en que se puede matricular: el año en curso (ACTIVO) o el siguiente (PROMOCION). */
+  periodo: () => api.get<PeriodoInfo>('/matriculas/periodo'),
+  /** Para qué año se rematricularía (activo este año → el siguiente, en promoción) o por qué no. */
+  destinoRematricula: (id_estudiante: string) =>
+    api.get<DestinoRematricula>(`/matriculas/rematricula/${encodeURIComponent(id_estudiante)}`),
+  /** Matricular a un estudiante que ya existe (el año lo decide el servidor). */
+  rematricular: (p: { id_estudiante: string; id_grado: number }) =>
     api.post<MatriculaListItem>('/matriculas/rematricula', p),
+  /** ¿De quién es un documento? Docente, acudiente, otra cuenta del sistema o nadie (null). */
+  documento: (doc: string) =>
+    api.get<DuenoDocumento | null>(`/matriculas/documento/${encodeURIComponent(doc)}`),
   /** Retirar o reactivar. */
-  cambiarEstado: (id_matricula: number, estado: 'ACTIVO' | 'RETIRADO') =>
-    api.patch<{ matricula: MatriculaListItem; cuentasEliminadas: number }>(`/matriculas/${id_matricula}/estado`, { estado }),
+  /** conPromocion: arrastra la matrícula del año siguiente (retira la promoción / la reactiva). */
+  cambiarEstado: (id_matricula: number, estado: 'ACTIVO' | 'RETIRADO', conPromocion = false) =>
+    api.patch<{ matricula: MatriculaListItem; cuentasEliminadas: number; promocionRetirada: number | null; promocionReactivada: number | null }>(`/matriculas/${id_matricula}/estado`, { estado, conPromocion }),
 };
 
 // ── Contraseñas ───────────────────────────────────────────────

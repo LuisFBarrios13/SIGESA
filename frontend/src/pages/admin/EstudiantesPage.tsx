@@ -6,6 +6,7 @@ import { estudiantesApi, gradosApi, matriculasApi, clavesApi } from '../../servi
 import { pagosApi, type ResumenPagos } from '../../services/pagosApi';
 import type { EstudianteDetalle, EstudianteListItem, MatriculaListItem, Sexo, TipoDocumento } from '../../types/estudiantes';
 import type { Grado, Credenciales } from '../../types/shared';
+import { NOMBRE_ESTADO } from '../../types/matriculas';
 import type { Seccion } from '../../layouts/AdminLayout';
 import { ESCALA_CONTENIDO, ID_CAPA } from '../../layouts/escala';
 import { Progreso } from '../../components/panel';
@@ -67,7 +68,6 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
   /** Veces que se guardaron datos: la ficha abierta se vuelve a cargar. */
   const [versionFicha, setVersionFicha] = useState(0);
   const [editando, setEditando] = useState<EstudianteListItem | null>(null);
-  const [rematricular, setRematricular] = useState<EstudianteListItem | null>(null);
   const [cambioEstado, setCambioEstado] = useState<{ e: EstudianteListItem; m: MatriculaListItem } | null>(null);
   const [aviso, setAviso] = useState('');
 
@@ -129,7 +129,7 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
   }, [base, q, fGrado, fJornada, fEstado]);
 
   const conteo = useMemo(() => {
-    const c = { total: base.length, ACTIVO: 0, RETIRADO: 0, GRADUADO: 0 };
+    const c: Record<Estado, number> & { total: number } = { total: base.length, ACTIVO: 0, PROMOCION: 0, RETIRADO: 0, FINALIZADO: 0 };
     for (const { m } of base) if (m) c[m.estado]++;
     return c;
   }, [base]);
@@ -156,7 +156,7 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
       <Filtro ancho={ancho} Icono={I.Calendario} etiqueta="Año" valor={String(fYear)} onCambio={v => setFYear(v === 'actual' || v === 'todos' ? v : Number(v))}
         opciones={[['actual', 'Año en curso'], ...years.filter(y => y !== YEAR_ACTUAL).map(y => [String(y), String(y)] as [string, string]), ['todos', 'Todos los años']]} />
       <Filtro ancho={ancho} Icono={I.Bandera} etiqueta="Estado" valor={fEstado} onCambio={v => setFEstado(v as typeof fEstado)}
-        opciones={[['', 'Todos los estados'], ['ACTIVO', 'Activos'], ['RETIRADO', 'Retirados'], ['GRADUADO', 'Graduados']]} />
+        opciones={[['', 'Todos los estados'], ['ACTIVO', 'Activos'], ['PROMOCION', 'Promoción'], ['RETIRADO', 'Retirados'], ['FINALIZADO', 'Finalizados']]} />
     </>
   );
 
@@ -236,8 +236,8 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
           valor={estudiantes ? conteo.ACTIVO : '—'} pct={pct(conteo.ACTIVO, conteo.total)} clave={`a-${version}-${!!estudiantes}`} />
         <Indicador Icono={I.PersonaX} cuadro="bg-[#adb5b0] text-[#170f27]" titulo="Retirados" insignia={`${pct(conteo.RETIRADO, conteo.total)}%`}
           valor={estudiantes ? conteo.RETIRADO : '—'} pct={pct(conteo.RETIRADO, conteo.total)} oscuro clave={`r-${version}-${!!estudiantes}`} />
-        <Indicador Icono={I.Birrete} cuadro="bg-(--p-icono) text-(--p-acento)" titulo="Graduados" insignia={`${pct(conteo.GRADUADO, conteo.total)}%`}
-          valor={estudiantes ? conteo.GRADUADO : '—'} pct={pct(conteo.GRADUADO, conteo.total)} clave={`g-${version}-${!!estudiantes}`} />
+        <Indicador Icono={I.Birrete} cuadro="bg-(--p-icono) text-(--p-acento)" titulo="Finalizados" insignia={`${pct(conteo.FINALIZADO, conteo.total)}%`}
+          valor={estudiantes ? conteo.FINALIZADO : '—'} pct={pct(conteo.FINALIZADO, conteo.total)} clave={`f-${version}-${!!estudiantes}`} />
       </section>
 
       {/* Aviso flotante: va por encima de la página y no mueve la tabla,
@@ -443,7 +443,6 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
           version={versionFicha}
           onEditar={setEditando}
           onCerrar={() => setFicha(null)}
-          onRematricular={e => setRematricular(e)}
           onCambiarEstado={(e, m) => setCambioEstado({ e, m })}
           onIr={onIr}
         />
@@ -457,21 +456,14 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
         />
       )}
 
-      {rematricular && (
-        <DialogoRematricula
-          estudiante={rematricular}
-          grados={grados}
-          onCerrar={() => setRematricular(null)}
-          onListo={msg => { setRematricular(null); setAviso(msg); recargar(); }}
-        />
-      )}
-
       {cambioEstado && (
         <DialogoEstado
           estudiante={cambioEstado.e}
+          promocion={cambioEstado.e.matriculas.find(x => x.year === cambioEstado.m.year + 1 &&
+            x.estado === (cambioEstado.m.estado === 'RETIRADO' ? 'RETIRADO' : 'PROMOCION'))}
           matricula={cambioEstado.m}
           onCerrar={() => setCambioEstado(null)}
-          onListo={msg => { setCambioEstado(null); setAviso(msg); recargar(); }}
+          onListo={msg => { setCambioEstado(null); setAviso(msg); setVersionFicha(v => v + 1); recargar(); }}
         />
       )}
     </main>
@@ -565,12 +557,13 @@ function ChipEstado({ estado, tam = 'text-[12px]' }: { estado: Estado; tam?: str
   const estilos: Record<Estado, string> = {
     ACTIVO: 'bg-(--p-acento) text-[#170f27]',
     RETIRADO: 'bg-(--p-menta) text-(--p-suave)',
-    GRADUADO: 'bg-(--p-icono) text-(--p-icono-txt)',
+    PROMOCION: 'bg-(--p-icono) text-(--p-acento)',
+    FINALIZADO: 'bg-(--p-icono) text-(--p-icono-txt)',
   };
   return (
     <span className={`inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full ${tam} font-bold ${estilos[estado]}`}>
       <span className="size-1.5 rounded-full bg-current" />
-      {capitalizar(estado)}
+      {NOMBRE_ESTADO[estado]}
     </span>
   );
 }
@@ -813,70 +806,18 @@ function ErrorFormulario({ texto }: { texto: string }) {
   return texto ? <p role="alert" className="mt-4 text-[13.5px] font-medium text-red-600">{texto}</p> : null;
 }
 
-const claseCampo = 'w-full h-11 px-3.5 rounded-xl border border-(--p-borde) bg-transparent text-[14px] outline-none focus:border-(--p-acento) transition-colors';
-
-function DialogoRematricula({
-  estudiante, grados, onCerrar, onListo,
-}: { estudiante: EstudianteListItem; grados: Grado[]; onCerrar: () => void; onListo: (msg: string) => void }) {
-  const ultima = [...estudiante.matriculas].sort((a, b) => b.year - a.year)[0];
-  const [year, setYear] = useState((ultima?.year ?? YEAR_ACTUAL - 1) + 1);
-  const [idGrado, setIdGrado] = useState<number | ''>('');
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState('');
-
-  async function enviar(ev: FormEvent) {
-    ev.preventDefault();
-    if (!idGrado) { setError('Elige el grado.'); return; }
-    setEnviando(true);
-    setError('');
-    try {
-      await matriculasApi.rematricular({ id_estudiante: estudiante.numero_identidad, id_grado: idGrado, year });
-      onListo(`${estudiante.nombre} quedó matriculado en ${year}.`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo rematricular.');
-      setEnviando(false);
-    }
-  }
-
-  return (
-    <Dialogo titulo="Rematricular" onCerrar={onCerrar}>
-      <form onSubmit={enviar} noValidate>
-        <div className="flex items-center gap-3">
-          <Avatar nombre={estudiante.nombre} />
-          <div className="leading-tight">
-            <p className="text-[14px] font-semibold">{estudiante.nombre}</p>
-            <p className="text-[12px] text-(--p-suave)">
-              {ultima ? `Último año: ${ultima.year} · ${ultima.grado?.nombre ?? ''}` : 'Sin matrículas anteriores'}
-            </p>
-          </div>
-        </div>
-        <div className="mt-5 grid grid-cols-[110px_1fr] gap-3">
-          <label className="text-[12.5px] font-semibold">
-            Año
-            <input type="number" value={year} min={2000} onChange={e => setYear(Number(e.target.value))} className={`${claseCampo} mt-1.5`} />
-          </label>
-          <label className="text-[12.5px] font-semibold">
-            Grado
-            <select value={idGrado} onChange={e => setIdGrado(e.target.value ? Number(e.target.value) : '')} className={`${claseCampo} mt-1.5 cursor-pointer`}>
-              <option value="" className="bg-(--p-sup)">Elige un grado</option>
-              {gradosUnicos(grados).map(g => (
-                <option key={g.id_grado} value={g.id_grado} className="bg-(--p-sup)">{g.nombre} · {capitalizar(g.jornada)}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <p className="mt-3 text-[12.5px] text-(--p-suave)">El acudiente sigue siendo el mismo y la jornada es la del grado elegido.</p>
-        <ErrorFormulario texto={error} />
-        <BotonesDialogo onCancelar={onCerrar} texto="Rematricular" enviando={enviando} />
-      </form>
-    </Dialogo>
-  );
-}
-
 function DialogoEstado({
-  estudiante, matricula, onCerrar, onListo,
-}: { estudiante: { nombre: string }; matricula: MatriculaListItem; onCerrar: () => void; onListo: (msg: string) => void }) {
-  const retirar = matricula.estado === 'ACTIVO';
+  estudiante, matricula, promocion, onCerrar, onListo,
+}: {
+  estudiante: { nombre: string }; matricula: MatriculaListItem;
+  /** Su matrícula del año siguiente: en promoción (al retirar) o retirada con ella (al reactivar). */
+  promocion?: MatriculaListItem;
+  onCerrar: () => void; onListo: (msg: string) => void;
+}) {
+  const retirar = matricula.estado === 'ACTIVO' || matricula.estado === 'PROMOCION';
+  const conOpcionPromocion = !!promocion && matricula.estado !== 'PROMOCION';
+  // Si se va del colegio, lo normal es que tampoco siga el próximo año (y si vuelve, que sí siga).
+  const [conPromocion, setConPromocion] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
 
@@ -885,10 +826,10 @@ function DialogoEstado({
     setEnviando(true);
     setError('');
     try {
-      const r = await matriculasApi.cambiarEstado(matricula.id_matricula, retirar ? 'RETIRADO' : 'ACTIVO');
+      const r = await matriculasApi.cambiarEstado(matricula.id_matricula, retirar ? 'RETIRADO' : 'ACTIVO', conOpcionPromocion && conPromocion);
       onListo(retirar
-        ? `${estudiante.nombre} fue retirado.${r.cuentasEliminadas ? ` Se quitaron ${r.cuentasEliminadas} pensiones futuras sin pagos.` : ''}`
-        : `${estudiante.nombre} fue reactivado.`);
+        ? `${estudiante.nombre} fue retirado${r.promocionRetirada ? ` (también de ${r.promocionRetirada})` : ''}.${r.cuentasEliminadas ? ` Se quitaron ${r.cuentasEliminadas} cobros futuros sin pagos.` : ''}`
+        : `${estudiante.nombre} fue reactivado${r.promocionReactivada ? ` (también en ${r.promocionReactivada})` : ''}.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo cambiar el estado.');
       setEnviando(false);
@@ -906,6 +847,16 @@ function DialogoEstado({
             ? 'Se borran las pensiones de los meses que vienen y que no tienen pagos. Lo ya pagado no se toca.'
             : 'Las pensiones que falten se pueden volver a generar desde Pagos.'}
         </p>
+        {conOpcionPromocion && (
+          <label className="mt-4 flex items-start gap-2.5 text-[13.5px] cursor-pointer">
+            <input type="checkbox" checked={conPromocion} onChange={e => setConPromocion(e.target.checked)}
+              className="mt-0.5 size-4 accent-(--p-acento) cursor-pointer" />
+            <span>
+              {retirar ? 'Retirar' : 'Reactivar'} también su matrícula de <b>{promocion.year}</b>{promocion.grado ? ` en ${promocion.grado.nombre}` : ''}.
+              <span className="block text-[12.5px] text-(--p-suave)">{retirar ? `Si no la retiras, el 1 de enero quedará activo en ${promocion.year}.` : `Vuelve a quedar en promoción para ${promocion.year}.`}</span>
+            </span>
+          </label>
+        )}
         <ErrorFormulario texto={error} />
         <BotonesDialogo onCancelar={onCerrar} texto={retirar ? 'Retirar' : 'Reactivar'} enviando={enviando} peligro={retirar} />
       </form>
@@ -946,7 +897,7 @@ function useZoomFicha() {
 const SALIDA_FICHA_MS = 220;
 
 function FichaEstudiante({
-  id, pestanaInicial, version, onEditar, onCerrar, onRematricular, onCambiarEstado, onIr,
+  id, pestanaInicial, version, onEditar, onCerrar, onCambiarEstado, onIr,
 }: {
   id: string;
   pestanaInicial: PestanaFicha;
@@ -954,7 +905,6 @@ function FichaEstudiante({
   version: number;
   onEditar: (e: EstudianteListItem) => void;
   onCerrar: () => void;
-  onRematricular: (e: EstudianteListItem) => void;
   onCambiarEstado: (e: EstudianteListItem, m: MatriculaListItem) => void;
   onIr: (s: Seccion) => void;
 }) {
@@ -994,7 +944,8 @@ function FichaEstudiante({
 
   const pestanas: [PestanaFicha, string][] = [['datos', 'Datos'], ['acudientes', 'Acudientes'], ['matriculas', 'Matrículas'], ['pagos', 'Pagos']];
   const actual = detalle ? matriculaActual(detalle.matriculas) : undefined;
-  const puedeCambiarEstado = !!actual && actual.estado !== 'GRADUADO';
+  // Un año que ya terminó (FINALIZADO) no se retira ni se reactiva.
+  const puedeCambiarEstado = !!actual && actual.estado !== 'FINALIZADO' && actual.year >= YEAR_ACTUAL;
 
   return (
     <Capa>
@@ -1075,15 +1026,10 @@ function FichaEstudiante({
                   {actual.estado === 'RETIRADO' ? 'Reactivar' : 'Retirar'}
                 </BotonFicha>
               )}
-              {/* En la pestaña Matrículas, «Matricular» es la acción principal y «Editar» no aplica. */}
-              <BotonFicha estilo={pestana === 'matriculas' ? 'acento' : 'oscuro'} onClick={() => onRematricular(detalle)} Icono={I.PersonaCheck}>
-                Matricular
+              {/* La ficha es para consultar: matricular (o rematricular) se hace en la sección Matrículas. */}
+              <BotonFicha estilo="acento" onClick={() => onEditar(detalle)} Icono={I.Lapiz}>
+                Editar
               </BotonFicha>
-              {pestana !== 'matriculas' && (
-                <BotonFicha estilo="acento" onClick={() => onEditar(detalle)} Icono={I.Lapiz}>
-                  Editar
-                </BotonFicha>
-              )}
             </footer>
           )}
         </aside>
@@ -1128,7 +1074,7 @@ function MatriculaActual({ matriculas, actual }: { matriculas: MatriculaListItem
     return (
       <section className="rounded-[18px] bg-(--p-menta) p-4 sm:p-5">
         <h3 className="text-[12.6px] font-bold tracking-[0.14em] uppercase">Matrícula actual</h3>
-        <p className="mt-2 text-[14.7px] text-(--p-suave)">Este estudiante todavía no tiene matrícula. Usa «Matricular» para crearla.</p>
+        <p className="mt-2 text-[14.7px] text-(--p-suave)">Este estudiante todavía no tiene matrícula. Se matricula desde la sección Matrículas.</p>
       </section>
     );
   }
@@ -1246,7 +1192,7 @@ function PestanaDatos({ detalle }: { detalle: EstudianteDetalle }) {
       <div className="pt-3 border-t border-(--p-borde)">
         <p className="text-[11.03px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">Observaciones</p>
         <p className={`mt-2 rounded-[12px] bg-(--p-menta) px-4 py-3 text-[14.7px] leading-relaxed whitespace-pre-line ${detalle.observaciones ? '' : 'text-(--p-suave)'}`}>
-          {detalle.observaciones || 'Sin observaciones registradas. Aquí van alergias, condiciones médicas y notas importantes.'}
+          {detalle.observaciones || 'Sin observaciones registradas.'}
         </p>
       </div>
     </Bloque>

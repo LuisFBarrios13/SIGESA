@@ -2,6 +2,8 @@ import bcrypt from 'bcryptjs';
 import { Usuario, Rol, Docente, Acudiente } from '../models/index.js';
 import { generateToken } from '../utils/jwt.js';
 import { AppError } from '../utils/AppError.js';
+import { ROLES } from '../constants/roles.js';
+import { acudienteVigente, MENSAJE_SIN_MATRICULA } from '../portal-acudiente/vigencia.js';
 
 export const loginService = async (username, password) => {
   const usuario = await Usuario.findOne({
@@ -32,7 +34,14 @@ export const loginService = async (username, password) => {
   const isValid = await bcrypt.compare(password, usuario.password);
   if (!isValid) throw new AppError(401, 'Credenciales inválidas');
 
-  const roles = usuario.roles.map((r) => r.nombre);
+  let roles = usuario.roles.map((r) => r.nombre);
+
+  // Un acudiente sin estudiantes con matrícula vigente no entra. Si además tiene
+  // otro rol (p. ej. es docente), entra solo con ese.
+  if (roles.includes(ROLES.ACUDIENTE) && !(await acudienteVigente(usuario.id_usuario))) {
+    roles = roles.filter((r) => r !== ROLES.ACUDIENTE);
+    if (!roles.length) throw new AppError(403, MENSAJE_SIN_MATRICULA);
+  }
 
   const nombre = usuario.docente?.nombre
     ?? usuario.acudiente?.nombre

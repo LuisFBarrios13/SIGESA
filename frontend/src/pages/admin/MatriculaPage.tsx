@@ -4,11 +4,12 @@
 // campo, y la pantalla final es sobria (sin el check gigante con halo ni la fila de chips).
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { acudientesApi, estudiantesApi, gradosApi, matriculasApi } from '../../services/api';
+import { acudientesApi, estudiantesApi, gradosApi, matriculasApi, type DuenoDocumento, type PeriodoMatricula, type PeriodoInfo, type DestinoRematricula } from '../../services/api';
 import { pagosApi, type Tarifa } from '../../services/pagosApi';
-import type { EstudianteDetalle, MatriculaListItem, Sexo, TipoDocumento } from '../../types/estudiantes';
+import type { EstudianteDetalle, EstudianteListItem, Sexo, TipoDocumento } from '../../types/estudiantes';
 import type { AcudienteDetalle } from '../../types/acudientes-admin';
 import type { Credenciales, Grado, JornadaEstudiante } from '../../types/shared';
+import { NOMBRE_ESTADO } from '../../types/matriculas';
 import type { Seccion } from '../../layouts/AdminLayout';
 import { documento, edad, fechaDia, fechaEncabezado, iniciales } from '../../utils/formato';
 import * as I from '../../components/iconos';
@@ -28,7 +29,7 @@ const PASOS: { n: Paso; titulo: string; descripcion: string }[] = [
   { n: 1, titulo: 'Buscar estudiante', descripcion: 'Escribe el documento para saber si el estudiante ya está registrado.' },
   { n: 2, titulo: 'Datos del estudiante', descripcion: 'Completa los datos personales del estudiante.' },
   { n: 3, titulo: 'Acudiente', descripcion: 'Busca primero por cédula: si el acudiente ya existe, se vincula con sus datos actuales.' },
-  { n: 4, titulo: 'Matrícula', descripcion: 'Elige el año, el grado y la jornada.' },
+  { n: 4, titulo: 'Matrícula', descripcion: 'Elige el año (este o el próximo), el grado y la jornada.' },
   { n: 5, titulo: 'Revisar y confirmar', descripcion: 'Confirma que todo esté bien antes de guardar.' },
 ];
 
@@ -57,7 +58,7 @@ interface FormMatricula { year: number; grado: string; jornada: JornadaEstudiant
 type Busqueda<T> =
   | { estado: 'inicial' }
   | { estado: 'buscando' }
-  | { estado: 'nuevo'; doc: string }
+  | { estado: 'nuevo'; doc: string; docente?: string }
   | { estado: 'existe'; doc: string; dato: T }
   | { estado: 'error'; mensaje: string };
 
@@ -70,6 +71,8 @@ const hoyISO = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
+/** La fecha de matrícula no puede ser de antes del 1 de enero del año pasado (igual que el servidor). */
+const fechaMinimaMatricula = () => `${new Date().getFullYear() - 1}-01-01`;
 const pesos = (v: number) => `$${Math.round(v).toLocaleString('es-CO')}`;
 const capitalizar = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 
@@ -97,11 +100,13 @@ function leerBorrador(): Borrador {
   } catch { return borradorInicial(); }
 }
 
-/** Año en que se puede matricular a un estudiante que ya existe (o null si ya tiene los dos). */
-function yearDisponible(matriculas: MatriculaListItem[]) {
-  const usados = new Set(matriculas.map(m => m.year));
-  return [YEAR_ACTUAL, YEAR_ACTUAL + 1].find(y => !usados.has(y)) ?? null;
+/** El documento de un estudiante nuevo ya es de otra persona (mismo texto que el backend). */
+function mensajeDocumentoOcupado(d: string, dueno: DuenoDocumento) {
+  if (dueno.tipo === 'docente') return `El documento ${d} es del docente ${dueno.nombre}. Revisa el número del estudiante.`;
+  if (dueno.tipo === 'acudiente') return `El documento ${d} es del acudiente ${dueno.nombre}. Revisa el número del estudiante.`;
+  return `El documento ${d} ya es el usuario de otra cuenta del sistema. Revisa el número del estudiante.`;
 }
+
 
 export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
   const [b, setB] = useState<Borrador>(leerBorrador);
@@ -112,6 +117,8 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
   const [enviando, setEnviando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState('');
   const [resultado, setResultado] = useState<Resultado | null>(null);
+  // Años posibles según el servidor: el año en curso (ACTIVO) o el siguiente (PROMOCION).
+  const [periodo, setPeriodo] = useState<PeriodoInfo | null>(null);
 
   const cambiar = (parcial: Partial<Borrador>) => setB(prev => ({ ...prev, ...parcial }));
   const setEst = (p: Partial<FormEstudiante>) => setB(prev => ({ ...prev, est: { ...prev.est, ...p } }));
@@ -133,13 +140,44 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
 
   useEffect(() => { gradosApi.listar().then(setGrados).catch(() => setGrados([])); }, []);
   useEffect(() => {
+    matriculasApi.periodo()
+      .then(p => {
+        setPeriodo(p);
+        // Un borrador viejo con un año que ya no es válido vuelve al año en curso.
+        setB(prev => prev.modo === 'nuevo' && !p.opciones.some(o => o.year === prev.mat.year)
+          ? { ...prev, mat: { ...prev.mat, year: p.yearEnCurso } } : prev);
+      })
+      .catch(() => setErrorEnvio('No se pudo saber el año de matrícula. Recarga la página.'));
+  }, []);
+
+  const estudianteExistente = busEst.estado === 'existe' ? busEst.dato : null;
+  // Re-matrícula: el servidor dice para qué año (activo este año → el siguiente, en promoción) o por qué no.
+  const [destino, setDestino] = useState<{ id: string; d: DestinoRematricula | null } | null>(null);
+  const idExistente = estudianteExistente?.numero_identidad;
+  useEffect(() => {
+    if (!idExistente) return;
+    let vigente = true;
+    matriculasApi.destinoRematricula(idExistente)
+      .then(d => { if (vigente) setDestino({ id: idExistente, d }); })
+      .catch(e => { if (vigente) setDestino({ id: idExistente, d: { posible: false, motivo: e instanceof Error ? e.message : 'No se pudo consultar.' } }); });
+    return () => { vigente = false; };
+  }, [idExistente]);
+  /** undefined mientras se consulta. */
+  const destinoActual = idExistente && destino?.id === idExistente ? destino.d : undefined;
+  const destinoPosible = destinoActual?.posible ? destinoActual : null;
+  /** Año y estado que se muestran en el paso 4. */
+  /** Re-matrícula que ya no se puede hacer (p. ej. un borrador viejo de un estudiante que ya se matriculó). */
+  const bloqueoRematricula = modo === 'rematricula' && destinoActual && !destinoActual.posible ? destinoActual.motivo : '';
+  const anioMatricula: PeriodoMatricula | null = modo === 'rematricula'
+    ? destinoPosible
+    : periodo?.opciones.find(o => o.year === mat.year) ?? null;
+  useEffect(() => {
     let vigente = true;
     setTarifa(undefined);
     pagosApi.getTarifa(mat.year).then(t => { if (vigente) setTarifa(t); }).catch(() => { if (vigente) setTarifa(null); });
     return () => { vigente = false; };
   }, [mat.year]);
 
-  const estudianteExistente = busEst.estado === 'existe' ? busEst.dato : null;
   const acudienteExistente = busAcu.estado === 'existe' ? busAcu.dato : null;
   const acudientePrincipal = estudianteExistente
     ? [...estudianteExistente.acudientes].sort((x, y) => Number(!!y.RelacionEA?.acudiente_principal) - Number(!!x.RelacionEA?.acudiente_principal))[0]
@@ -154,14 +192,11 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
   const sugerido = edadEscolar !== null ? GRADO_POR_EDAD[edadEscolar] : undefined;
   const nombreEstudiante = estudianteExistente?.nombre ?? est.nombre.trim();
   const nombreAcudiente = acudienteExistente?.nombre ?? acu.nombre.trim();
-  const yearsPosibles = modo === 'rematricula' && estudianteExistente
-    ? [YEAR_ACTUAL, YEAR_ACTUAL + 1].filter(y => !estudianteExistente.matriculas.some(m => m.year === y))
-    : [YEAR_ACTUAL, YEAR_ACTUAL + 1];
 
   /* ── Búsquedas ──────────────────────────────────────────────── */
 
-  async function buscarEstudiante(): Promise<Busqueda<EstudianteDetalle>> {
-    const d = doc.trim();
+  async function buscarEstudiante(docElegido?: string): Promise<Busqueda<EstudianteDetalle>> {
+    const d = (docElegido ?? doc).trim();
     if (!DOCUMENTO_VALIDO.test(d)) {
       setErrores({ doc: d ? 'Solo letras, números y guiones (3 a 20 caracteres).' : 'Escribe el número de documento.' });
       return busEst;
@@ -172,9 +207,19 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
     try {
       r = { estado: 'existe', doc: d, dato: await estudiantesApi.obtener(d) };
     } catch (e) {
-      r = (e as { status?: number }).status === 404
-        ? { estado: 'nuevo', doc: d }
-        : { estado: 'error', mensaje: e instanceof Error ? e.message : 'No se pudo buscar.' };
+      if ((e as { status?: number }).status === 404) {
+        // No es estudiante. Tampoco puede ser el documento de un docente, un acudiente u otra cuenta.
+        try {
+          const dueno = await matriculasApi.documento(d);
+          r = dueno
+            ? { estado: 'error', mensaje: mensajeDocumentoOcupado(d, dueno) }
+            : { estado: 'nuevo', doc: d };
+        } catch (e2) {
+          r = { estado: 'error', mensaje: e2 instanceof Error ? e2.message : 'No se pudo buscar.' };
+        }
+      } else {
+        r = { estado: 'error', mensaje: e instanceof Error ? e.message : 'No se pudo buscar.' };
+      }
     }
     cambiar({ busEst: r });
     return r;
@@ -195,7 +240,20 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
     let r: Busqueda<AcudienteDetalle | null>;
     try {
       const a = await acudientesApi.buscar(c);
-      r = a ? { estado: 'existe', doc: c, dato: a } : { estado: 'nuevo', doc: c };
+      if (a) r = { estado: 'existe', doc: c, dato: a };
+      else {
+        // Un docente también puede ser acudiente: se traen sus datos para no escribirlos otra vez.
+        const dueno = await matriculasApi.documento(c).catch(() => null);
+        if (dueno?.tipo === 'docente') {
+          setB(prev => ({ ...prev, acu: {
+            ...prev.acu,
+            nombre:   prev.acu.nombre   || (dueno.nombre ?? ''),
+            telefono: prev.acu.telefono || (dueno.telefono ?? ''),
+            correo:   prev.acu.correo   || (dueno.correo ?? ''),
+          } }));
+          r = { estado: 'nuevo', doc: c, docente: dueno.nombre ?? '' };
+        } else r = { estado: 'nuevo', doc: c };
+      }
     } catch (e) {
       r = { estado: 'error', mensaje: e instanceof Error ? e.message : 'No se pudo buscar.' };
     }
@@ -223,7 +281,10 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
       if (!mat.grado) e.grado = 'Elige el grado.';
       else if (!mat.jornada) e.jornada = 'Elige la jornada.';
       else if (!gradoElegido) e.jornada = 'Ese grado no tiene esa jornada.';
-      if (!yearsPosibles.includes(mat.year)) e.year = `Ya tiene matrícula en ${mat.year}.`;
+      if (modo === 'nuevo' && mat.fecha && (mat.fecha > hoyISO() || mat.fecha < fechaMinimaMatricula())) {
+        e.fecha = 'La fecha no puede ser futura ni de hace más de un año.';
+      }
+      if (modo === 'rematricula' && destinoActual && !destinoActual.posible) e.grado = destinoActual.motivo;
     }
     return e;
   }
@@ -258,11 +319,9 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
   }
 
   function rematricular() {
-    if (!estudianteExistente) return;
-    const y = yearDisponible(estudianteExistente.matriculas);
-    if (!y) return;
+    if (!estudianteExistente || !destinoPosible) return;
     const ultima = [...estudianteExistente.matriculas].sort((x, z) => z.year - x.year)[0];
-    cambiar({ modo: 'rematricula', mat: { year: y, grado: '', jornada: ultima?.jornada ?? '', fecha: hoyISO() } });
+    cambiar({ modo: 'rematricula', mat: { year: destinoPosible.year, grado: '', jornada: ultima?.jornada ?? '', fecha: hoyISO() } });
     irA(4);
   }
 
@@ -270,11 +329,12 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
 
   async function confirmar() {
     if (!gradoElegido) { irA(4); return; }
+    if (!anioMatricula) return;
     setEnviando(true);
     setErrorEnvio('');
     try {
       if (modo === 'rematricula' && estudianteExistente) {
-        await matriculasApi.rematricular({ id_estudiante: estudianteExistente.numero_identidad, id_grado: gradoElegido.id_grado, year: mat.year });
+        await matriculasApi.rematricular({ id_estudiante: estudianteExistente.numero_identidad, id_grado: gradoElegido.id_grado });
         setResultado({
           id: estudianteExistente.numero_identidad, nombre: estudianteExistente.nombre, grado: gradoElegido.nombre,
           jornada: gradoElegido.jornada, year: mat.year, fecha: hoyISO(),
@@ -359,8 +419,10 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
         titulo="Nueva matrícula"
         accion={
           <button type="button" onClick={cancelar} aria-label="Cancelar matrícula"
-            className="presionable shrink-0 grid place-items-center size-11 sm:w-auto sm:px-5 rounded-xl border border-(--p-borde) text-[13px] font-bold hover:bg-(--p-hover)">
-            <span className="sm:hidden"><I.Cerrar tam={18} /></span>
+            className="presionable shrink-0 flex items-center justify-center gap-2.5 whitespace-nowrap size-11 sm:size-auto sm:h-12 sm:px-5 rounded-xl border border-(--p-borde) text-[13px] font-bold hover:bg-(--p-hover)">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 5 L15 15 M15 5 L5 15" />
+            </svg>
             <span className="hidden sm:inline">Cancelar</span>
           </button>
         }
@@ -377,7 +439,7 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
             ))}
           </ol>
           <p className="mt-5 pt-4 border-t border-(--p-borde) text-[12.5px] leading-relaxed text-(--p-suave)">
-            Los campos con <b className="text-(--p-tinta)">*</b> son obligatorios. Puedes volver a cualquier paso completo.
+            Los campos con <b className="text-(--p-tinta)">*</b> son obligatorios.
           </p>
         </aside>
 
@@ -404,8 +466,10 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
                 onDoc={v => { cambiar({ doc: v, busEst: { estado: 'inicial' } }); limpiarError('doc'); }}
                 error={errores.doc}
                 busqueda={busEst}
-                onBuscar={buscarEstudiante}
+                onBuscar={() => buscarEstudiante()}
+                onElegir={id => { cambiar({ doc: id }); limpiarError('doc'); buscarEstudiante(id); }}
                 onRematricular={rematricular}
+                destino={destinoActual}
               />
             )}
             {paso === 2 && <PasoEstudiante doc={doc} est={est} setEst={setEst} errores={errores} limpiar={limpiarError} />}
@@ -418,10 +482,11 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
                 direccionEstudiante={est.direccion}
               />
             )}
+            {(paso === 4 || paso === 5) && bloqueoRematricula && <div className="mb-5"><Aviso tono="error">{bloqueoRematricula}</Aviso></div>}
             {paso === 4 && (
               <PasoMatricula
                 mat={mat} setMat={setMat} errores={errores} limpiar={limpiarError}
-                years={yearsPosibles} nombresGrado={nombresGrado} jornadasDe={jornadasDe}
+                seleccion={anioMatricula} opciones={modo === 'nuevo' ? periodo?.opciones ?? [] : null} nombresGrado={nombresGrado} jornadasDe={jornadasDe}
                 sugerido={sugerido && nombresGrado.includes(sugerido) ? sugerido : undefined}
                 edadEscolar={edadEscolar} tarifa={tarifa}
               />
@@ -440,21 +505,29 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
               ya encontrado no se fijan, para no tapar su botón «Matricular para…». */}
           <div className={`${bloqueado ? '' : 'sticky bottom-[88px] lg:bottom-0 z-10'} flex items-center gap-3 px-4 sm:px-7 py-4 border-t border-(--p-borde) bg-(--p-sup) rounded-b-[22px]`}>
             <button type="button" onClick={atras} disabled={paso === 1}
-              className="presionable h-12 px-5 rounded-xl border border-(--p-borde) text-[13px] font-bold hover:bg-(--p-hover) disabled:opacity-40 disabled:pointer-events-none">
+              className="presionable h-12 px-5 flex items-center justify-center gap-2.5 whitespace-nowrap rounded-xl border border-(--p-borde) text-[13px] font-bold hover:bg-(--p-hover) disabled:opacity-40 disabled:pointer-events-none">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 10 H4 M9 5 L4 10 L9 15" />
+              </svg>
               Atrás
             </button>
             <p className="hidden sm:block flex-1 text-right text-[13px] text-(--p-suave)">
-              {bloqueado
-                ? (yearDisponible(busEst.estado === 'existe' ? busEst.dato.matriculas : []) ? 'Usa «Matricular para…» para continuar' : '')
-                : paso === 5 ? 'Último paso' : proximo ? `Siguiente: ${proximo.titulo}` : ''}
+              {bloqueado && destinoPosible ? 'Usa «Matricular para…» para continuar' : ''}
             </p>
             {paso < 5 ? (
               <button type="button" onClick={siguiente} disabled={bloqueado || busEst.estado === 'buscando' || busAcu.estado === 'buscando'}
-                className="presionable max-sm:flex-1 h-12 px-7 rounded-xl bg-(--p-acento) text-[#160c28] text-[12.5px] font-bold tracking-[0.12em] uppercase hover:brightness-105 disabled:opacity-45 disabled:pointer-events-none">
-                {busEst.estado === 'buscando' || busAcu.estado === 'buscando' ? 'Buscando…' : 'Siguiente'}
+                className="presionable max-sm:flex-1 h-12 flex items-stretch overflow-hidden rounded-xl bg-(--p-acento) text-[#160c28] hover:brightness-105 disabled:opacity-45 disabled:pointer-events-none">
+                <span className="flex-1 flex items-center justify-center px-3 sm:px-[22px] text-[12px] sm:text-[13px] font-extrabold tracking-[0.1em] sm:tracking-[0.14em] uppercase whitespace-nowrap">
+                  {busEst.estado === 'buscando' || busAcu.estado === 'buscando' ? 'Buscando…' : 'Siguiente'}
+                </span>
+                <span className="w-12 flex-none flex items-center justify-center bg-[rgba(22,12,40,0.12)]">
+                  <svg aria-hidden="true" width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 10 H16 M11 5 L16 10 L11 15" />
+                  </svg>
+                </span>
               </button>
             ) : (
-              <button type="button" onClick={confirmar} disabled={enviando}
+              <button type="button" onClick={confirmar} disabled={enviando || !anioMatricula}
                 className="presionable max-sm:flex-1 h-12 px-7 rounded-xl bg-(--p-acento) text-[#160c28] text-[12.5px] font-bold tracking-[0.12em] uppercase hover:brightness-105 disabled:opacity-60">
                 {enviando ? 'Guardando…' : 'Confirmar matrícula'}
               </button>
@@ -619,27 +692,80 @@ function CampoBuscar({ id, etiqueta, valor, onCambio, onBuscar, buscando, error,
 
 /* ── Paso 1 · Buscar estudiante ────────────────────────────────── */
 
-function PasoBuscar({ doc, onDoc, error, busqueda, onBuscar, onRematricular }: {
+function PasoBuscar({ doc, onDoc, error, busqueda, onBuscar, onElegir, onRematricular, destino }: {
   doc: string; onDoc: (v: string) => void; error?: string; busqueda: Busqueda<EstudianteDetalle>;
-  onBuscar: () => void; onRematricular: () => void;
+  onBuscar: () => void; onElegir: (id: string) => void; onRematricular: () => void; destino: DestinoRematricula | null | undefined;
 }) {
+  // Coincidencias mientras se escribe (por documento o por nombre), sin tener que darle «Buscar».
+  const q = doc.trim();
+  const activa = busqueda.estado === 'inicial' && q.length >= 2;
+  const [sugerencias, setSugerencias] = useState<{ q: string; lista: EstudianteListItem[] } | null>(null);
+  useEffect(() => {
+    if (!activa) return;
+    let vigente = true;
+    const t = setTimeout(() => {
+      estudiantesApi.buscar(q)
+        .then(lista => { if (vigente) setSugerencias({ q, lista }); })
+        .catch(() => { if (vigente) setSugerencias({ q, lista: [] }); });
+    }, 250);
+    return () => { vigente = false; clearTimeout(t); };
+  }, [q, activa]);
+  const lista = activa && sugerencias ? sugerencias.lista : [];
+  const cargando = activa && sugerencias?.q !== q;
+
   return (
     <div className="space-y-5">
       <CampoBuscar id="doc-estudiante" etiqueta="Número de documento del estudiante" valor={doc} onCambio={onDoc}
-        onBuscar={onBuscar} buscando={busqueda.estado === 'buscando'} error={error} placeholder="Ej. 1034567890" />
+        onBuscar={onBuscar} buscando={busqueda.estado === 'buscando'} error={error} placeholder="Documento o nombre" />
+
+      {activa && (lista.length > 0 || !cargando) && (
+        <div className={`max-w-[720px] transition-opacity ${cargando ? 'opacity-60' : ''}`}>
+          {lista.length > 0 ? (
+            <>
+              <p className="mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">
+                {lista.length === 1 ? '1 coincidencia' : `${lista.length}${lista.length === 20 ? '+' : ''} coincidencias`}
+              </p>
+              <ul className="rounded-[18px] border border-(--p-borde) divide-y divide-(--p-borde) overflow-hidden">
+                {lista.map(e => {
+                  const ultima = [...e.matriculas].sort((a, b) => b.year - a.year)[0];
+                  return (
+                    <li key={e.numero_identidad}>
+                      <button type="button" onClick={() => onElegir(e.numero_identidad)}
+                        className="w-full flex items-center gap-3.5 px-4 sm:px-5 py-3 text-left hover:bg-(--p-hover) focus-visible:bg-(--p-hover) outline-none">
+                        <span className="grid place-items-center shrink-0 size-10 rounded-full bg-(--p-menta) text-[13px] font-bold">{iniciales(e.nombre)}</span>
+                        <span className="flex-1 min-w-0 leading-tight">
+                          <span className="block text-[15px] font-bold truncate">{e.nombre}</span>
+                          <span className="block mt-0.5 text-[13px] text-(--p-suave) truncate">
+                            {documento(e.numero_identidad)}{ultima ? ` · ${ultima.grado?.nombre ?? ''} ${ultima.year}` : ''}
+                          </span>
+                        </span>
+                        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-(--p-suave)">
+                          <path d="M8 5 L13 10 L8 15" />
+                        </svg>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          ) : (
+            <p className="text-[13.5px] text-(--p-suave)">Ningún estudiante coincide con «{q}». Si es nuevo, escribe su documento y dale Siguiente.</p>
+          )}
+        </div>
+      )}
 
       {busqueda.estado === 'error' && <Aviso tono="error">{busqueda.mensaje}</Aviso>}
       {busqueda.estado === 'nuevo' && (
         <Aviso>No hay ningún estudiante con el documento <b>{documento(busqueda.doc)}</b>. Continúa con sus datos.</Aviso>
       )}
-      {busqueda.estado === 'existe' && <EstudianteEncontrado e={busqueda.dato} onRematricular={onRematricular} />}
+      {busqueda.estado === 'existe' && <EstudianteEncontrado e={busqueda.dato} onRematricular={onRematricular} destino={destino} />}
     </div>
   );
 }
 
-function EstudianteEncontrado({ e, onRematricular }: { e: EstudianteDetalle; onRematricular: () => void }) {
+function EstudianteEncontrado({ e, onRematricular, destino }: { e: EstudianteDetalle; onRematricular: () => void; destino: DestinoRematricula | null | undefined }) {
   const ultima = [...e.matriculas].sort((a, b) => b.year - a.year)[0];
-  const y = yearDisponible(e.matriculas);
+  const y = destino?.posible ? destino.year : null;
   return (
     <div className="max-w-[720px] rounded-[18px] border border-(--p-borde)">
       <div className="flex items-center gap-3.5 px-5 py-4 border-b border-(--p-borde)">
@@ -654,14 +780,18 @@ function EstudianteEncontrado({ e, onRematricular }: { e: EstudianteDetalle; onR
         <dl className="grid grid-cols-3 divide-x divide-(--p-borde) border-b border-(--p-borde)">
           <DatoCorto etiqueta="Grado" valor={ultima.grado?.nombre ?? '—'} />
           <DatoCorto etiqueta="Año" valor={String(ultima.year)} />
-          <DatoCorto etiqueta="Estado" valor={capitalizar(ultima.estado)} />
+          <DatoCorto etiqueta="Estado" valor={NOMBRE_ESTADO[ultima.estado]} />
         </dl>
       )}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 px-5 py-4">
         <p className="flex-1 text-[13.5px] leading-relaxed text-(--p-suave)">
-          {y
-            ? <>Es una <b className="text-(--p-tinta)">re-matrícula</b>: sus datos y su acudiente ya están guardados. Solo eliges el grado y la jornada de {y}.</>
-            : <>Ya tiene matrícula en {YEAR_ACTUAL} y {YEAR_ACTUAL + 1}. Puedes revisarla en su ficha, en Estudiantes.</>}
+          {!destino
+            ? 'Cargando…'
+            : destino.posible
+              ? destino.estado === 'PROMOCION'
+                ? <>Es una <b className="text-(--p-tinta)">promoción</b>: queda matriculado para {destino.year} y se activa el 1 de enero. Sus datos y su acudiente ya están guardados; solo eliges el grado y la jornada.</>
+                : <>Es una <b className="text-(--p-tinta)">re-matrícula</b>: sus datos y su acudiente ya están guardados. Solo eliges el grado y la jornada de {destino.year}.</>
+              : destino.motivo}
         </p>
         {y && (
           <button type="button" onClick={onRematricular}
@@ -799,7 +929,9 @@ function PasoAcudiente({ acu, setAcu, errores, limpiar, busqueda, onBuscar, onCe
 
       {busqueda.estado === 'nuevo' && (
         <>
-          <Aviso>No está registrado. Escribe sus datos: se le creará un acceso al portal de acudientes.</Aviso>
+          {busqueda.docente !== undefined
+            ? <Aviso>Esta cédula es del docente <b>{busqueda.docente}</b>. Trajimos su nombre, teléfono y correo: revísalos y completa el resto. Tendrá un acceso aparte al portal de acudientes.</Aviso>
+            : <Aviso>Usuario no registrado</Aviso>}
           <BloqueCampos titulo="Datos del acudiente">
             <Campo etiqueta="Nombre completo" requerido error={errores.nombre_acudiente} className="sm:col-span-2">
               <input value={acu.nombre} onChange={e => set('nombre', e.target.value, 'nombre_acudiente')} maxLength={150} autoComplete="off"
@@ -859,9 +991,13 @@ function FilaLectura({ etiqueta, valor }: { etiqueta: string; valor: string | nu
 
 /* ── Paso 4 · Matrícula ────────────────────────────────────────── */
 
-function PasoMatricula({ mat, setMat, errores, limpiar, years, nombresGrado, jornadasDe, sugerido, edadEscolar, tarifa }: {
+function PasoMatricula({ mat, setMat, errores, limpiar, seleccion, opciones, nombresGrado, jornadasDe, sugerido, edadEscolar, tarifa }: {
   mat: FormMatricula; setMat: (p: Partial<FormMatricula>) => void; errores: Record<string, string>; limpiar: (...c: string[]) => void;
-  years: number[]; nombresGrado: string[]; jornadasDe: (n: string) => JornadaEstudiante[];
+  /** Año elegido y su estado. */
+  seleccion: PeriodoMatricula | null;
+  /** Estudiante nuevo: los dos años posibles. Re-matrícula: null (el año lo decide el servidor). */
+  opciones: PeriodoMatricula[] | null;
+  nombresGrado: string[]; jornadasDe: (n: string) => JornadaEstudiante[];
   sugerido?: string; edadEscolar: number | null; tarifa: Tarifa | null | undefined;
 }) {
   const disponibles = mat.grado ? jornadasDe(mat.grado) : [];
@@ -874,15 +1010,35 @@ function PasoMatricula({ mat, setMat, errores, limpiar, years, nombresGrado, jor
   return (
     <>
       <BloqueCampos titulo="Datos de la matrícula">
-        <div className="min-w-0">
-          <p className="mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">Año<span className="text-(--p-tinta)"> *</span></p>
-          <Opciones etiqueta="Año" valor={mat.year} onCambio={v => { setMat({ year: v }); limpiar('year'); }} invalido={!!errores.year}
-            opciones={[YEAR_ACTUAL, YEAR_ACTUAL + 1].map(y => ({ valor: y, texto: String(y), deshabilitada: !years.includes(y) }))} />
-          {errores.year && <span role="alert" className="block mt-1.5 text-[12.5px] font-medium text-red-600">{errores.year}</span>}
-        </div>
-        <Campo etiqueta="Fecha de matrícula" ayuda="Por defecto, hoy.">
-          <input type="date" value={mat.fecha} onChange={e => setMat({ fecha: e.target.value })} className={claseCampo} />
-        </Campo>
+        {/* Solo el año en curso o el siguiente (este queda en promoción hasta el 1 de enero). */}
+        {opciones ? (
+          <div className="min-w-0">
+            <p className="mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">Año<span className="text-(--p-tinta)"> *</span></p>
+            {opciones.length ? (
+              <Opciones etiqueta="Año" valor={mat.year} onCambio={v => { setMat({ year: v }); limpiar('year'); }}
+                opciones={opciones.map(o => ({ valor: o.year, texto: o.estado === 'PROMOCION' ? `${o.year} · Próximo año` : `${o.year} · Este año` }))} />
+            ) : (
+              <input value="Cargando…" readOnly className={claseCampo} />
+            )}
+            <span className="block mt-1.5 text-[12.5px] text-(--p-suave)">
+              {seleccion?.estado === 'PROMOCION' ? `Queda en promoción y se activa el 1 de enero de ${seleccion.year}.` : 'Año escolar en curso.'}
+            </span>
+          </div>
+        ) : (
+          <Campo etiqueta="Año" ayuda={seleccion?.estado === 'PROMOCION'
+            ? `Promoción: queda en ${seleccion.year} y se activa el 1 de enero.`
+            : 'Año escolar en curso.'}>
+            <input value={seleccion ? String(seleccion.year) : 'Cargando…'} readOnly className={claseCampo} />
+          </Campo>
+        )}
+        {/* En una re-matrícula la fecha es hoy (el servidor la pone); aquí no se elige. */}
+        {opciones && (
+          <Campo etiqueta="Fecha de matrícula" ayuda="Por defecto, hoy." error={errores.fecha}>
+            <input type="date" value={mat.fecha} min={fechaMinimaMatricula()} max={hoyISO()}
+              onChange={e => { setMat({ fecha: e.target.value }); limpiar('fecha'); }}
+              aria-invalid={!!errores.fecha || undefined} className={claseCampo} />
+          </Campo>
+        )}
         <div className="min-w-0">
           <Campo etiqueta="Grado" requerido error={errores.grado}>
             <Selector value={mat.grado} onChange={elegirGrado} invalido={!!errores.grado}>
@@ -1033,8 +1189,9 @@ function DatoResumen({ etiqueta, valor, ancho = false }: { etiqueta: string; val
 
 function MatriculaCreada({ r, onNueva, onPago, onFicha }: { r: Resultado; onNueva: () => void; onPago: () => void; onFicha: () => void }) {
   return (
-    <section aria-labelledby="titulo-creada" className="aparecer mt-5 lg:mt-6 w-full max-w-[880px] rounded-[22px] border border-(--p-borde) bg-(--p-sup)">
-      <div className="px-5 sm:px-8 pt-6 sm:pt-8 pb-6">
+    <section aria-labelledby="titulo-creada" className="aparecer mt-5 lg:mt-6 w-full flex-1 flex items-center justify-center rounded-[22px] border border-(--p-borde) bg-(--p-sup) px-0 sm:px-6 py-2 sm:py-8">
+      <div className="w-full max-w-[860px]">
+      <div className="px-5 sm:px-8 pt-6 sm:pt-8 pb-6 text-center">
         <p className="inline-flex items-center gap-2 text-[12px] font-bold tracking-[0.12em] uppercase text-(--p-suave)">
           <span className="grid place-items-center size-5 rounded-full bg-(--p-acento) text-[#160c28]"><I.Check tam={12} /></span>
           Matrícula registrada
@@ -1044,7 +1201,7 @@ function MatriculaCreada({ r, onNueva, onPago, onFicha }: { r: Resultado; onNuev
             ? `${r.nombre} quedó ${r.sexo === 'F' ? 'matriculada' : 'matriculado'} en ${r.grado} ${r.year}.`
             : `Se registró la matrícula de ${r.nombre} en ${r.grado} ${r.year}.`}
         </h2>
-        <dl className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-px rounded-[14px] overflow-hidden border border-(--p-borde) bg-(--p-borde) [&>div]:bg-(--p-sup)">
+        <dl className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-px rounded-[14px] overflow-hidden border border-(--p-borde) bg-(--p-borde) text-left [&>div]:bg-(--p-sup)">
           <DatoCorto etiqueta="Documento" valor={documento(r.id)} />
           <DatoCorto etiqueta="Grado" valor={r.grado} />
           <DatoCorto etiqueta="Jornada" valor={capitalizar(r.jornada)} />
@@ -1064,10 +1221,6 @@ function MatriculaCreada({ r, onNueva, onPago, onFicha }: { r: Resultado; onNuev
               <Credencial etiqueta="Usuario" valor={r.credenciales.username} />
               <Credencial etiqueta="Contraseña temporal" valor={r.credenciales.passwordTemporal} />
             </div>
-            <button type="button" onClick={() => imprimirCredenciales(r)}
-              className="presionable mt-3 h-10 px-4 rounded-xl border border-(--p-borde) text-[13px] font-semibold hover:bg-(--p-hover)">
-              Imprimir credenciales
-            </button>
           </>
         ) : (
           <p className="mt-1 text-[14px] leading-relaxed text-(--p-suave)">
@@ -1083,13 +1236,14 @@ function MatriculaCreada({ r, onNueva, onPago, onFicha }: { r: Resultado; onNuev
           Ver ficha del estudiante
         </button>
         <button type="button" onClick={onNueva}
-          className="presionable h-12 px-5 rounded-xl border border-(--p-borde) text-[13px] font-bold hover:bg-(--p-hover)">
+          className="presionable h-12 px-5 rounded-xl border border-(--p-borde) text-[12.5px] font-bold tracking-[0.12em] uppercase hover:bg-(--p-hover)">
           Nueva matrícula
         </button>
         <button type="button" onClick={onPago}
           className="presionable h-12 px-6 rounded-xl bg-(--p-acento) text-[#160c28] text-[12.5px] font-bold tracking-[0.12em] uppercase hover:brightness-105">
           Registrar pago de matrícula
         </button>
+      </div>
       </div>
     </section>
   );
@@ -1113,23 +1267,4 @@ function Credencial({ etiqueta, valor }: { etiqueta: string; valor: string }) {
       </button>
     </div>
   );
-}
-
-/** Hoja sencilla para imprimir y entregar al acudiente. */
-function imprimirCredenciales(r: Resultado) {
-  if (!r.credenciales) return;
-  const v = window.open('', '_blank', 'width=640,height=720');
-  if (!v) return;
-  const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
-  v.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Acceso al portal · ${esc(r.nombre)}</title>
-<style>body{font-family:Inter,Helvetica,Arial,sans-serif;color:#000411;margin:48px}h1{font-size:20px;margin:0 0 4px}
-p{font-size:14px;line-height:1.6;margin:0 0 16px;color:#444}dl{border:1px solid #ccc;border-radius:10px;padding:8px 20px;margin:24px 0}
-dt{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#666;margin-top:12px}dd{font:600 20px ui-monospace,Menlo,Consolas,monospace;margin:4px 0 12px}
-small{color:#666}</style></head><body>
-<h1>Colegio Pedagógico San Agustín · Portal de acudientes</h1>
-<p>Acudiente: <b>${esc(r.acudiente ?? '')}</b><br>Estudiante: <b>${esc(r.nombre)}</b> · ${esc(r.grado)} ${r.year}</p>
-<dl><dt>Usuario</dt><dd>${esc(r.credenciales.username)}</dd><dt>Contraseña temporal</dt><dd>${esc(r.credenciales.passwordTemporal)}</dd></dl>
-<small>La contraseña es temporal: el sistema pedirá cambiarla en el primer ingreso.</small>
-<script>window.onload=()=>{window.print();}</script></body></html>`);
-  v.document.close();
 }
