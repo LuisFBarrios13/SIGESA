@@ -1,17 +1,12 @@
 // src/auth/auth.controller.js
 import { loginService, changePasswordService } from './auth.service.js';
-import { successResponse, errorResponse } from '../utils/responseHandler.js';
+import { successResponse } from '../utils/responseHandler.js';
 
 /**
  * POST /api/auth/login
  */
 export const login = async (req, res) => {
-  const { username, password } = req.body;
-
-  if (!username || !password) {
-    return errorResponse(res, 'Username y contraseña son requeridos', 400);
-  }
-
+  const { username, password } = req.body; // validados en auth.routes.js
   const data = await loginService(username, password);
   return successResponse(res, data, 'Login exitoso');
 };
@@ -21,12 +16,7 @@ export const login = async (req, res) => {
  * Requires: authenticate middleware (req.user injected)
  */
 export const changePassword = async (req, res) => {
-  const { newPassword } = req.body;
-
-  if (!newPassword || newPassword.length < 6) {
-    return errorResponse(res, 'La nueva contraseña debe tener al menos 6 caracteres', 400);
-  }
-
+  const { newPassword } = req.body; // 6 a 100 caracteres, validado en auth.routes.js
   await changePasswordService(req.user.id, newPassword);
   return successResponse(res, null, 'Contraseña actualizada correctamente');
 };

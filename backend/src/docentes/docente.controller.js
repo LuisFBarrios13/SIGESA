@@ -4,19 +4,15 @@ import {
   listarDocentes,
   listarDisponibilidadGrados,
   actualizarDocente,
+  cambiarAsignacion,
+  intercambiarAsignacion,
 } from './docente.service.js';
-import { successResponse, errorResponse } from '../utils/responseHandler.js';
+import { successResponse } from '../utils/responseHandler.js';
 
 /** POST /api/docentes */
 export const crear = async (req, res) => {
+  // Los datos ya vienen validados por la ruta (docente.routes.js).
   const { cedula, nombre, telefono, correo, jornada, nombreGrado } = req.body;
-
-  if (!cedula?.trim())      return errorResponse(res, 'La cédula es requerida', 400);
-  if (!nombre?.trim())      return errorResponse(res, 'El nombre es requerido', 400);
-  if (!jornada)             return errorResponse(res, 'La jornada es requerida', 400);
-  if (!['MAÑANA', 'TARDE', 'COMPLETA'].includes(jornada))
-    return errorResponse(res, 'La jornada debe ser MAÑANA, TARDE o COMPLETA', 400);
-  if (!nombreGrado?.trim()) return errorResponse(res, 'El nombre del grado es requerido', 400);
 
   const result = await registrarDocente({
     cedula:      cedula.trim(),
@@ -46,4 +42,19 @@ export const actualizar = async (req, res) => {
   const { cedula } = req.params;
   const data = await actualizarDocente(cedula, req.body);
   return successResponse(res, data, 'Docente actualizado correctamente');
+};
+
+/** PUT /api/docentes/:cedula/asignacion — mover a un grado libre */
+export const asignacion = async (req, res) => {
+  const data = await cambiarAsignacion(req.params.cedula, {
+    jornada:     req.body.jornada,
+    nombreGrado: req.body.nombreGrado.trim(),
+  });
+  return successResponse(res, data, 'Grado y jornada actualizados');
+};
+
+/** POST /api/docentes/:cedula/intercambio — intercambiar grado y jornada con otro docente */
+export const intercambio = async (req, res) => {
+  const data = await intercambiarAsignacion(req.params.cedula, req.body.con.trim());
+  return successResponse(res, data, 'Docentes intercambiados');
 };

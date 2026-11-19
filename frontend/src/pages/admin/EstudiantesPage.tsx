@@ -1,15 +1,15 @@
 // src/pages/admin/EstudiantesPage.tsx — listado y ficha de estudiantes.
 // Diseño: docs/Estudiantes · Modo claro@1x.png y Estudiantes · Modo oscuro@1x.png.
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentType, type CSSProperties, type FormEvent, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { estudiantesApi, gradosApi, matriculasApi, clavesApi } from '../../services/api';
 import { pagosApi, type ResumenPagos } from '../../services/pagosApi';
 import type { EstudianteDetalle, EstudianteListItem, MatriculaListItem, Sexo, TipoDocumento } from '../../types/estudiantes';
 import type { Grado, Credenciales } from '../../types/shared';
 import { NOMBRE_ESTADO } from '../../types/matriculas';
 import type { Seccion } from '../../layouts/AdminLayout';
-import { ESCALA_CONTENIDO, ID_CAPA } from '../../layouts/escala';
-import { Progreso } from '../../components/panel';
+import { ESCALA_CONTENIDO, ID_CAPA, zoomCapa } from '../../layouts/escala';
+import { AvisoFlotante, BotonesDialogo, Capa, Dialogo, ErrorFormulario, Filtro, PanelFiltros, Progreso, SelectorVista, SelectorYear, vistaInicial, type Vista } from '../../components/panel';
+import { useEscape } from '../../hooks/useEscape';
 import { GIRO_MINIMO_MS } from '../../hooks/useDashboard';
 import {
   dineroCorto, documento, edad, fechaDia, fechaEncabezado, iniciales, MESES_LARGOS,
@@ -17,7 +17,6 @@ import {
 import * as I from '../../components/iconos';
 
 type Estado = MatriculaListItem['estado'];
-type FiltroYear = 'actual' | 'todos' | number;
 type PestanaFicha = 'datos' | 'acudientes' | 'matriculas' | 'pagos';
 
 interface Props {
@@ -31,8 +30,12 @@ interface Props {
 interface Fila {
   e: EstudianteListItem;
   m: MatriculaListItem | null;
-  /** Otros años matriculados (p. ej. "también 2027"). */
-  otrosYears: number[];
+}
+
+/** «8 años» (o «1 año»); «—» si no hay fecha de nacimiento. */
+function textoEdad(nacimiento: string | null | undefined) {
+  const n = edad(nacimiento);
+  return n === null ? '—' : `${n} ${n === 1 ? 'año' : 'años'}`;
 }
 
 const YEAR_ACTUAL = new Date().getFullYear();
@@ -54,13 +57,13 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
 
   // Filtros
   const [q, setQ] = useState('');
-  const [fGrado, setFGrado] = useState<number | ''>('');
+  /** Nombre del grado (sin jornada: para eso está el filtro de jornada). */
+  const [fGrado, setFGrado] = useState('');
   const [fJornada, setFJornada] = useState<'' | 'MAÑANA' | 'TARDE'>('');
-  const [fYear, setFYear] = useState<FiltroYear>('actual');
+  /** Año académico: va en el encabezado, como en Inicio (no en la fila de filtros). */
+  const [fYear, setFYear] = useState(YEAR_ACTUAL);
   const [fEstado, setFEstado] = useState<'' | Estado>('');
-  // En celular y tablet la tabla no cabe: ahí arranca en tarjetas.
-  const [vista, setVista] = useState<'lista' | 'tarjetas'>(() =>
-    typeof window !== 'undefined' && window.matchMedia('(min-width: 64rem)').matches ? 'lista' : 'tarjetas');
+  const [vista, setVista] = useState<Vista>(vistaInicial);
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
 
   // Ficha y diálogos
@@ -106,24 +109,21 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
     return () => clearTimeout(t);
   }, [aviso]);
 
-  const yearElegido = fYear === 'actual' ? YEAR_ACTUAL : fYear;
-
-  /** Cada estudiante con su matrícula del año elegido (o la más reciente si son todos los años). */
+  /** Cada estudiante matriculado en el año elegido, con esa matrícula. */
   const base = useMemo<Fila[]>(() => {
     if (!estudiantes) return [];
     return estudiantes.flatMap(e => {
-      const ordenadas = [...e.matriculas].sort((a, b) => b.year - a.year);
-      const m = yearElegido === 'todos' ? ordenadas[0] ?? null : ordenadas.find(x => x.year === yearElegido) ?? null;
-      if (yearElegido !== 'todos' && !m) return [];
-      return [{ e, m, otrosYears: ordenadas.filter(x => x !== m).map(x => x.year).filter(y => y > (m?.year ?? 0)) }];
+      const m = e.matriculas.find(x => x.year === fYear);
+      if (!m) return [];
+      return [{ e, m }];
     });
-  }, [estudiantes, yearElegido]);
+  }, [estudiantes, fYear]);
 
   const filas = useMemo(() => {
     const texto = q.trim().toLowerCase();
     return base.filter(({ e, m }) =>
       (!texto || e.nombre.toLowerCase().includes(texto) || e.numero_identidad.includes(texto)) &&
-      (fGrado === '' || m?.grado?.id_grado === fGrado) &&
+      (fGrado === '' || m?.grado?.nombre === fGrado) &&
       (fJornada === '' || m?.jornada === fJornada) &&
       (fEstado === '' || m?.estado === fEstado));
   }, [base, q, fGrado, fJornada, fEstado]);
@@ -143,18 +143,21 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
 
   const abrirFicha = (id: string, pestana: PestanaFicha = 'datos') => setFicha({ id, pestana });
 
-  const filtrosActivos = [fGrado !== '', fJornada !== '', fYear !== 'actual', fEstado !== ''].filter(Boolean).length;
-  const limpiarFiltros = () => { setFGrado(''); setFJornada(''); setFYear('actual'); setFEstado(''); };
+  const filtrosActivos = [fGrado !== '', fJornada !== '', fEstado !== ''].filter(Boolean).length;
+  const limpiarFiltros = () => { setFGrado(''); setFJornada(''); setFEstado(''); };
 
-  /** Los mismos cuatro filtros en la fila del computador y en el panel del celular. */
+  /** Recuadro del año académico con el botón de recargar: el mismo componente que en Inicio. */
+  const selectorYear = (id: string) => (
+    <SelectorYear id={id} year={fYear} years={years} onCambiar={setFYear} onRecargar={recargar} cargando={cargando} />
+  );
+
+  /** Los mismos tres filtros en la fila del computador y en el panel del celular. */
   const filtros = (ancho: string) => (
     <>
-      <Filtro ancho={ancho} Icono={I.Birrete} etiqueta="Grado" valor={String(fGrado)} onCambio={v => setFGrado(v ? Number(v) : '')}
-        opciones={[['', 'Todos los grados'], ...gradosUnicos(grados).map(g => [String(g.id_grado), `${g.nombre} · ${capitalizar(g.jornada)}`] as [string, string])]} />
+      <Filtro ancho={ancho} Icono={I.Birrete} etiqueta="Grado" valor={fGrado} onCambio={setFGrado}
+        opciones={[['', 'Todos los grados'], ...nombresGrado(grados).map(n => [n, n] as [string, string])]} />
       <Filtro ancho={ancho} Icono={I.SolRayos} etiqueta="Jornada" valor={fJornada} onCambio={v => setFJornada(v as typeof fJornada)}
         opciones={[['', 'Todas las jornadas'], ['MAÑANA', 'Mañana'], ['TARDE', 'Tarde']]} />
-      <Filtro ancho={ancho} Icono={I.Calendario} etiqueta="Año" valor={String(fYear)} onCambio={v => setFYear(v === 'actual' || v === 'todos' ? v : Number(v))}
-        opciones={[['actual', 'Año en curso'], ...years.filter(y => y !== YEAR_ACTUAL).map(y => [String(y), String(y)] as [string, string]), ['todos', 'Todos los años']]} />
       <Filtro ancho={ancho} Icono={I.Bandera} etiqueta="Estado" valor={fEstado} onCambio={v => setFEstado(v as typeof fEstado)}
         opciones={[['', 'Todos los estados'], ['ACTIVO', 'Activos'], ['PROMOCION', 'Promoción'], ['RETIRADO', 'Retirados'], ['FINALIZADO', 'Finalizados']]} />
     </>
@@ -166,45 +169,25 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
       <div className="aparecer flex flex-col gap-3.5 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between lg:gap-4">
         <div>
           <h1 className="text-[28px] lg:text-[32px] leading-tight font-extrabold tracking-tight">Estudiantes</h1>
-          <p className="mt-1 text-[10px] lg:text-[11.5px] font-semibold tracking-[0.18em] text-(--p-suave)">{fechaEncabezado(new Date(), true)}</p>
+          <p className="mt-1 text-[10px] lg:text-[11.5px] font-semibold tracking-[0.18em] text-(--p-suave)">{fechaEncabezado()}</p>
         </div>
 
         {/* Celular y tablet */}
-        <div className="lg:hidden flex items-stretch gap-3 h-12">
-          <button
-            type="button"
-            onClick={recargar}
-            aria-label="Actualizar datos"
-            title="Actualizar datos"
-            className="grid place-items-center shrink-0 w-12 rounded-xl bg-(--p-sup) border border-(--p-borde) hover:bg-(--p-hover)"
-          >
-            <span className={cargando ? 'animate-[spin_0.7s_linear_infinite]' : ''}><I.Recargar tam={18} /></span>
-          </button>
+        <div className="lg:hidden flex items-stretch gap-3 h-11">
+          {selectorYear("year-movil")}
           <button
             type="button"
             onClick={() => onIr('matriculas')}
-            className="flex-1 flex items-stretch rounded-xl overflow-hidden bg-(--p-banda) text-white hover:brightness-125 transition"
+            className="flex-1 min-w-0 flex items-stretch rounded-xl overflow-hidden bg-(--p-banda) text-white hover:brightness-125 transition"
           >
-            <span className="grid place-items-center shrink-0 w-12 bg-white/10"><I.PersonaMas tam={18} /></span>
-            <span className="flex-1 grid place-items-center text-[12.5px] font-bold tracking-[0.14em]">NUEVA MATRÍCULA</span>
+            <span className="grid place-items-center shrink-0 w-11 bg-white/10"><I.PersonaMas tam={18} /></span>
+            <span className="flex-1 grid place-items-center px-2 text-[12px] min-[400px]:text-[12.5px] font-bold tracking-[0.12em] whitespace-nowrap">NUEVA MATRÍCULA</span>
           </button>
         </div>
 
-        {/* Computador */}
+        {/* Computador: mismos botones y misma posición que en Inicio. */}
         <div className="hidden lg:flex items-center gap-3">
-          {/* Mismos botones y misma posición que en Inicio (ahí el de recargar va dentro del
-              recuadro del año, con su borde; aquí se conserva ese borde para que no se mueva). */}
-          <div className="flex items-stretch h-11 rounded-xl bg-(--p-sup) border border-(--p-borde) overflow-hidden">
-            <button
-              type="button"
-              onClick={recargar}
-              aria-label="Actualizar datos"
-              title="Actualizar datos"
-              className="grid place-items-center w-11 bg-(--p-acento) text-[#170f27] hover:brightness-105 transition"
-            >
-              <span className={cargando ? 'animate-[spin_0.7s_linear_infinite]' : ''}><I.Recargar tam={18} /></span>
-            </button>
-          </div>
+          {selectorYear("year-pc")}
           <button
             type="button"
             onClick={() => onIr('matriculas')}
@@ -242,33 +225,14 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
 
       {/* Aviso flotante: va por encima de la página y no mueve la tabla,
           así nadie hace clic en el estudiante equivocado cuando aparece. */}
-      {aviso && (
-        <Capa>
-          <div
-            role="status"
-            style={zoomCapa}
-            className="toast fixed z-[60] left-3 right-3 bottom-[96px] sm:left-auto sm:right-6 lg:bottom-6 sm:w-[400px]
-                       flex items-center gap-3 rounded-2xl bg-(--p-banda) text-white px-4 py-3.5 shadow-2xl shadow-black/25"
-          >
-            <span className="grid place-items-center shrink-0 size-8 rounded-full bg-(--p-acento) text-[#170f27]"><I.Check tam={17} /></span>
-            <span className="flex-1 min-w-0 text-[14px] font-medium leading-snug">{aviso}</span>
-            <button type="button" onClick={() => setAviso('')} aria-label="Cerrar aviso"
-              className="grid place-items-center shrink-0 size-8 rounded-lg text-white/70 hover:text-white hover:bg-white/10">
-              <I.Cerrar tam={16} />
-            </button>
-          </div>
-        </Capa>
-      )}
+      {aviso && <AvisoFlotante texto={aviso} onCerrar={() => setAviso('')} />}
 
       {/* Lista */}
       <section className="aparecer [--i:2] mt-5 flex flex-col rounded-[20px] bg-(--p-sup) border border-(--p-borde) overflow-hidden transition-colors">
         <header className="flex items-center gap-3 h-12 pl-5 pr-2 bg-(--p-banda) text-white">
           <span className="text-(--p-acento)"><I.Estudiantes tam={17} /></span>
           <h2 className="flex-1 text-[12.5px] font-bold tracking-[0.14em] uppercase">Lista de estudiantes</h2>
-          <div className="flex items-center gap-1 p-1 rounded-[12px] bg-white/10" role="group" aria-label="Vista">
-            <BotonVista activo={vista === 'lista'} etiqueta="Ver como lista" onClick={() => setVista('lista')}><I.Lista tam={16} /></BotonVista>
-            <BotonVista activo={vista === 'tarjetas'} etiqueta="Ver como tarjetas" onClick={() => setVista('tarjetas')}><I.Grilla tam={15} /></BotonVista>
-          </div>
+          <SelectorVista vista={vista} onCambio={setVista} />
         </header>
 
         {/* Filtros */}
@@ -329,7 +293,7 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
                   <th className="pl-5 py-3 font-semibold">Estudiante</th>
                   <th className="py-3 font-semibold">Grado</th>
                   <th className="py-3 font-semibold">Jornada</th>
-                  <th className="py-3 font-semibold">Año</th>
+                  <th className="py-3 font-semibold">Edad</th>
                   <th className="py-3 font-semibold">Nacimiento</th>
                   <th className="py-3 font-semibold">Estado</th>
                   <th className="py-3 font-semibold">Tipo de sangre</th>
@@ -338,7 +302,7 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
               </thead>
               <tbody>
                 {!estudiantes && Array.from({ length: FILAS_ESQUELETO }, (_, i) => <FilaEsqueleto key={i} />)}
-                {estudiantes && filas.map(({ e, m, otrosYears }, i) => (
+                {estudiantes && filas.map(({ e, m }, i) => (
                   <tr key={e.numero_identidad} className="aparecer-fila border-t border-(--p-borde) hover:bg-(--p-hover)/60" style={{ '--i': Math.min(i, 12) } as CSSProperties}>
                     <td className="pl-5 py-2.5">
                       <button type="button" onClick={() => abrirFicha(e.numero_identidad)} className="flex items-center gap-3 min-w-0 text-left">
@@ -351,10 +315,7 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
                     </td>
                     <td className="py-2.5 text-[13.5px]">{m?.grado?.nombre ?? '—'}</td>
                     <td className="py-2.5">{m ? <ChipJornada jornada={m.jornada} /> : '—'}</td>
-                    <td className="py-2.5 leading-tight">
-                      <span className="block text-[13.5px]">{m?.year ?? '—'}</span>
-                      {otrosYears.length > 0 && <span className="block text-[11.5px] text-(--p-suave)">también {otrosYears.join(', ')}</span>}
-                    </td>
+                    <td className="py-2.5 text-[13.5px] whitespace-nowrap">{textoEdad(e.fecha_nacimiento)}</td>
                     <td className="py-2.5 text-[13.5px] whitespace-nowrap">{fechaDia(e.fecha_nacimiento)}</td>
                     <td className="py-2.5">{m ? <ChipEstado estado={m.estado} /> : '—'}</td>
                     <td className="py-2.5 text-[13.5px] whitespace-nowrap">{e.rh || <span className="text-(--p-tenue)">—</span>}</td>
@@ -409,13 +370,12 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
           </ul>
         ) : (
           <ul className="grid sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 sm:gap-4 sm:p-4">
-            {filas.map(({ e, m, otrosYears }, i) => (
+            {filas.map(({ e, m }, i) => (
               <TarjetaEstudiante
                 key={e.numero_identidad}
                 indice={i}
                 e={e}
                 m={m}
-                otrosYears={otrosYears}
                 onFicha={() => abrirFicha(e.numero_identidad)}
                 onEditar={() => setEditando(e)}
               />
@@ -428,6 +388,7 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
         <PanelFiltros
           activos={filtrosActivos}
           resultados={filas.length}
+          unidad={['estudiante', 'estudiantes']}
           onLimpiar={limpiarFiltros}
           onCerrar={() => setFiltrosAbiertos(false)}
         >
@@ -470,9 +431,9 @@ export default function EstudiantesPage({ onIr, abrirId, onAbierto }: Props) {
   );
 }
 
-/** Un grado por nombre y jornada, en el orden en que vienen. */
-function gradosUnicos(grados: Grado[]) {
-  return [...grados].sort((a, b) => a.id_grado - b.id_grado);
+/** Nombres de grado sin repetir (cada grado existe una vez por jornada), en el orden de los grados. */
+function nombresGrado(grados: Grado[]) {
+  return [...new Set([...grados].sort((a, b) => a.id_grado - b.id_grado).map(g => g.nombre))];
 }
 
 /* ── Piezas pequeñas ───────────────────────────────────────────── */
@@ -586,12 +547,11 @@ function BotonAccion({ etiqueta, onClick, children }: { etiqueta: string; onClic
    Diseño: docs/Estudiantes móvil · Modo claro@1x.png y -oscuro. */
 
 function TarjetaEstudiante({
-  indice, e, m, otrosYears, onFicha, onEditar,
+  indice, e, m, onFicha, onEditar,
 }: {
   indice: number;
   e: EstudianteListItem;
   m: MatriculaListItem | null;
-  otrosYears: number[];
   onFicha: () => void;
   onEditar: () => void;
 }) {
@@ -615,9 +575,7 @@ function TarjetaEstudiante({
         <dl className="grid grid-cols-2 gap-x-3 gap-y-2.5">
           <DatoTarjeta etiqueta="Grado">{m?.grado?.nombre ?? '—'}</DatoTarjeta>
           <DatoTarjeta etiqueta="Jornada">{m ? <ChipJornada jornada={m.jornada} sobreMenta /> : '—'}</DatoTarjeta>
-          <DatoTarjeta etiqueta="Año" ajustar>
-            {m ? <>{m.year}{otrosYears.length > 0 && <span className="font-medium text-(--p-suave)"> · también {otrosYears.join(', ')}</span>}</> : '—'}
-          </DatoTarjeta>
+          <DatoTarjeta etiqueta="Edad">{textoEdad(e.fecha_nacimiento)}</DatoTarjeta>
           <DatoTarjeta etiqueta="Nacimiento">{fechaDia(e.fecha_nacimiento)}</DatoTarjeta>
         </dl>
         {m?.fecha_matricula && (
@@ -662,149 +620,8 @@ function AccionTarjeta({
   );
 }
 
-/* ── Panel de filtros (celular y tablet) ───────────────────────── */
-
-function PanelFiltros({
-  activos, resultados, onLimpiar, onCerrar, children,
-}: { activos: number; resultados: number; onLimpiar: () => void; onCerrar: () => void; children: ReactNode }) {
-  useEscape(onCerrar);
-  return (
-    <Capa>
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
-        <div className="velo absolute inset-0 bg-black/45" onClick={onCerrar} />
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Filtros"
-          style={zoomCapa}
-          className="hoja relative w-full sm:max-w-[440px] rounded-t-[24px] sm:rounded-[24px] bg-(--p-sup) text-(--p-tinta) shadow-2xl overflow-hidden
-                     pb-[env(safe-area-inset-bottom)]"
-        >
-          <header className="flex items-center gap-3 h-14 pl-5 pr-3 bg-(--p-banda) text-white">
-            <span className="text-(--p-acento)"><I.Filtros tam={18} /></span>
-            <h2 className="flex-1 text-[12.5px] font-bold tracking-[0.14em] uppercase">Filtros</h2>
-            <button type="button" onClick={onCerrar} aria-label="Cerrar filtros"
-              className="grid place-items-center size-9 rounded-xl bg-white/10 hover:bg-white/20">
-              <I.Cerrar tam={17} />
-            </button>
-          </header>
-          <div className="flex flex-col gap-3 p-4">{children}</div>
-          <div className="grid grid-cols-2 gap-3 px-4 pb-4">
-            <button type="button" onClick={onLimpiar} disabled={!activos}
-              className="h-12 rounded-xl border border-(--p-borde) text-[14px] font-bold hover:bg-(--p-hover) disabled:opacity-45">
-              Limpiar
-            </button>
-            <button type="button" onClick={onCerrar}
-              className="h-12 rounded-xl bg-(--p-acento) text-[#170f27] text-[12.5px] font-bold tracking-[0.12em] hover:brightness-105">
-              VER {resultados} {resultados === 1 ? 'ESTUDIANTE' : 'ESTUDIANTES'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Capa>
-  );
-}
-
-function BotonVista({ activo, etiqueta, onClick, children }: { activo: boolean; etiqueta: string; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={etiqueta}
-      aria-pressed={activo}
-      title={etiqueta}
-      className={`grid place-items-center size-8 rounded-[9px] ${activo ? 'bg-(--p-acento) text-[#170f27]' : 'text-white/70 hover:text-white'}`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Filtro({
-  Icono, etiqueta, valor, onCambio, opciones, ancho = 'w-[210px]',
-}: {
-  ancho?: string;
-  Icono: ComponentType<{ tam?: number }>;
-  etiqueta: string;
-  valor: string;
-  onCambio: (v: string) => void;
-  opciones: [string, string][];
-}) {
-  return (
-    <label className={`relative flex items-center ${ancho} h-11 rounded-xl border border-(--p-borde) focus-within:border-(--p-acento) transition-colors`}>
-      <span className="pointer-events-none absolute left-3.5 text-(--p-suave)"><Icono tam={16} /></span>
-      <select
-        value={valor}
-        onChange={e => onCambio(e.target.value)}
-        aria-label={etiqueta}
-        className="appearance-none w-full h-full bg-transparent pl-10 pr-9 text-[13.5px] font-semibold outline-none cursor-pointer truncate"
-      >
-        {opciones.map(([v, t]) => <option key={v} value={v} className="bg-(--p-sup)">{t}</option>)}
-      </select>
-      <span className="pointer-events-none absolute right-3"><I.ChevronAbajo tam={15} /></span>
-    </label>
-  );
-}
-
 /* ── Capa: ficha lateral y diálogos (fuera del zoom) ───────────── */
 
-function Capa({ children }: { children: ReactNode }) {
-  const destino = document.getElementById(ID_CAPA);
-  return destino ? createPortal(children, destino) : null;
-}
-
-function useEscape(onCerrar: () => void) {
-  useEffect(() => {
-    const alTecla = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar(); };
-    document.addEventListener('keydown', alTecla);
-    return () => document.removeEventListener('keydown', alTecla);
-  }, [onCerrar]);
-}
-
-/** Mismo tamaño que el resto del contenido. */
-const zoomCapa: CSSProperties = { zoom: ESCALA_CONTENIDO };
-
-function Dialogo({ titulo, onCerrar, children }: { titulo: string; onCerrar: () => void; children: ReactNode }) {
-  useEscape(onCerrar);
-  return (
-    <Capa>
-      <div className="fixed inset-0 z-50 grid place-items-center p-4">
-        <div className="velo absolute inset-0 bg-black/40" onClick={onCerrar} />
-        <div role="dialog" aria-modal="true" aria-label={titulo} style={zoomCapa}
-          className="dialogo relative w-full max-w-[460px] rounded-[20px] bg-(--p-sup) text-(--p-tinta) border border-(--p-borde) shadow-2xl overflow-hidden">
-          <header className="flex items-center gap-3 h-12 pl-5 pr-2 bg-(--p-banda) text-white">
-            <h2 className="flex-1 text-[12.5px] font-bold tracking-[0.14em] uppercase">{titulo}</h2>
-            <button type="button" onClick={onCerrar} aria-label="Cerrar" className="grid place-items-center size-8 text-white/70 hover:text-white"><I.Cerrar tam={17} /></button>
-          </header>
-          <div className="p-5">{children}</div>
-        </div>
-      </div>
-    </Capa>
-  );
-}
-
-function BotonesDialogo({ onCancelar, texto, enviando, peligro = false }: { onCancelar: () => void; texto: string; enviando: boolean; peligro?: boolean }) {
-  return (
-    <div className="mt-6 flex justify-end gap-3">
-      <button type="button" onClick={onCancelar} className="h-10 px-4 rounded-xl border border-(--p-borde) text-[13.5px] font-semibold hover:bg-(--p-hover)">
-        Cancelar
-      </button>
-      <button
-        type="submit"
-        disabled={enviando}
-        className={`h-10 px-5 rounded-xl text-[12.5px] font-bold tracking-[0.12em] uppercase disabled:opacity-60 ${
-          peligro ? 'bg-(--p-banda) text-white' : 'bg-(--p-acento) text-[#170f27]'
-        }`}
-      >
-        {enviando ? 'Guardando…' : texto}
-      </button>
-    </div>
-  );
-}
-
-function ErrorFormulario({ texto }: { texto: string }) {
-  return texto ? <p role="alert" className="mt-4 text-[13.5px] font-medium text-red-600">{texto}</p> : null;
-}
 
 function DialogoEstado({
   estudiante, matricula, promocion, onCerrar, onListo,
@@ -1205,10 +1022,6 @@ function PestanaDatos({ detalle }: { detalle: EstudianteDetalle }) {
 const TIPOS_DOCUMENTO: Record<TipoDocumento, string> = {
   RC: 'Registro civil',
   TI: 'Tarjeta de identidad',
-  CC: 'Cédula de ciudadanía',
-  CE: 'Cédula de extranjería',
-  PPT: 'Permiso por protección temporal',
-  PA: 'Pasaporte',
 };
 const SEXOS: Record<Sexo, string> = { F: 'Femenino', M: 'Masculino' };
 const TIPOS_SANGRE = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];

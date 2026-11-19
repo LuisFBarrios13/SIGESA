@@ -58,10 +58,10 @@ export const crearMatriculaConAcudiente = async (dto) => {
   if (estudiante.fecha_nacimiento > hoyISO) {
     throw new AppError(400, 'La fecha de nacimiento no puede ser futura');
   }
-  // Fecha en que se hizo la matrícula: hoy por defecto; nunca futura ni de hace más de un año.
+  // Fecha en que se hizo la matrícula: hoy por defecto; nunca futura ni anterior al 1 de enero del año pasado.
   const fechaMatricula = matricula.fecha_matricula || hoyISO;
   if (fechaMatricula > hoyISO || fechaMatricula < `${yearEnCurso() - 1}-01-01`) {
-    throw new AppError(400, 'La fecha de matrícula no puede ser futura ni de hace más de un año');
+    throw new AppError(400, `La fecha de matrícula no puede ser futura ni anterior al 1 de enero de ${yearEnCurso() - 1}`);
   }
 
   // La jornada es la del grado (Primero Mañana y Primero Tarde son grados distintos).

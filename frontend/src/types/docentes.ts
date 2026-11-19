@@ -1,4 +1,4 @@
-// src/types/docentes.ts  — reemplaza el existente, añade ActualizarDocentePayload
+// src/types/docentes.ts — docentes vistos por el administrador.
 
 import type { JornadaEstudiante, JornadaDocente } from './shared';
 
@@ -48,9 +48,8 @@ export interface GradoDisponibilidad {
 }
 
 /**
- * Campos editables de un docente.
- * La cédula y la jornada NO son modificables desde la UI
- * (la jornada está vinculada a los grados asignados).
+ * Datos personales editables de un docente. La cédula no se cambia;
+ * el grado y la jornada se cambian aparte (docentesApi.cambiarAsignacion / intercambiar).
  */
 export interface ActualizarDocentePayload {
   nombre?:   string;

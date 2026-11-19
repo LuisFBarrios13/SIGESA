@@ -5,7 +5,7 @@ import {
   actualizarEstudiante,
   buscarEstudiantes,
 } from './estudiante.service.js';
-import { successResponse, errorResponse } from '../utils/responseHandler.js';
+import { successResponse } from '../utils/responseHandler.js';
 
 /** GET /api/estudiantes */
 export const listar = async (req, res) => {
@@ -15,9 +15,8 @@ export const listar = async (req, res) => {
 
 /** GET /api/estudiantes/buscar?q= */
 export const buscar = async (req, res) => {
-  const { q = '' } = req.query;
-  if (!q.trim()) return errorResponse(res, 'El parámetro q es requerido', 400);
-  const data = await buscarEstudiantes(q.trim());
+  // q ya viene validado; en Express 5 req.query no se puede reescribir, así que se recorta aquí.
+  const data = await buscarEstudiantes(req.query.q.trim());
   return successResponse(res, data);
 };
 

@@ -296,9 +296,6 @@ export const registrarPago = async (dto) => {
     );
     const saldo = parseFloat(cuenta.valor_deuda) - totalYaPagado;
 
-    if (parseFloat(monto_pago) <= 0) {
-      throw new AppError(400, 'El monto debe ser mayor a 0');
-    }
     if (parseFloat(monto_pago) > saldo + 0.01) {
       throw new AppError(400, `El monto ($${monto_pago}) supera el saldo pendiente ($${saldo.toFixed(2)})`);
     }

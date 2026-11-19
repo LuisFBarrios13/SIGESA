@@ -3,6 +3,7 @@ import { sequelize } from '../config/database.js';
 import { Grado, Docente } from '../models/index.js';
 import { Op } from 'sequelize';
 import { AppError } from '../utils/AppError.js';
+import { ORDEN_ESCOLAR } from '../constants/grados.js';
 
 /**
  * Conflict detection: can a docente be assigned to a grado?
@@ -96,7 +97,7 @@ export const listarGrados = async () =>
         attributes: ['cedula', 'nombre', 'jornada'],
       },
     ],
-    order: [['nombre', 'ASC']],
+    order: ORDEN_ESCOLAR,
   });
 
 /**
@@ -179,21 +180,4 @@ export const asignarDocenteAGrado = async (id_grado, cedula_docente) => {
       transaction: t,
     });
   });
-};
-
-/**
- * Creates a new grado.
- */
-export const crearGrado = async ({ nombre, jornada }) => {
-  if (!nombre?.trim()) throw new AppError(400, 'El nombre del grado es requerido');
-  if (!['MAÑANA', 'TARDE'].includes(jornada)) {
-    throw new AppError(400, 'La jornada debe ser MAÑANA o TARDE');
-  }
-
-  const existe = await Grado.findOne({ where: { nombre: nombre.trim(), jornada } });
-  if (existe) {
-    throw new AppError(409, `Ya existe el grado "${nombre.trim()}" en jornada ${jornada}`);
-  }
-
-  return Grado.create({ nombre: nombre.trim(), jornada, id_docente: null });
 };

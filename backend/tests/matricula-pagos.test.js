@@ -61,6 +61,9 @@ test('buscar acudiente: por cédula, por su usuario o null si no existe', async 
   const porCedula = await s.api('GET', '/acudientes/5001', { token: admin });
   assert.equal(porCedula.status, 200);
   assert.equal(porCedula.body.data.nombre, 'Acudiente 5001');
+  // Trae sus estudiantes, para decir en la matrícula de quién ya es acudiente.
+  // (Tiene dos: el segundo se vinculó en «segundo hijo con el mismo acudiente».)
+  assert.deepEqual(porCedula.body.data.estudiantes.map((e) => e.nombre).sort(), ['Estudiante 1001', 'Estudiante 1002']);
 
   // El usuario del acudiente es el documento del primer estudiante (1001)
   const porUsuario = await s.api('GET', '/acudientes/1001', { token: admin });
@@ -70,6 +73,21 @@ test('buscar acudiente: por cédula, por su usuario o null si no existe', async 
   const nuevo = await s.api('GET', '/acudientes/99999', { token: admin });
   assert.equal(nuevo.status, 200);
   assert.equal(nuevo.body.data, null);
+});
+
+test('coincidencias de acudientes mientras se escribe: por nombre o cédula, con sus estudiantes', async () => {
+  const porNombre = await s.api('GET', `/acudientes?q=${encodeURIComponent('acudiente 50')}`, { token: admin });
+  assert.equal(porNombre.status, 200);
+  const rosa = porNombre.body.data.find((a) => a.cedula === '5001');
+  assert.ok(rosa, 'encuentra por nombre sin importar mayúsculas');
+  // Tiene dos hijos en el colegio (el segundo se vinculó en «segundo hijo con el mismo acudiente»).
+  assert.deepEqual(rosa.estudiantes.map((e) => e.nombre).sort(), ['Estudiante 1001', 'Estudiante 1002']);
+
+  const porCedula = await s.api('GET', '/acudientes?q=500', { token: admin });
+  assert.ok(porCedula.body.data.some((a) => a.cedula === '5001'), 'encuentra por parte de la cédula');
+
+  assert.deepEqual((await s.api('GET', '/acudientes?q=zzzz', { token: admin })).body.data, []);
+  assert.equal((await s.api('GET', '/acudientes?q=%20', { token: admin })).status, 400);
 });
 
 test('estudiante repetido → 409; datos incompletos → 400', async () => {
@@ -239,6 +257,55 @@ test('validación: datos mal formados → 400 con mensaje claro', async () => {
   assert.ok(tarifa.body.errors.length >= 2);
 
   assert.equal((await s.api('GET', '/pagos/matriculas/abc', { token: admin })).status, 400);
+
+  // Las reglas que antes estaban repetidas en servicios y controladores ahora solo viven en la ruta.
+  const cero = await s.api('POST', '/pagos', {
+    token: admin, body: { id_cuenta: 1, monto_pago: 0, id_metodo_pago: idEfectivo },
+  });
+  assert.equal(cero.status, 400);
+  assert.match(cero.body.message, /mayor a 0/);
+
+  const sinQ = await s.api('GET', '/estudiantes/buscar?q=%20%20', { token: admin });
+  assert.equal(sinQ.status, 400);
+  assert.match(sinQ.body.message, /búsqueda/);
+
+  const sinNombre = await s.api('PATCH', '/acudientes/7001', { token: admin, body: { nombre: '   ' } });
+  assert.equal(sinNombre.status, 400);
+  assert.match(sinNombre.body.message, /nombre/i);
+});
+
+// Estas rutas ya no tienen una segunda revisión en el controlador: si alguien borra
+// una regla de la ruta, esta prueba falla.
+test('validación en el resto de rutas: boletín, notas, búsqueda de pagos y contraseña', async () => {
+  const pedir = (metodo, ruta, body) => s.api(metodo, ruta, { token: admin, body });
+  const rechaza = async (respuesta, mensaje) => {
+    const r = await respuesta;
+    assert.equal(r.status, 400, JSON.stringify(r.body));
+    if (mensaje) assert.match(r.body.message, mensaje);
+  };
+
+  // Boletín
+  await rechaza(pedir('GET', '/boletin/abc'), /id_matricula/);
+  await rechaza(pedir('GET', `/boletin/${idMatricula}?periodo=7`), /periodo/);
+  await rechaza(pedir('GET', `/boletin/${idMatricula}?year=dos`), /año/);
+
+  // Notas por grado y materia
+  await rechaza(pedir('GET', '/notas?id_materia=1&numero_periodo=1'), /id_grado/);
+  await rechaza(pedir('GET', `/notas?id_grado=${idGrado}&id_materia=1&numero_periodo=5`), /periodo/);
+
+  // Guardar notas de varios estudiantes en una materia
+  const bulk = { id_materia: 1, numero_periodo: 1, year: YEAR };
+  await rechaza(pedir('POST', '/notas/bulk', { ...bulk, notas: 'no es lista' }), /lista/);
+  await rechaza(pedir('POST', '/notas/bulk', { ...bulk, notas: [{ id_matricula: idMatricula, nota: 9 }] }), /notas deben estar entre/);
+  await rechaza(pedir('POST', '/notas/bulk', { notas: [], id_materia: 1, year: YEAR }), /periodo/);
+
+  // Buscar matrículas en Pagos
+  await rechaza(pedir('GET', '/pagos/matriculas/buscar'), /búsqueda/);
+  await rechaza(pedir('GET', '/pagos/matriculas/buscar?q=%20%20'), /búsqueda/);
+
+  // Cambiar contraseña
+  await rechaza(pedir('PATCH', '/auth/change-password', { newPassword: '123' }), /entre 6 y 100/);
+  await rechaza(pedir('PATCH', '/auth/change-password', {}), /requerida/);
 });
 
 test('notas: el docente guarda notas, puesto y observaciones del periodo', async () => {
@@ -299,6 +366,40 @@ test('la base de datos impide duplicados aunque el código no los revise', async
   const nota = { id_matricula: idMatricula, id_materia: materia.id_materia, id_periodo: periodo.id_periodo, nota: 3 };
   await Nota.create(nota);
   await assert.rejects(Nota.create(nota), { name: 'SequelizeUniqueConstraintError' });
+});
+
+test('documentos: solo números y, para estudiantes, solo RC o TI', async () => {
+  // La API rechaza letras, puntos y guiones en cualquier documento.
+  for (const [estudianteId, cedula] of [['AB1234', '7101'], ['1.102.345', '7102'], ['3101', 'X-7103']]) {
+    const r = await s.api('POST', '/matriculas', { token: admin, body: nuevaMatricula(estudianteId, cedula) });
+    assert.equal(r.status, 400, `${estudianteId} / ${cedula}`);
+    assert.match(r.body.message, /solo admite números/);
+  }
+  const docente = await s.api('POST', '/docentes', {
+    token: admin, body: { cedula: 'CC9101', nombre: 'Profe Letra', jornada: 'MAÑANA', nombreGrado: 'Primero' },
+  });
+  assert.equal(docente.status, 400);
+
+  // Un estudiante no puede tener cédula ni pasaporte.
+  const base = nuevaMatricula('3102', '7104');
+  const cc = await s.api('POST', '/matriculas', {
+    token: admin, body: { ...base, estudiante: { ...base.estudiante, tipo_documento: 'CC' } },
+  });
+  assert.equal(cc.status, 400);
+  assert.match(cc.body.message, /tipo de documento/);
+
+  // Y la base lo impide aunque el código no lo revise.
+  const { Estudiante, Acudiente } = s.modelos;
+  // (Se revisa el nombre de la restricción: así falla por esta regla y no por otra.)
+  const viola = (constraint) => (err) => err.parent?.constraint === constraint;
+  const fecha_nacimiento = '2019-03-10';
+  await assert.rejects(Estudiante.create({ numero_identidad: 'AB1234', nombre: 'Con letras', fecha_nacimiento }),
+    viola('ck_estudiantes_documento_numerico'));
+  await assert.rejects(Estudiante.create({ numero_identidad: '3103', nombre: 'Con cédula', tipo_documento: 'CC', fecha_nacimiento }),
+    viola('ck_estudiantes_tipo_documento'));
+  const { id_usuario } = await Acudiente.findOne();
+  await assert.rejects(Acudiente.create({ cedula: '7105-A', nombre: 'Con guion', id_usuario }),
+    viola('ck_acudientes_cedula_numerica'));
 });
 
 test('roles conserva una sola restricción UNIQUE', async () => {

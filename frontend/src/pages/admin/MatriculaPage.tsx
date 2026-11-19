@@ -3,11 +3,11 @@
 // Se tomaron la estructura y los textos; se quitaron los íconos de cada sección y de cada
 // campo, y la pantalla final es sobria (sin el check gigante con halo ni la fila de chips).
 
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { cloneElement, isValidElement, useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { acudientesApi, estudiantesApi, gradosApi, matriculasApi, type DuenoDocumento, type PeriodoMatricula, type PeriodoInfo, type DestinoRematricula } from '../../services/api';
 import { pagosApi, type Tarifa } from '../../services/pagosApi';
 import type { EstudianteDetalle, EstudianteListItem, Sexo, TipoDocumento } from '../../types/estudiantes';
-import type { AcudienteDetalle } from '../../types/acudientes-admin';
+import type { AcudienteCoincidencia, AcudienteDetalle } from '../../types/acudientes-admin';
 import type { Credenciales, Grado, JornadaEstudiante } from '../../types/shared';
 import { NOMBRE_ESTADO } from '../../types/matriculas';
 import type { Seccion } from '../../layouts/AdminLayout';
@@ -26,23 +26,23 @@ const YEAR_ACTUAL = new Date().getFullYear();
 const BORRADOR = 'sigesa_matricula_borrador';
 
 const PASOS: { n: Paso; titulo: string; descripcion: string }[] = [
-  { n: 1, titulo: 'Buscar estudiante', descripcion: 'Escribe el documento para saber si el estudiante ya está registrado.' },
+  { n: 1, titulo: 'Buscar estudiante', descripcion: '' },
   { n: 2, titulo: 'Datos del estudiante', descripcion: 'Completa los datos personales del estudiante.' },
-  { n: 3, titulo: 'Acudiente', descripcion: 'Busca primero por cédula: si el acudiente ya existe, se vincula con sus datos actuales.' },
+  { n: 3, titulo: 'Acudiente', descripcion: '' },
   { n: 4, titulo: 'Matrícula', descripcion: 'Elige el año (este o el próximo), el grado y la jornada.' },
   { n: 5, titulo: 'Revisar y confirmar', descripcion: 'Confirma que todo esté bien antes de guardar.' },
 ];
 
 const TIPOS_DOCUMENTO: [TipoDocumento, string][] = [
-  ['RC', 'Registro civil'], ['TI', 'Tarjeta de identidad'], ['CC', 'Cédula de ciudadanía'],
-  ['CE', 'Cédula de extranjería'], ['PPT', 'Permiso por protección temporal'], ['PA', 'Pasaporte'],
+  ['RC', 'Registro civil'], ['TI', 'Tarjeta de identidad'],
 ];
 const NOMBRE_TIPO = Object.fromEntries(TIPOS_DOCUMENTO) as Record<TipoDocumento, string>;
 const TIPOS_SANGRE = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const PARENTESCOS = ['Madre', 'Padre', 'Abuelo/a', 'Tío/a', 'Hermano/a', 'Otro'];
-/** Edad que se cumple a 31 de marzo del año escolar → grado que le corresponde. */
-const GRADO_POR_EDAD: Record<number, string> = { 4: 'Jardín', 5: 'Transición', 6: 'Primero', 7: 'Segundo', 8: 'Tercero', 9: 'Cuarto', 10: 'Quinto' };
-const DOCUMENTO_VALIDO = /^[A-Za-z0-9-]{3,20}$/;
+/** Documentos (RC, TI, cédula): solo números. Igual que la regla del servidor. */
+const DOCUMENTO_VALIDO = /^[0-9]{3,20}$/;
+/** En el paso 1 se puede escribir un documento o un nombre: si tiene algo distinto de números, es un nombre. */
+const pareceDocumento = (q: string) => DOCUMENTO_VALIDO.test(q);
 const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface FormEstudiante {
@@ -63,7 +63,7 @@ type Busqueda<T> =
   | { estado: 'error'; mensaje: string };
 
 interface Resultado {
-  id: string; nombre: string; grado: string; jornada: JornadaEstudiante; year: number; fecha: string;
+  id: string; nombre: string; grado: string; jornada: JornadaEstudiante; year: number; promocion: boolean; fecha: string;
   acudiente: string | null; parentesco: string | null; credenciales: Credenciales | null; sexo: Sexo | '' | null | undefined;
 }
 
@@ -73,10 +73,20 @@ const hoyISO = () => {
 };
 /** La fecha de matrícula no puede ser de antes del 1 de enero del año pasado (igual que el servidor). */
 const fechaMinimaMatricula = () => `${new Date().getFullYear() - 1}-01-01`;
+
+/** Cómo se nombra el año en la revisión y en la pantalla final: «2027 · Próximo año (se activa el 1 de enero)». */
+const textoYear = (year: number, promocion: boolean) =>
+  promocion ? `${year} · Próximo año (se activa el 1 de enero)` : `${year} · Este año`;
+/** La misma frase de ayuda bajo el año, sea estudiante nuevo o re-matrícula. */
+const ayudaYear = (sel: PeriodoMatricula | null) =>
+  sel?.estado === 'PROMOCION'
+    ? `Queda en promoción y se activa el 1 de enero de ${sel.year}.`
+    : 'Año escolar en curso.';
 const pesos = (v: number) => `$${Math.round(v).toLocaleString('es-CO')}`;
 const capitalizar = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 
-const ESTUDIANTE_VACIO: FormEstudiante = { tipo_documento: '', nombre: '', fecha_nacimiento: '', sexo: '', rh: '', eps: '', observaciones: '', direccion: '' };
+// Tarjeta de identidad por defecto: es la que tiene la mayoría de los estudiantes.
+const ESTUDIANTE_VACIO: FormEstudiante = { tipo_documento: 'TI', nombre: '', fecha_nacimiento: '', sexo: '', rh: '', eps: '', observaciones: '', direccion: '' };
 const ACUDIENTE_VACIO: FormAcudiente = { cedula: '', nombre: '', parentesco: '', telefono: '', correo: '', direccion: '', mismaDireccion: false, telefono_trabajo: '', direccion_trabajo: '' };
 const matriculaVacia = (): FormMatricula => ({ year: YEAR_ACTUAL, grado: '', jornada: '', fecha: hoyISO() });
 
@@ -96,6 +106,8 @@ function leerBorrador(): Borrador {
     // Una búsqueda que quedó «buscando» al cerrar la pestaña se repite.
     if (b && b.busEst.estado === 'buscando') b.busEst = { estado: 'inicial' };
     if (b && b.busAcu.estado === 'buscando') b.busAcu = { estado: 'inicial' };
+    // Borradores de antes, sin tipo o con uno que ya no existe (CC, pasaporte…): toman el de por defecto.
+    if (b && !TIPOS_DOCUMENTO.some(([t]) => t === b.est.tipo_documento)) b.est.tipo_documento = ESTUDIANTE_VACIO.tipo_documento;
     return b ?? borradorInicial();
   } catch { return borradorInicial(); }
 }
@@ -119,6 +131,8 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
   const [resultado, setResultado] = useState<Resultado | null>(null);
   // Años posibles según el servidor: el año en curso (ACTIVO) o el siguiente (PROMOCION).
   const [periodo, setPeriodo] = useState<PeriodoInfo | null>(null);
+  /** Hacia dónde fue el último cambio de paso: el contenido nuevo entra desde ese lado. */
+  const [direccion, setDireccion] = useState<'adelante' | 'atras'>('adelante');
 
   const cambiar = (parcial: Partial<Borrador>) => setB(prev => ({ ...prev, ...parcial }));
   const setEst = (p: Partial<FormEstudiante>) => setB(prev => ({ ...prev, est: { ...prev.est, ...p } }));
@@ -128,6 +142,33 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
     if (!campos.some(c => c in prev)) return prev;
     const n = { ...prev }; campos.forEach(c => delete n[c]); return n;
   });
+
+  /* ── Foco ───────────────────────────────────────────────────────
+     Al cambiar de paso, el foco va al título (el lector de pantalla anuncia el paso nuevo).
+     Si al avanzar hay errores, va al primer campo con error y lo deja a la vista. */
+  const formulario = useRef<HTMLElement>(null);
+  const tituloPaso = useRef<HTMLHeadingElement>(null);
+  const primerRender = useRef(true);
+  const irAlError = useRef(false);
+  /** Muestra errores y lleva el foco al primero. */
+  const mostrarErrores = (e: Record<string, string>) => { irAlError.current = true; setErrores(e); };
+
+  useEffect(() => {
+    if (primerRender.current) { primerRender.current = false; return; }
+    tituloPaso.current?.focus({ preventScroll: true });
+  }, [b.paso]);
+
+  useEffect(() => {
+    if (!irAlError.current) return;
+    irAlError.current = false;
+    const invalido = formulario.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+    // En un grupo de opciones, el foco va a su opción que está en el orden de Tab.
+    const destino = invalido?.matches('input, select, textarea, button')
+      ? invalido
+      : invalido?.querySelector<HTMLElement>('[tabindex="0"]');
+    destino?.focus({ preventScroll: true });
+    destino?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [errores]);
 
   // Borrador: si se cierra la pestaña sin querer, al volver sigue donde iba.
   useEffect(() => {
@@ -183,13 +224,10 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
     ? [...estudianteExistente.acudientes].sort((x, y) => Number(!!y.RelacionEA?.acudiente_principal) - Number(!!x.RelacionEA?.acudiente_principal))[0]
     : undefined;
 
-  // Grados únicos por nombre, en el orden en que vienen (Jardín, Transición, Primero…).
+  // Grados únicos por nombre, en el orden escolar en que los manda el servidor (Pre Jardín, Jardín, Transición…).
   const nombresGrado = useMemo(() => [...new Set(grados.map(g => g.nombre))], [grados]);
   const jornadasDe = (nombre: string) => grados.filter(g => g.nombre === nombre).map(g => g.jornada);
   const gradoElegido = grados.find(g => g.nombre === mat.grado && g.jornada === mat.jornada);
-  const nacimiento = estudianteExistente?.fecha_nacimiento ?? est.fecha_nacimiento;
-  const edadEscolar = edad(nacimiento, new Date(mat.year, 2, 31));
-  const sugerido = edadEscolar !== null ? GRADO_POR_EDAD[edadEscolar] : undefined;
   const nombreEstudiante = estudianteExistente?.nombre ?? est.nombre.trim();
   const nombreAcudiente = acudienteExistente?.nombre ?? acu.nombre.trim();
 
@@ -197,8 +235,9 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
 
   async function buscarEstudiante(docElegido?: string): Promise<Busqueda<EstudianteDetalle>> {
     const d = (docElegido ?? doc).trim();
-    if (!DOCUMENTO_VALIDO.test(d)) {
-      setErrores({ doc: d ? 'Solo letras, números y guiones (3 a 20 caracteres).' : 'Escribe el número de documento.' });
+    if (!pareceDocumento(d)) {
+      // Escribió un nombre (o nada): un estudiante nuevo solo se matricula con su documento.
+      mostrarErrores({ doc: d ? 'Para matricular a un estudiante nuevo, escribe su número de documento.' : 'Escribe el documento o el nombre del estudiante.' });
       return busEst;
     }
     setErrores({});
@@ -225,14 +264,15 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
     return r;
   }
 
-  async function buscarAcudiente(): Promise<Busqueda<AcudienteDetalle | null>> {
-    const c = acu.cedula.trim();
+  async function buscarAcudiente(cedulaElegida?: string): Promise<Busqueda<AcudienteDetalle | null>> {
+    const c = (cedulaElegida ?? acu.cedula).trim();
     if (!DOCUMENTO_VALIDO.test(c)) {
-      setErrores({ cedula: c ? 'Solo letras, números y guiones (3 a 20 caracteres).' : 'Escribe la cédula del acudiente.' });
+      // Escribió un nombre (o nada): un acudiente nuevo solo se registra con su cédula.
+      mostrarErrores({ cedula: c ? 'Para registrar a un acudiente nuevo, escribe su cédula.' : 'Escribe la cédula o el nombre del acudiente.' });
       return busAcu;
     }
     if (c === doc.trim()) {
-      setErrores({ cedula: 'Es el documento del estudiante. Escribe la cédula del acudiente.' });
+      mostrarErrores({ cedula: 'Es el documento del estudiante. Escribe la cédula del acudiente.' });
       return busAcu;
     }
     setErrores({});
@@ -282,7 +322,7 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
       else if (!mat.jornada) e.jornada = 'Elige la jornada.';
       else if (!gradoElegido) e.jornada = 'Ese grado no tiene esa jornada.';
       if (modo === 'nuevo' && mat.fecha && (mat.fecha > hoyISO() || mat.fecha < fechaMinimaMatricula())) {
-        e.fecha = 'La fecha no puede ser futura ni de hace más de un año.';
+        e.fecha = `La fecha no puede ser futura ni anterior al 1 de enero de ${new Date().getFullYear() - 1}.`;
       }
       if (modo === 'rematricula' && destinoActual && !destinoActual.posible) e.grado = destinoActual.motivo;
     }
@@ -291,7 +331,10 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
 
   /** Pasos que no aplican en una re-matrícula (sus datos y su acudiente ya existen). */
   const omitido = (n: Paso) => modo === 'rematricula' && (n === 2 || n === 3);
-  const irA = (n: Paso) => { setErrores({}); setErrorEnvio(''); cambiar({ paso: n }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const irA = (n: Paso) => {
+    setDireccion(n >= paso ? 'adelante' : 'atras');
+    setErrores({}); setErrorEnvio(''); cambiar({ paso: n }); window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   async function siguiente() {
     if (paso === 1) {
@@ -306,7 +349,7 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
       return;
     }
     const e = validar(paso);
-    if (Object.keys(e).length) { setErrores(e); return; }
+    if (Object.keys(e).length) { mostrarErrores(e); return; }
     let n = (paso + 1) as Paso;
     while (omitido(n)) n = (n + 1) as Paso;
     irA(n);
@@ -337,7 +380,7 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
         await matriculasApi.rematricular({ id_estudiante: estudianteExistente.numero_identidad, id_grado: gradoElegido.id_grado });
         setResultado({
           id: estudianteExistente.numero_identidad, nombre: estudianteExistente.nombre, grado: gradoElegido.nombre,
-          jornada: gradoElegido.jornada, year: mat.year, fecha: hoyISO(),
+          jornada: gradoElegido.jornada, year: mat.year, promocion: anioMatricula.estado === 'PROMOCION', fecha: hoyISO(),
           acudiente: acudientePrincipal?.nombre ?? null, parentesco: acudientePrincipal?.RelacionEA?.parentesco ?? null, credenciales: null,
           sexo: estudianteExistente.sexo,
         });
@@ -361,7 +404,7 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
         });
         setResultado({
           id: doc.trim(), nombre: est.nombre.trim(), grado: gradoElegido.nombre, jornada: gradoElegido.jornada,
-          year: mat.year, fecha: mat.fecha || hoyISO(), acudiente: nombreAcudiente, parentesco: acu.parentesco, sexo: est.sexo,
+          year: mat.year, promocion: anioMatricula.estado === 'PROMOCION', fecha: mat.fecha || hoyISO(), acudiente: nombreAcudiente, parentesco: acu.parentesco, sexo: est.sexo,
           credenciales: r.credenciales.username && r.credenciales.passwordTemporal
             ? { username: r.credenciales.username, passwordTemporal: r.credenciales.passwordTemporal, nota: r.credenciales.nota }
             : null,
@@ -410,6 +453,12 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
 
   const info = PASOS[paso - 1];
   const proximo = PASOS.slice(paso).find(p => !omitido(p.n));
+  // Numeración real: en una re-matrícula los pasos 2 y 3 no aplican, así que son 3 pasos (Paso 2 de 3).
+  const pasosActivos = PASOS.filter(p => !omitido(p.n));
+  const numeroPaso = pasosActivos.findIndex(p => p.n === paso) + 1;
+  const totalPasos = pasosActivos.length;
+  // En el paso 3, mientras no se haya buscado la cédula, el botón principal busca: que lo diga.
+  const faltaBuscarAcudiente = paso === 3 && !(busAcu.estado === 'existe' || busAcu.estado === 'nuevo');
   const estadoPaso = (n: Paso): EstadoPaso => omitido(n) ? 'omitido' : n < paso ? 'completo' : n === paso ? 'actual' : 'pendiente';
   const bloqueado = paso === 1 && busEst.estado === 'existe' && busEst.doc === doc.trim();
 
@@ -443,23 +492,32 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
           </p>
         </aside>
 
-        {/* Formulario del paso */}
-        <section aria-labelledby="titulo-paso" className="min-w-0 rounded-[22px] border border-(--p-borde) bg-(--p-sup)">
+        {/* Formulario del paso. overflow-x-clip: mientras el paso entra desplazado no asoma una
+            barra horizontal (clip, a diferencia de hidden, no rompe la barra de acciones fija). */}
+        <section ref={formulario} aria-labelledby="titulo-paso" className="min-w-0 overflow-x-clip rounded-[22px] border border-(--p-borde) bg-(--p-sup)">
           <div className="px-4 sm:px-7 pt-5 sm:pt-7">
             <div className="flex items-baseline justify-between gap-3">
-              <p className="text-[12px] font-bold tracking-[0.12em] uppercase text-(--p-suave)">Paso {paso} de 5</p>
+              <p className="text-[12px] font-bold tracking-[0.12em] uppercase text-(--p-suave)">Paso {numeroPaso} de {totalPasos}</p>
               {proximo && <p className="lg:hidden text-[12px] text-(--p-suave)">Siguiente: {proximo.titulo}</p>}
             </div>
             {/* Barra de avance (celular y tablet) */}
             <div className="lg:hidden mt-2.5 h-1.5 rounded-full bg-(--p-menta) overflow-hidden" role="progressbar"
-              aria-label="Avance de la matrícula" aria-valuemin={0} aria-valuemax={5} aria-valuenow={paso}>
-              <div className="h-full rounded-full bg-(--p-acento) transition-[width] duration-300" style={{ width: `${paso * 20}%` }} />
+              aria-label="Avance de la matrícula" aria-valuemin={0} aria-valuemax={totalPasos} aria-valuenow={numeroPaso}>
+              <div className="avance h-full rounded-full bg-(--p-acento)" style={{ transform: `translateX(-${100 - (numeroPaso / totalPasos) * 100}%)` }} />
             </div>
-            <h2 id="titulo-paso" className="mt-3 text-[22px] sm:text-[24px] font-extrabold tracking-tight">{info.titulo}</h2>
-            <p className="mt-1 text-[14px] text-(--p-suave)">{modo === 'rematricula' && paso === 4 ? `Elige el grado y la jornada de ${nombreEstudiante}.` : info.descripcion}</p>
+            <h2 key={paso} id="titulo-paso" ref={tituloPaso} tabIndex={-1} data-dir={direccion}
+              className="paso-entra mt-3 text-[22px] sm:text-[24px] font-extrabold tracking-tight outline-none">{info.titulo}</h2>
+            {/* Un solo aviso para el lector de pantalla; cada error se lee al llegar a su campo. */}
+            <p className="sr-only" aria-live="polite">
+              {Object.keys(errores).length === 1 ? 'Hay un campo por corregir.' : Object.keys(errores).length > 1 ? `Hay ${Object.keys(errores).length} campos por corregir.` : ''}
+            </p>
+            {(() => {
+              const texto = modo === 'rematricula' && paso === 4 ? `Elige el grado y la jornada de ${nombreEstudiante}.` : info.descripcion;
+              return texto && <p key={paso} data-dir={direccion} className="paso-entra mt-1 text-[14px] text-(--p-suave)">{texto}</p>;
+            })()}
           </div>
 
-          <div key={paso} className="fundido px-4 sm:px-7 py-6 sm:py-7 max-w-[960px]">
+          <div key={paso} data-dir={direccion} className="paso-entra px-4 sm:px-7 py-6 sm:py-7 max-w-[960px]">
             {paso === 1 && (
               <PasoBuscar
                 doc={doc}
@@ -476,24 +534,23 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
             {paso === 3 && (
               <PasoAcudiente
                 acu={acu} setAcu={setAcu} errores={errores} limpiar={limpiarError}
-                busqueda={busAcu} onBuscar={buscarAcudiente}
+                busqueda={busAcu} onBuscar={() => buscarAcudiente()}
                 onCedula={v => { setAcu({ cedula: v }); cambiar({ busAcu: { estado: 'inicial' } }); limpiarError('cedula'); }}
+                onElegir={c => { setAcu({ cedula: c }); limpiarError('cedula'); buscarAcudiente(c); }}
                 nombreEstudiante={est.nombre.trim().split(/\s+/)[0] || 'el estudiante'}
                 direccionEstudiante={est.direccion}
               />
             )}
-            {(paso === 4 || paso === 5) && bloqueoRematricula && <div className="mb-5"><Aviso tono="error">{bloqueoRematricula}</Aviso></div>}
+            {(paso === 4 || paso === 5) && bloqueoRematricula && <div className="revelar mb-5"><Aviso tono="error">{bloqueoRematricula}</Aviso></div>}
             {paso === 4 && (
               <PasoMatricula
                 mat={mat} setMat={setMat} errores={errores} limpiar={limpiarError}
-                seleccion={anioMatricula} opciones={modo === 'nuevo' ? periodo?.opciones ?? [] : null} nombresGrado={nombresGrado} jornadasDe={jornadasDe}
-                sugerido={sugerido && nombresGrado.includes(sugerido) ? sugerido : undefined}
-                edadEscolar={edadEscolar} tarifa={tarifa}
+                seleccion={anioMatricula} opciones={modo === 'nuevo' ? periodo?.opciones ?? [] : null} nombresGrado={nombresGrado} jornadasDe={jornadasDe} tarifa={tarifa}
               />
             )}
             {paso === 5 && (
               <PasoRevisar
-                modo={modo} doc={doc} est={est} acu={acu} mat={mat} tarifa={tarifa}
+                modo={modo} doc={doc} est={est} acu={acu} mat={mat} seleccion={anioMatricula} tarifa={tarifa}
                 estudianteExistente={estudianteExistente} acudienteExistente={acudienteExistente}
                 acudientePrincipal={acudientePrincipal} gradoElegido={gradoElegido}
                 onCambiar={irA} error={errorEnvio}
@@ -501,9 +558,14 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
             )}
           </div>
 
-          {/* Acciones: fijas abajo en el celular (sobre la barra de navegación). Con el estudiante
-              ya encontrado no se fijan, para no tapar su botón «Matricular para…». */}
-          <div className={`${bloqueado ? '' : 'sticky bottom-[88px] lg:bottom-0 z-10'} flex items-center gap-3 px-4 sm:px-7 py-4 border-t border-(--p-borde) bg-(--p-sup) rounded-b-[22px]`}>
+          {/* Acciones: fijas abajo en el celular, encima de la barra de navegación. Su altura sale de
+              la misma cuenta que usa esa barra (68px + su margen, que en iPhone es la zona del gesto
+              de inicio) más 8px de aire. Con el estudiante ya encontrado no se fijan, para no tapar
+              su botón «Matricular para…». */}
+          <div className={`${bloqueado ? '' : 'sticky bottom-[calc(max(16px,env(safe-area-inset-bottom))+76px)] lg:bottom-0 z-10'} flex flex-wrap sm:flex-nowrap items-center gap-3 px-4 sm:px-7 py-4 border-t border-(--p-borde) bg-(--p-sup) rounded-b-[22px]`}>
+            {bloqueado && destinoPosible && (
+              <p className="sm:hidden basis-full text-[13px] text-(--p-suave)">Usa «Matricular para…» para continuar.</p>
+            )}
             <button type="button" onClick={atras} disabled={paso === 1}
               className="presionable h-12 px-5 flex items-center justify-center gap-2.5 whitespace-nowrap rounded-xl border border-(--p-borde) text-[13px] font-bold hover:bg-(--p-hover) disabled:opacity-40 disabled:pointer-events-none">
               <svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -518,10 +580,10 @@ export default function MatriculaPage({ onIr, onVerEstudiante }: Props) {
               <button type="button" onClick={siguiente} disabled={bloqueado || busEst.estado === 'buscando' || busAcu.estado === 'buscando'}
                 className="presionable max-sm:flex-1 h-12 flex items-stretch overflow-hidden rounded-xl bg-(--p-acento) text-[#160c28] hover:brightness-105 disabled:opacity-45 disabled:pointer-events-none">
                 <span className="flex-1 flex items-center justify-center px-3 sm:px-[22px] text-[12px] sm:text-[13px] font-extrabold tracking-[0.1em] sm:tracking-[0.14em] uppercase whitespace-nowrap">
-                  {busEst.estado === 'buscando' || busAcu.estado === 'buscando' ? 'Buscando…' : 'Siguiente'}
+                  {busEst.estado === 'buscando' || busAcu.estado === 'buscando' ? 'Buscando…' : faltaBuscarAcudiente ? 'Buscar acudiente' : 'Siguiente'}
                 </span>
                 <span className="w-12 flex-none flex items-center justify-center bg-[rgba(22,12,40,0.12)]">
-                  <svg aria-hidden="true" width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg aria-hidden="true" width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flecha-siguiente">
                     <path d="M4 10 H16 M11 5 L16 10 L11 15" />
                   </svg>
                 </span>
@@ -547,7 +609,7 @@ function Encabezado({ titulo, accion }: { titulo: string; accion?: ReactNode }) 
       <div>
         <h1 className="text-[28px] lg:text-[32px] leading-tight font-extrabold tracking-tight">{titulo}</h1>
         <p className="mt-1 text-[10px] lg:text-[11.5px] font-semibold tracking-[0.18em] text-(--p-suave)">
-          {fechaEncabezado(new Date(), true)}<span className="hidden sm:inline"> · AÑO ESCOLAR {YEAR_ACTUAL}</span>
+          {fechaEncabezado()}
         </p>
       </div>
       {accion}
@@ -561,12 +623,13 @@ function ItemPaso({ n, titulo, estado, ultimo, onIr }: { n: number; titulo: stri
   const textoEstado = { completo: 'Completo', actual: 'Paso actual', pendiente: 'Pendiente', omitido: 'No aplica' }[estado];
   const contenido = (
     <>
-      <span className={`grid place-items-center shrink-0 size-8 rounded-full text-[13px] font-bold ${
-        estado === 'actual' ? 'bg-(--p-acento) text-[#160c28]'
-          : estado === 'completo' ? 'bg-(--p-banda) text-white'
-            : 'border border-(--p-borde) text-(--p-suave)'
+      {/* Borde siempre presente (transparente si no se ve): así el color cambia sin que el círculo salte. */}
+      <span className={`circulo-paso grid place-items-center shrink-0 size-8 rounded-full border text-[13px] font-bold ${
+        estado === 'actual' ? 'border-transparent bg-(--p-acento) text-[#160c28]'
+          : estado === 'completo' ? 'border-transparent bg-(--p-banda) text-white'
+            : 'border-(--p-borde) text-(--p-suave)'
       }`}>
-        {estado === 'completo' ? <I.Check tam={15} /> : n}
+        {estado === 'completo' ? <span className="marca grid place-items-center"><I.Check tam={15} /></span> : n}
       </span>
       <span className="min-w-0 pt-0.5 leading-tight text-left">
         <span className={`block text-[14px] ${estado === 'actual' ? 'font-bold' : estado === 'omitido' ? 'text-(--p-suave) line-through decoration-(--p-borde)' : 'font-semibold'}`}>{titulo}</span>
@@ -588,32 +651,47 @@ function ItemPaso({ n, titulo, estado, ultimo, onIr }: { n: number; titulo: stri
 
 /* ── Campos ────────────────────────────────────────────────────── */
 
+// Foco: el borde pasa al color de foco (violeta en claro, dorado en oscuro) con un halo suave.
+// Los de solo lectura también lo muestran: con teclado igual se pasa por ellos.
 const claseCampo =
   'w-full h-12 px-4 rounded-xl border border-(--p-borde) bg-(--p-campo) text-[14.5px] outline-none transition-colors ' +
-  'placeholder:text-(--p-tenue) focus:border-(--p-acento) focus:ring-3 focus:ring-(--p-acento)/25 aria-invalid:border-red-500 ' +
-  '[&[readonly]]:bg-(--p-menta) [&[readonly]]:focus:ring-0 [&[readonly]]:focus:border-(--p-borde)';
+  'placeholder:text-(--p-tenue) focus:border-(--p-foco) focus:ring-3 focus:ring-(--p-foco)/20 aria-invalid:border-(--p-error) ' +
+  '[&[readonly]]:bg-(--p-menta)';
+
+/** Texto de error bajo un campo; se une al campo con aria-describedby (sin role="alert": el resumen avisa). */
+const claseError = 'revelar-error block mt-1.5 text-[12.5px] font-medium text-(--p-error)';
 
 function Campo({ etiqueta, requerido = false, extra, error, ayuda, className = '', children }: {
   etiqueta: string; requerido?: boolean; extra?: ReactNode; error?: string; ayuda?: string; className?: string; children: ReactNode;
 }) {
+  const idNota = useId();
+  const nota = error || ayuda;
+  // El error (o la ayuda) se lee al llegar al campo, no como parte de su nombre.
+  const control = nota && isValidElement<{ 'aria-describedby'?: string }>(children)
+    ? cloneElement(children, { 'aria-describedby': idNota })
+    : children;
   return (
-    <label className={`block min-w-0 ${className}`}>
-      <span className="flex items-baseline gap-2 mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">
-        <span>{etiqueta}{requerido && <span className="text-(--p-tinta)"> *</span>}</span>
-        {extra && <span className="normal-case tracking-normal text-[12px] font-medium">{extra}</span>}
-      </span>
-      {children}
+    <div className={`block min-w-0 ${className}`}>
+      <label className="block">
+        <span className="flex items-baseline gap-2 mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">
+          <span>{etiqueta}{requerido && <span className="text-(--p-tinta)"> *</span>}</span>
+          {extra && <span className="normal-case tracking-normal text-[12px] font-medium">{extra}</span>}
+        </span>
+        {control}
+      </label>
       {error
-        ? <span role="alert" className="block mt-1.5 text-[12.5px] font-medium text-red-600">{error}</span>
-        : ayuda && <span className="block mt-1.5 text-[12.5px] text-(--p-suave)">{ayuda}</span>}
-    </label>
+        ? <span id={idNota} className={claseError}>{error}</span>
+        : ayuda && <span id={idNota} className="block mt-1.5 text-[12.5px] text-(--p-suave)">{ayuda}</span>}
+    </div>
   );
 }
 
-function Selector({ value, onChange, invalido, children }: { value: string; onChange: (v: string) => void; invalido?: boolean; children: ReactNode }) {
+function Selector({ value, onChange, invalido, children, 'aria-describedby': describedBy }: {
+  value: string; onChange: (v: string) => void; invalido?: boolean; children: ReactNode; 'aria-describedby'?: string;
+}) {
   return (
     <span className="relative block">
-      <select value={value} onChange={e => onChange(e.target.value)} aria-invalid={invalido || undefined}
+      <select value={value} onChange={e => onChange(e.target.value)} aria-invalid={invalido || undefined} aria-describedby={describedBy}
         className={`${claseCampo} appearance-none pr-10 cursor-pointer`}>
         {children}
       </select>
@@ -622,21 +700,66 @@ function Selector({ value, onChange, invalido, children }: { value: string; onCh
   );
 }
 
-/** Grupo de opciones tipo cápsula (sexo, jornada, año, parentesco). */
-function Opciones<T extends string | number>({ etiqueta, opciones, valor, onCambio, invalido, envolver = false }: {
-  etiqueta: string; opciones: { valor: T; texto: string; deshabilitada?: boolean }[]; valor: T | ''; onCambio: (v: T) => void;
+/**
+ * Grupo de opciones tipo cápsula (sexo, jornada, año, parentesco). Se comporta como un grupo
+ * de radios: Tab entra a la opción elegida y las flechas (o Inicio/Fin) cambian la elección.
+ */
+function Opciones<T extends string | number>({ etiqueta, idEtiqueta, idNota, opciones, valor, onCambio, invalido, envolver = false }: {
+  etiqueta: string;
+  /** id del texto visible que nombra el grupo (si lo hay, se usa en vez de aria-label). */
+  idEtiqueta?: string;
+  /** id del error o la ayuda del grupo. */
+  idNota?: string;
+  opciones: { valor: T; texto: string; deshabilitada?: boolean }[]; valor: T | ''; onCambio: (v: T) => void;
   invalido?: boolean; envolver?: boolean;
 }) {
+  const habilitadas = opciones.filter(o => !o.deshabilitada);
+  // Solo una opción entra en el orden de Tab: la elegida, o la primera disponible.
+  const enTab = habilitadas.some(o => o.valor === valor) ? valor : habilitadas[0]?.valor;
+  // Cápsula que se desliza a la opción elegida (solo en los grupos de opciones del mismo ancho).
+  const indice = opciones.findIndex(o => o.valor === valor);
+  const deslizante = !envolver;
+  // Con las flechas del teclado la cápsula salta sin animar; con el mouse o el dedo, se desliza.
+  const [porTeclado, setPorTeclado] = useState(false);
+
+  function alTecla(e: KeyboardEvent<HTMLDivElement>) {
+    const pasos: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+    if (!habilitadas.length || !(e.key in pasos || e.key === 'Home' || e.key === 'End')) return;
+    e.preventDefault();
+    setPorTeclado(true);
+    const actual = habilitadas.findIndex(o => o.valor === enTab);
+    const i = e.key === 'Home' ? 0
+      : e.key === 'End' ? habilitadas.length - 1
+        : (actual + pasos[e.key] + habilitadas.length) % habilitadas.length;
+    onCambio(habilitadas[i].valor);
+    const botones = e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]:not(:disabled)');
+    botones[i]?.focus();
+  }
+
   return (
-    <div role="radiogroup" aria-label={etiqueta} aria-invalid={invalido || undefined}
-      className={`flex gap-1 p-1 rounded-xl bg-(--p-menta) ${envolver ? 'flex-wrap' : ''} ${invalido ? 'ring-1 ring-red-500' : ''}`}>
+    <div role="radiogroup" aria-label={idEtiqueta ? undefined : etiqueta} aria-labelledby={idEtiqueta}
+      aria-describedby={idNota} aria-invalid={invalido || undefined} onKeyDown={alTecla} onPointerDown={() => setPorTeclado(false)}
+      className={`relative flex gap-1 p-1 rounded-xl bg-(--p-menta) ${envolver ? 'flex-wrap' : ''} ${invalido ? 'ring-1 ring-(--p-error)' : ''}`}>
+      {deslizante && (
+        // Mide lo mismo que una opción: (ancho − relleno − huecos) / n. Se mueve una opción + un hueco por paso.
+        <span aria-hidden data-instante={porTeclado || undefined}
+          className="indicador-opcion absolute top-1 bottom-1 left-1 rounded-[9px] bg-(--p-acento) pointer-events-none"
+          style={{
+            width: `calc((100% - 0.5rem - ${(opciones.length - 1) * 0.25}rem) / ${opciones.length})`,
+            transform: `translateX(calc(${Math.max(indice, 0) * 100}% + ${Math.max(indice, 0) * 0.25}rem))`,
+            opacity: indice < 0 ? 0 : 1,
+          }} />
+      )}
       {opciones.map(o => {
         const activo = o.valor === valor;
         return (
           <button key={String(o.valor)} type="button" role="radio" aria-checked={activo} disabled={o.deshabilitada}
+            tabIndex={o.valor === enTab ? 0 : -1}
             onClick={() => onCambio(o.valor)}
-            className={`${envolver ? 'px-4' : 'flex-1'} h-10 rounded-[9px] text-[14px] transition-colors disabled:opacity-35 disabled:cursor-not-allowed ${
-              activo ? 'bg-(--p-acento) text-[#160c28] font-bold' : 'font-medium hover:bg-(--p-sup)/60'
+            className={`relative ${envolver ? 'px-4' : 'flex-1'} h-10 rounded-[9px] text-[14px] transition-colors disabled:opacity-35 disabled:cursor-not-allowed ${
+              activo
+                ? `${deslizante ? '' : 'bg-(--p-acento)'} text-[#160c28] font-bold`
+                : 'font-medium hover:bg-(--p-sup)/60'
             }`}>
             {o.texto}
           </button>
@@ -661,15 +784,17 @@ function BloqueCampos({ titulo, children }: { titulo: string; children: ReactNod
 function Aviso({ children, tono = 'menta' }: { children: ReactNode; tono?: 'menta' | 'error' }) {
   return (
     <div role={tono === 'error' ? 'alert' : 'status'}
-      className={`rounded-[14px] px-4 py-3 text-[14px] leading-relaxed ${tono === 'error' ? 'border border-red-500/50 bg-red-500/10' : 'bg-(--p-menta)'}`}>
+      className={`revelar rounded-[14px] px-4 py-3 text-[14px] leading-relaxed ${tono === 'error' ? 'border border-(--p-error)/50 bg-(--p-error)/10' : 'bg-(--p-menta)'}`}>
       {children}
     </div>
   );
 }
 
 /** Campo con botón «Buscar» al lado (documento del estudiante, cédula del acudiente). */
-function CampoBuscar({ id, etiqueta, valor, onCambio, onBuscar, buscando, error, placeholder }: {
+function CampoBuscar({ id, etiqueta, valor, onCambio, onBuscar, buscando, error, placeholder, enfocar = true }: {
   id: string; etiqueta: string; valor: string; onCambio: (v: string) => void; onBuscar: () => void; buscando: boolean; error?: string; placeholder?: string;
+  /** Enfocar al aparecer. En el paso 3 no: en el celular abriría el teclado antes de leer el paso. */
+  enfocar?: boolean;
 }) {
   const enviar = (e: FormEvent) => { e.preventDefault(); onBuscar(); };
   return (
@@ -678,80 +803,106 @@ function CampoBuscar({ id, etiqueta, valor, onCambio, onBuscar, buscando, error,
         {etiqueta}<span className="text-(--p-tinta)"> *</span>
       </label>
       <div className="flex gap-2.5">
-        <input id={id} value={valor} onChange={e => onCambio(e.target.value)} inputMode="numeric" autoComplete="off" autoFocus
-          placeholder={placeholder} aria-invalid={!!error || undefined} className={`${claseCampo} text-[16px] tracking-wide`} />
+        <input id={id} value={valor} onChange={e => onCambio(e.target.value)} inputMode="numeric" autoComplete="off" autoFocus={enfocar}
+          placeholder={placeholder} aria-invalid={!!error || undefined} aria-describedby={error ? `${id}-error` : undefined}
+          className={`${claseCampo} text-[16px] tracking-wide`} />
         <button type="submit" disabled={buscando}
           className="presionable shrink-0 h-12 px-6 rounded-xl bg-(--p-banda) text-white text-[12.5px] font-bold tracking-[0.12em] uppercase hover:brightness-125 disabled:opacity-60">
           {buscando ? 'Buscando…' : 'Buscar'}
         </button>
       </div>
-      {error && <span role="alert" className="block mt-1.5 text-[12.5px] font-medium text-red-600">{error}</span>}
+      {error && <span id={`${id}-error`} className={claseError}>{error}</span>}
     </form>
   );
 }
 
 /* ── Paso 1 · Buscar estudiante ────────────────────────────────── */
 
-function PasoBuscar({ doc, onDoc, error, busqueda, onBuscar, onElegir, onRematricular, destino }: {
-  doc: string; onDoc: (v: string) => void; error?: string; busqueda: Busqueda<EstudianteDetalle>;
-  onBuscar: () => void; onElegir: (id: string) => void; onRematricular: () => void; destino: DestinoRematricula | null | undefined;
-}) {
-  // Coincidencias mientras se escribe (por documento o por nombre), sin tener que darle «Buscar».
-  const q = doc.trim();
-  const activa = busqueda.estado === 'inicial' && q.length >= 2;
-  const [sugerencias, setSugerencias] = useState<{ q: string; lista: EstudianteListItem[] } | null>(null);
+/** «Ana», «Ana y Luis», «Ana, Luis y Sara». */
+const listaNombres = (n: string[]) => n.length < 2 ? n.join('') : `${n.slice(0, -1).join(', ')} y ${n[n.length - 1]}`;
+
+/** Coincidencias mientras se escribe (por documento o por nombre), sin tener que darle «Buscar».
+    `buscar` debe ser una función estable (las de services/api lo son). */
+function useCoincidencias<T>(q: string, activa: boolean, buscar: (q: string) => Promise<T[]>) {
+  const [res, setRes] = useState<{ q: string; lista: T[] } | null>(null);
   useEffect(() => {
     if (!activa) return;
     let vigente = true;
     const t = setTimeout(() => {
-      estudiantesApi.buscar(q)
-        .then(lista => { if (vigente) setSugerencias({ q, lista }); })
-        .catch(() => { if (vigente) setSugerencias({ q, lista: [] }); });
+      buscar(q)
+        .then(lista => { if (vigente) setRes({ q, lista }); })
+        .catch(() => { if (vigente) setRes({ q, lista: [] }); });
     }, 250);
     return () => { vigente = false; clearTimeout(t); };
-  }, [q, activa]);
-  const lista = activa && sugerencias ? sugerencias.lista : [];
-  const cargando = activa && sugerencias?.q !== q;
+  }, [q, activa, buscar]);
+  return { lista: activa && res ? res.lista : [], cargando: activa && res?.q !== q };
+}
+
+/** Lista de coincidencias (paso 1 y paso 3). Sin resultados muestra `vacio`. */
+function Coincidencias({ items, cargando, vacio }: {
+  items: { id: string; nombre: string; detalle: string; onElegir: () => void }[];
+  cargando: boolean; vacio: ReactNode;
+}) {
+  if (cargando && !items.length) return null;
+  return (
+    // Se ve mientras se escribe: solo un fundido corto (emergente-suave), sin desplazamiento.
+    <div className={`emergente-suave max-w-[720px] ${cargando ? 'opacity-60' : ''}`}>
+      {items.length > 0 ? (
+        <>
+          <p className="mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">
+            {items.length === 1 ? '1 coincidencia' : `${items.length}${items.length === 20 ? '+' : ''} coincidencias`}
+          </p>
+          <ul className="rounded-[18px] border border-(--p-borde) divide-y divide-(--p-borde) overflow-hidden">
+            {items.map(it => (
+              <li key={it.id} className="emergente-suave">
+                <button type="button" onClick={it.onElegir}
+                  className="w-full flex items-center gap-3.5 px-4 sm:px-5 py-3 text-left hover:bg-(--p-hover) focus-visible:bg-(--p-hover) focus-visible:-outline-offset-2">
+                  <span className="grid place-items-center shrink-0 size-10 rounded-full bg-(--p-menta) text-[13px] font-bold">{iniciales(it.nombre)}</span>
+                  <span className="flex-1 min-w-0 leading-tight">
+                    <span className="block text-[15px] font-bold truncate">{it.nombre}</span>
+                    <span className="block mt-0.5 text-[13px] text-(--p-suave) truncate">{it.detalle}</span>
+                  </span>
+                  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-(--p-suave)">
+                    <path d="M8 5 L13 10 L8 15" />
+                  </svg>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="text-[13.5px] text-(--p-suave)">{vacio}</p>
+      )}
+    </div>
+  );
+}
+
+function PasoBuscar({ doc, onDoc, error, busqueda, onBuscar, onElegir, onRematricular, destino }: {
+  doc: string; onDoc: (v: string) => void; error?: string; busqueda: Busqueda<EstudianteDetalle>;
+  onBuscar: () => void; onElegir: (id: string) => void; onRematricular: () => void; destino: DestinoRematricula | null | undefined;
+}) {
+  const q = doc.trim();
+  const activa = busqueda.estado === 'inicial' && q.length >= 2;
+  const { lista, cargando } = useCoincidencias<EstudianteListItem>(q, activa, estudiantesApi.buscar);
 
   return (
     <div className="space-y-5">
-      <CampoBuscar id="doc-estudiante" etiqueta="Número de documento del estudiante" valor={doc} onCambio={onDoc}
-        onBuscar={onBuscar} buscando={busqueda.estado === 'buscando'} error={error} placeholder="Documento o nombre" />
+      <CampoBuscar id="doc-estudiante" etiqueta="Documento o nombre del estudiante" valor={doc} onCambio={onDoc}
+        onBuscar={onBuscar} buscando={busqueda.estado === 'buscando'} error={error} placeholder="Ej. 1102345678 o Luis Martínez" />
 
-      {activa && (lista.length > 0 || !cargando) && (
-        <div className={`max-w-[720px] transition-opacity ${cargando ? 'opacity-60' : ''}`}>
-          {lista.length > 0 ? (
-            <>
-              <p className="mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">
-                {lista.length === 1 ? '1 coincidencia' : `${lista.length}${lista.length === 20 ? '+' : ''} coincidencias`}
-              </p>
-              <ul className="rounded-[18px] border border-(--p-borde) divide-y divide-(--p-borde) overflow-hidden">
-                {lista.map(e => {
-                  const ultima = [...e.matriculas].sort((a, b) => b.year - a.year)[0];
-                  return (
-                    <li key={e.numero_identidad}>
-                      <button type="button" onClick={() => onElegir(e.numero_identidad)}
-                        className="w-full flex items-center gap-3.5 px-4 sm:px-5 py-3 text-left hover:bg-(--p-hover) focus-visible:bg-(--p-hover) outline-none">
-                        <span className="grid place-items-center shrink-0 size-10 rounded-full bg-(--p-menta) text-[13px] font-bold">{iniciales(e.nombre)}</span>
-                        <span className="flex-1 min-w-0 leading-tight">
-                          <span className="block text-[15px] font-bold truncate">{e.nombre}</span>
-                          <span className="block mt-0.5 text-[13px] text-(--p-suave) truncate">
-                            {documento(e.numero_identidad)}{ultima ? ` · ${ultima.grado?.nombre ?? ''} ${ultima.year}` : ''}
-                          </span>
-                        </span>
-                        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-(--p-suave)">
-                          <path d="M8 5 L13 10 L8 15" />
-                        </svg>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          ) : (
-            <p className="text-[13.5px] text-(--p-suave)">Ningún estudiante coincide con «{q}». Si es nuevo, escribe su documento y dale Siguiente.</p>
-          )}
-        </div>
+      {/* Con un error en el campo, este aviso sobra: el error ya dice qué hacer. */}
+      {activa && !error && (
+        <Coincidencias cargando={cargando}
+          items={lista.map(e => {
+            const ultima = [...e.matriculas].sort((a, b) => b.year - a.year)[0];
+            return {
+              id: e.numero_identidad, nombre: e.nombre, onElegir: () => onElegir(e.numero_identidad),
+              detalle: `${documento(e.numero_identidad)}${ultima ? ` · ${ultima.grado?.nombre ?? ''} ${ultima.year}` : ''}`,
+            };
+          })}
+          vacio={pareceDocumento(q)
+            ? <>No hay ningún estudiante con el documento <b className="text-(--p-tinta)">{q}</b>. Dale Siguiente para matricularlo como nuevo.</>
+            : <>Ningún estudiante se llama <b className="text-(--p-tinta)">«{q}»</b>. Si es nuevo, escribe su número de documento para matricularlo.</>} />
       )}
 
       {busqueda.estado === 'error' && <Aviso tono="error">{busqueda.mensaje}</Aviso>}
@@ -767,12 +918,14 @@ function EstudianteEncontrado({ e, onRematricular, destino }: { e: EstudianteDet
   const ultima = [...e.matriculas].sort((a, b) => b.year - a.year)[0];
   const y = destino?.posible ? destino.year : null;
   return (
-    <div className="max-w-[720px] rounded-[18px] border border-(--p-borde)">
+    <div className="revelar max-w-[720px] rounded-[18px] border border-(--p-borde)">
       <div className="flex items-center gap-3.5 px-5 py-4 border-b border-(--p-borde)">
         <span className="grid place-items-center shrink-0 size-11 rounded-full bg-(--p-acento) text-[#160c28] text-[14px] font-bold">{iniciales(e.nombre)}</span>
         <div className="flex-1 min-w-0 leading-tight">
           <p className="text-[16px] font-bold truncate">{e.nombre}</p>
           <p className="mt-0.5 text-[13px] text-(--p-suave) truncate">{e.tipo_documento ? NOMBRE_TIPO[e.tipo_documento] : 'Documento'} · {documento(e.numero_identidad)}</p>
+          {/* En el celular no cabe al lado: va debajo del documento. */}
+          <span className="sm:hidden mt-2 inline-flex h-6 px-2.5 items-center rounded-[9px] bg-(--p-menta) text-[12px] font-bold">Ya está registrado</span>
         </div>
         <span className="hidden sm:inline-flex shrink-0 h-6 px-2.5 items-center rounded-[9px] bg-(--p-menta) text-[12px] font-bold">Ya está registrado</span>
       </div>
@@ -818,6 +971,7 @@ function DatoCorto({ etiqueta, valor }: { etiqueta: string; valor: string }) {
 function PasoEstudiante({ doc, est, setEst, errores, limpiar }: {
   doc: string; est: FormEstudiante; setEst: (p: Partial<FormEstudiante>) => void; errores: Record<string, string>; limpiar: (...c: string[]) => void;
 }) {
+  const ids = useId();
   const anos = edad(est.fecha_nacimiento);
   const set = <K extends keyof FormEstudiante>(k: K, v: FormEstudiante[K]) => { setEst({ [k]: v } as Partial<FormEstudiante>); limpiar(k); };
   return (
@@ -825,7 +979,6 @@ function PasoEstudiante({ doc, est, setEst, errores, limpiar }: {
       <BloqueCampos titulo="Identificación">
         <Campo etiqueta="Tipo de documento" requerido error={errores.tipo_documento}>
           <Selector value={est.tipo_documento} onChange={v => set('tipo_documento', v as TipoDocumento)} invalido={!!errores.tipo_documento}>
-            <option value="">Elegir…</option>
             {TIPOS_DOCUMENTO.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
           </Selector>
         </Campo>
@@ -842,8 +995,8 @@ function PasoEstudiante({ doc, est, setEst, errores, limpiar }: {
             aria-invalid={!!errores.fecha_nacimiento || undefined} className={claseCampo} />
         </Campo>
         <div className="min-w-0">
-          <p className="mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">Sexo</p>
-          <Opciones etiqueta="Sexo" valor={est.sexo} onCambio={v => set('sexo', v)}
+          <p id={`${ids}-sexo`} className="mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">Sexo</p>
+          <Opciones etiqueta="Sexo" idEtiqueta={`${ids}-sexo`} valor={est.sexo} onCambio={v => set('sexo', v)}
             opciones={[{ valor: 'F' as Sexo, texto: 'Femenino' }, { valor: 'M' as Sexo, texto: 'Masculino' }]} />
         </div>
       </BloqueCampos>
@@ -876,39 +1029,57 @@ function PasoEstudiante({ doc, est, setEst, errores, limpiar }: {
 
 /* ── Paso 3 · Acudiente ────────────────────────────────────────── */
 
-function PasoAcudiente({ acu, setAcu, errores, limpiar, busqueda, onBuscar, onCedula, nombreEstudiante, direccionEstudiante }: {
+function PasoAcudiente({ acu, setAcu, errores, limpiar, busqueda, onBuscar, onCedula, onElegir, nombreEstudiante, direccionEstudiante }: {
   acu: FormAcudiente; setAcu: (p: Partial<FormAcudiente>) => void; errores: Record<string, string>; limpiar: (...c: string[]) => void;
-  busqueda: Busqueda<AcudienteDetalle | null>; onBuscar: () => void; onCedula: (v: string) => void;
+  busqueda: Busqueda<AcudienteDetalle | null>; onBuscar: () => void; onCedula: (v: string) => void; onElegir: (cedula: string) => void;
   nombreEstudiante: string; direccionEstudiante: string;
 }) {
+  const ids = useId();
+  const q = acu.cedula.trim();
+  const activa = busqueda.estado === 'inicial' && q.length >= 2;
+  const { lista, cargando } = useCoincidencias<AcudienteCoincidencia>(q, activa, acudientesApi.coincidencias);
   const existente = busqueda.estado === 'existe' ? busqueda.dato : null;
-  const listo = busqueda.estado === 'existe' || busqueda.estado === 'nuevo';
   const set = <K extends keyof FormAcudiente>(k: K, v: FormAcudiente[K], err = k as string) => { setAcu({ [k]: v } as Partial<FormAcudiente>); limpiar(err); };
 
   const parentesco = (
     <div className="min-w-0 sm:col-span-2">
-      <p className="mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">
+      <p id={`${ids}-parentesco`} className="mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">
         Parentesco con {nombreEstudiante}<span className="text-(--p-tinta)"> *</span>
       </p>
-      <Opciones etiqueta="Parentesco" envolver valor={acu.parentesco} onCambio={v => set('parentesco', v)} invalido={!!errores.parentesco}
+      <Opciones etiqueta="Parentesco" idEtiqueta={`${ids}-parentesco`} idNota={errores.parentesco ? `${ids}-parentesco-error` : undefined}
+        envolver valor={acu.parentesco} onCambio={v => set('parentesco', v)} invalido={!!errores.parentesco}
         opciones={PARENTESCOS.map(p => ({ valor: p, texto: p }))} />
-      {errores.parentesco && <span role="alert" className="block mt-1.5 text-[12.5px] font-medium text-red-600">{errores.parentesco}</span>}
+      {errores.parentesco && <span id={`${ids}-parentesco-error`} className={claseError}>{errores.parentesco}</span>}
     </div>
   );
 
   return (
     <div className="space-y-7">
-      <CampoBuscar id="cedula-acudiente" etiqueta="Cédula del acudiente" valor={acu.cedula} onCambio={onCedula}
-        onBuscar={onBuscar} buscando={busqueda.estado === 'buscando'} error={errores.cedula} />
+      <CampoBuscar id="cedula-acudiente" etiqueta="Cédula o nombre del acudiente" valor={acu.cedula} onCambio={onCedula}
+        onBuscar={onBuscar} buscando={busqueda.estado === 'buscando'} error={errores.cedula} enfocar={false}
+        placeholder="Ej. 1102345678 o Rosa Pérez" />
 
-      {busqueda.estado === 'error' && <Aviso tono="error">{busqueda.mensaje}</Aviso>}
-      {!listo && busqueda.estado !== 'error' && (
-        <p className="text-[13.5px] text-(--p-suave)">Si tiene otro hijo en el colegio, ya está registrado y solo se vincula.</p>
+      {/* Coincidencias mientras se escribe: así se vincula al acudiente de un hermano sin saberse su cédula. */}
+      {activa && !errores.cedula && (
+        <Coincidencias cargando={cargando}
+          items={lista.map(a => ({
+            id: a.cedula, nombre: a.nombre, onElegir: () => onElegir(a.cedula),
+            detalle: `${documento(a.cedula)}${a.estudiantes.length ? ` · Acudiente de ${a.estudiantes.map(e => e.nombre).join(', ')}` : ''}`,
+          }))}
+          vacio={pareceDocumento(q)
+            ? <>No hay ningún acudiente con la cédula <b className="text-(--p-tinta)">{q}</b>. Dale Buscar para registrarlo como nuevo.</>
+            : <>Ningún acudiente se llama <b className="text-(--p-tinta)">«{q}»</b>. Si es nuevo, escribe su cédula para registrarlo.</>} />
       )}
 
+      {busqueda.estado === 'error' && <Aviso tono="error">{busqueda.mensaje}</Aviso>}
+
       {existente && (
-        <>
-          <Aviso><b>{existente.nombre}</b> ya está registrado (acudiente de otro estudiante). Se vinculará a esta matrícula con sus datos y su acceso actuales.</Aviso>
+        <div className="revelar space-y-7">
+          <Aviso>
+            <b>{existente.nombre}</b> ya es acudiente de{' '}
+            {existente.estudiantes?.length ? <b>{listaNombres(existente.estudiantes.map(e => e.nombre))}</b> : 'otro estudiante'}.
+            {' '}Se vinculará también a <b>{nombreEstudiante}</b> con sus datos y su acceso actuales.
+          </Aviso>
           <section>
             <div className="flex items-center gap-3 mb-1">
               <h3 className="text-[12px] font-bold tracking-[0.14em] uppercase">Datos del acudiente</h3>
@@ -924,14 +1095,14 @@ function PasoAcudiente({ acu, setAcu, errores, limpiar, busqueda, onBuscar, onCe
             <p className="mt-2 text-[12.5px] text-(--p-suave)">Para cambiar sus datos, edítalos desde la ficha de cualquiera de sus estudiantes.</p>
           </section>
           <div className="grid">{parentesco}</div>
-        </>
+        </div>
       )}
 
       {busqueda.estado === 'nuevo' && (
-        <>
+        <div className="revelar space-y-7">
           {busqueda.docente !== undefined
             ? <Aviso>Esta cédula es del docente <b>{busqueda.docente}</b>. Trajimos su nombre, teléfono y correo: revísalos y completa el resto. Tendrá un acceso aparte al portal de acudientes.</Aviso>
-            : <Aviso>Usuario no registrado</Aviso>}
+            : <Aviso>No hay ningún acudiente con la cédula <b>{documento(busqueda.doc)}</b>. Escribe sus datos.</Aviso>}
           <BloqueCampos titulo="Datos del acudiente">
             <Campo etiqueta="Nombre completo" requerido error={errores.nombre_acudiente} className="sm:col-span-2">
               <input value={acu.nombre} onChange={e => set('nombre', e.target.value, 'nombre_acudiente')} maxLength={150} autoComplete="off"
@@ -951,9 +1122,9 @@ function PasoAcudiente({ acu, setAcu, errores, limpiar, busqueda, onBuscar, onCe
                   readOnly={acu.mismaDireccion} maxLength={200} className={claseCampo} />
               </Campo>
               {direccionEstudiante.trim() && (
-                <label className="mt-2.5 inline-flex items-center gap-2.5 text-[13.5px] cursor-pointer select-none">
+                <label className="mt-1 flex sm:inline-flex items-center gap-3 min-h-11 text-[14px] cursor-pointer select-none">
                   <input type="checkbox" checked={acu.mismaDireccion} onChange={e => set('mismaDireccion', e.target.checked)}
-                    className="size-4 accent-(--p-acento)" />
+                    className="shrink-0 size-5 accent-(--p-acento)" />
                   Usar la misma dirección del estudiante
                 </label>
               )}
@@ -963,9 +1134,9 @@ function PasoAcudiente({ acu, setAcu, errores, limpiar, busqueda, onBuscar, onCe
           <details className="group rounded-[14px] border border-(--p-borde)" open={!!(acu.telefono_trabajo || acu.direccion_trabajo)}>
             <summary className="flex items-center justify-between gap-3 px-4 h-12 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
               <span className="text-[13.5px] font-semibold">Datos de trabajo <span className="font-normal text-(--p-suave)">(opcional)</span></span>
-              <span className="text-(--p-suave) transition-transform group-open:rotate-180"><I.ChevronAbajo tam={16} /></span>
+              <span className="giro text-(--p-suave) group-open:rotate-180"><I.ChevronAbajo tam={16} /></span>
             </summary>
-            <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2 px-4 pb-4 pt-1">
+            <div className="contenido-detalles grid gap-x-5 gap-y-5 sm:grid-cols-2 px-4 pb-4 pt-1">
               <Campo etiqueta="Teléfono del trabajo">
                 <input value={acu.telefono_trabajo} onChange={e => set('telefono_trabajo', e.target.value)} inputMode="tel" maxLength={20} className={claseCampo} />
               </Campo>
@@ -974,7 +1145,7 @@ function PasoAcudiente({ acu, setAcu, errores, limpiar, busqueda, onBuscar, onCe
               </Campo>
             </div>
           </details>
-        </>
+        </div>
       )}
     </div>
   );
@@ -991,15 +1162,16 @@ function FilaLectura({ etiqueta, valor }: { etiqueta: string; valor: string | nu
 
 /* ── Paso 4 · Matrícula ────────────────────────────────────────── */
 
-function PasoMatricula({ mat, setMat, errores, limpiar, seleccion, opciones, nombresGrado, jornadasDe, sugerido, edadEscolar, tarifa }: {
+function PasoMatricula({ mat, setMat, errores, limpiar, seleccion, opciones, nombresGrado, jornadasDe, tarifa }: {
   mat: FormMatricula; setMat: (p: Partial<FormMatricula>) => void; errores: Record<string, string>; limpiar: (...c: string[]) => void;
   /** Año elegido y su estado. */
   seleccion: PeriodoMatricula | null;
   /** Estudiante nuevo: los dos años posibles. Re-matrícula: null (el año lo decide el servidor). */
   opciones: PeriodoMatricula[] | null;
   nombresGrado: string[]; jornadasDe: (n: string) => JornadaEstudiante[];
-  sugerido?: string; edadEscolar: number | null; tarifa: Tarifa | null | undefined;
+  tarifa: Tarifa | null | undefined;
 }) {
+  const ids = useId();
   const disponibles = mat.grado ? jornadasDe(mat.grado) : [];
   const elegirGrado = (g: string) => {
     const js = jornadasDe(g);
@@ -1013,21 +1185,19 @@ function PasoMatricula({ mat, setMat, errores, limpiar, seleccion, opciones, nom
         {/* Solo el año en curso o el siguiente (este queda en promoción hasta el 1 de enero). */}
         {opciones ? (
           <div className="min-w-0">
-            <p className="mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">Año<span className="text-(--p-tinta)"> *</span></p>
+            <p id={`${ids}-year`} className="mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">Año<span className="text-(--p-tinta)"> *</span></p>
             {opciones.length ? (
-              <Opciones etiqueta="Año" valor={mat.year} onCambio={v => { setMat({ year: v }); limpiar('year'); }}
+              <Opciones etiqueta="Año" idEtiqueta={`${ids}-year`} idNota={`${ids}-year-nota`} valor={mat.year} onCambio={v => { setMat({ year: v }); limpiar('year'); }}
                 opciones={opciones.map(o => ({ valor: o.year, texto: o.estado === 'PROMOCION' ? `${o.year} · Próximo año` : `${o.year} · Este año` }))} />
             ) : (
               <input value="Cargando…" readOnly className={claseCampo} />
             )}
-            <span className="block mt-1.5 text-[12.5px] text-(--p-suave)">
-              {seleccion?.estado === 'PROMOCION' ? `Queda en promoción y se activa el 1 de enero de ${seleccion.year}.` : 'Año escolar en curso.'}
+            <span id={`${ids}-year-nota`} className="block mt-1.5 text-[12.5px] text-(--p-suave)">
+              {ayudaYear(seleccion)}
             </span>
           </div>
         ) : (
-          <Campo etiqueta="Año" ayuda={seleccion?.estado === 'PROMOCION'
-            ? `Promoción: queda en ${seleccion.year} y se activa el 1 de enero.`
-            : 'Año escolar en curso.'}>
+          <Campo etiqueta="Año" ayuda={ayudaYear(seleccion)}>
             <input value={seleccion ? String(seleccion.year) : 'Cargando…'} readOnly className={claseCampo} />
           </Campo>
         )}
@@ -1046,24 +1216,19 @@ function PasoMatricula({ mat, setMat, errores, limpiar, seleccion, opciones, nom
               {nombresGrado.map(n => <option key={n} value={n}>{n}</option>)}
             </Selector>
           </Campo>
-          {sugerido && mat.grado !== sugerido && (
-            <p className="mt-2 text-[13px] text-(--p-suave)">
-              Por su edad ({edadEscolar} años a marzo de {mat.year}) le corresponde <b className="text-(--p-tinta)">{sugerido}</b>.{' '}
-              <button type="button" onClick={() => elegirGrado(sugerido)} className="font-semibold text-(--p-tinta) underline decoration-(--p-acento) decoration-2 underline-offset-4">
-                Usar {sugerido}
-              </button>
-            </p>
-          )}
         </div>
         <div className="min-w-0">
-          <p className="mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">Jornada<span className="text-(--p-tinta)"> *</span></p>
-          <Opciones etiqueta="Jornada" valor={mat.jornada} onCambio={v => { setMat({ jornada: v }); limpiar('jornada'); }} invalido={!!errores.jornada}
+          <p id={`${ids}-jornada`} className="mb-2 text-[11px] font-bold tracking-[0.14em] uppercase text-(--p-suave)">Jornada<span className="text-(--p-tinta)"> *</span></p>
+          <Opciones etiqueta="Jornada" idEtiqueta={`${ids}-jornada`} idNota={`${ids}-jornada-nota`}
+            valor={mat.jornada} onCambio={v => { setMat({ jornada: v }); limpiar('jornada'); }} invalido={!!errores.jornada}
             opciones={(['MAÑANA', 'TARDE'] as JornadaEstudiante[]).map(j => ({
               valor: j, texto: capitalizar(j), deshabilitada: !!mat.grado && !disponibles.includes(j),
             }))} />
           {errores.jornada
-            ? <span role="alert" className="block mt-1.5 text-[12.5px] font-medium text-red-600">{errores.jornada}</span>
-            : mat.grado && disponibles.length === 1 && <span className="block mt-1.5 text-[12.5px] text-(--p-suave)">{mat.grado} solo tiene jornada {capitalizar(disponibles[0]).toLowerCase()}.</span>}
+            ? <span id={`${ids}-jornada-nota`} className={claseError}>{errores.jornada}</span>
+            : !mat.grado
+              ? <span id={`${ids}-jornada-nota`} className="block mt-1.5 text-[12.5px] text-(--p-suave)">Elige primero el grado: no todos tienen las dos jornadas.</span>
+              : disponibles.length === 1 && <span id={`${ids}-jornada-nota`} className="block mt-1.5 text-[12.5px] text-(--p-suave)">{mat.grado} solo tiene jornada {capitalizar(disponibles[0]).toLowerCase()}.</span>}
         </div>
       </BloqueCampos>
 
@@ -1072,17 +1237,19 @@ function PasoMatricula({ mat, setMat, errores, limpiar, seleccion, opciones, nom
         {tarifa === undefined ? (
           <p className="mt-2 text-[14px] text-(--p-suave)">Cargando…</p>
         ) : tarifa === null ? (
-          <p className="mt-2 text-[14px]">Aún no hay tarifas para {mat.year}. Puedes matricular igual y configurarlas en Pagos.</p>
+          <p key={mat.year} className="revelar mt-2 text-[14px]">Aún no hay tarifas para {mat.year}. Puedes matricular igual y configurarlas en Pagos.</p>
         ) : (
-          <dl className="mt-3 grid grid-cols-2 gap-5">
-            <div>
+          // A 390px cada columna mide ~135px: «$1.250.000» a 22px no cabe, por eso baja a 19px.
+          // key: al cambiar de año los valores nuevos aparecen (no se cambian de golpe).
+          <dl key={mat.year} className="revelar mt-3 grid grid-cols-2 gap-4 sm:gap-5">
+            <div className="min-w-0">
               <dt className="text-[13px] text-(--p-suave)">Valor de la matrícula</dt>
-              <dd className="mt-0.5 text-[22px] font-extrabold tabular-nums">{pesos(Number(tarifa.valor_matricula))}</dd>
+              <dd className="mt-0.5 text-[19px] min-[440px]:text-[22px] font-extrabold tracking-tight tabular-nums whitespace-nowrap">{pesos(Number(tarifa.valor_matricula))}</dd>
               <dd className="text-[12.5px] text-(--p-suave)">Un solo pago</dd>
             </div>
-            <div>
+            <div className="min-w-0">
               <dt className="text-[13px] text-(--p-suave)">Pensión mensual</dt>
-              <dd className="mt-0.5 text-[22px] font-extrabold tabular-nums">{pesos(Number(tarifa.valor_pension))}</dd>
+              <dd className="mt-0.5 text-[19px] min-[440px]:text-[22px] font-extrabold tracking-tight tabular-nums whitespace-nowrap">{pesos(Number(tarifa.valor_pension))}</dd>
               <dd className="text-[12.5px] text-(--p-suave)">De febrero a noviembre</dd>
             </div>
           </dl>
@@ -1094,8 +1261,11 @@ function PasoMatricula({ mat, setMat, errores, limpiar, seleccion, opciones, nom
 
 /* ── Paso 5 · Revisar y confirmar ──────────────────────────────── */
 
-function PasoRevisar({ modo, doc, est, acu, mat, tarifa, estudianteExistente, acudienteExistente, acudientePrincipal, gradoElegido, onCambiar, error }: {
-  modo: Modo; doc: string; est: FormEstudiante; acu: FormAcudiente; mat: FormMatricula; tarifa: Tarifa | null | undefined;
+function PasoRevisar({ modo, doc, est, acu, mat, seleccion, tarifa, estudianteExistente, acudienteExistente, acudientePrincipal, gradoElegido, onCambiar, error }: {
+  modo: Modo; doc: string; est: FormEstudiante; acu: FormAcudiente; mat: FormMatricula;
+  /** Año elegido y su estado (PROMOCION = próximo año). */
+  seleccion: PeriodoMatricula | null;
+  tarifa: Tarifa | null | undefined;
   estudianteExistente: EstudianteDetalle | null; acudienteExistente: AcudienteDetalle | null;
   acudientePrincipal: AcudienteDetalle | undefined; gradoElegido: Grado | undefined;
   onCambiar: (p: Paso) => void; error: string;
@@ -1105,6 +1275,7 @@ function PasoRevisar({ modo, doc, est, acu, mat, tarifa, estudianteExistente, ac
   const anos = edad(e?.fecha_nacimiento ?? est.fecha_nacimiento);
   const nombreAcu = re ? acudientePrincipal?.nombre : (acudienteExistente?.nombre ?? acu.nombre.trim());
   const tipo = (e?.tipo_documento ?? est.tipo_documento) || '';
+  const promocion = seleccion?.estado === 'PROMOCION';
 
   return (
     <div className="space-y-4">
@@ -1114,6 +1285,7 @@ function PasoRevisar({ modo, doc, est, acu, mat, tarifa, estudianteExistente, ac
           : acudienteExistente
             ? <>Al confirmar se crea la matrícula y se vincula a <b>{nombreAcu}</b>, que ya tiene acceso al portal.</>
             : <>Al confirmar se crea la matrícula y el acceso al portal para <b>{nombreAcu}</b>.</>}
+        {promocion && <> {ayudaYear(seleccion)}</>}
       </p>
 
       <Resumen titulo="Estudiante" onCambiar={re ? undefined : () => onCambiar(2)}>
@@ -1147,7 +1319,7 @@ function PasoRevisar({ modo, doc, est, acu, mat, tarifa, estudianteExistente, ac
       </Resumen>
 
       <Resumen titulo="Matrícula" onCambiar={() => onCambiar(4)}>
-        <DatoResumen etiqueta="Año" valor={String(mat.year)} />
+        <DatoResumen etiqueta="Año" valor={textoYear(mat.year, promocion)} />
         <DatoResumen etiqueta="Grado" valor={gradoElegido?.nombre} />
         <DatoResumen etiqueta="Jornada" valor={gradoElegido ? capitalizar(gradoElegido.jornada) : ''} />
         <DatoResumen etiqueta="Fecha de matrícula" valor={fechaDia(re ? hoyISO() : mat.fecha || hoyISO())} />
@@ -1163,10 +1335,10 @@ function PasoRevisar({ modo, doc, est, acu, mat, tarifa, estudianteExistente, ac
 function Resumen({ titulo, onCambiar, children }: { titulo: string; onCambiar?: () => void; children: ReactNode }) {
   return (
     <section className="rounded-[16px] border border-(--p-borde)">
-      <div className="flex items-center justify-between gap-3 px-5 h-12 border-b border-(--p-borde)">
+      <div className="flex items-center justify-between gap-3 pl-5 pr-2 h-12 border-b border-(--p-borde)">
         <h3 className="text-[12px] font-bold tracking-[0.14em] uppercase">{titulo}</h3>
         {onCambiar && (
-          <button type="button" onClick={onCambiar} className="text-[13px] font-semibold underline decoration-(--p-acento) decoration-2 underline-offset-4 hover:text-(--p-suave)">
+          <button type="button" onClick={onCambiar} className="h-11 px-3 rounded-xl text-[13px] font-semibold underline decoration-(--p-acento) decoration-2 underline-offset-4 hover:text-(--p-suave)">
             Cambiar
           </button>
         )}
@@ -1193,15 +1365,18 @@ function MatriculaCreada({ r, onNueva, onPago, onFicha }: { r: Resultado; onNuev
       <div className="w-full max-w-[860px]">
       <div className="px-5 sm:px-8 pt-6 sm:pt-8 pb-6 text-center">
         <p className="inline-flex items-center gap-2 text-[12px] font-bold tracking-[0.12em] uppercase text-(--p-suave)">
-          <span className="grid place-items-center size-5 rounded-full bg-(--p-acento) text-[#160c28]"><I.Check tam={12} /></span>
+          <span className="sello grid place-items-center size-5 rounded-full bg-(--p-acento) text-[#160c28]"><I.Check tam={12} /></span>
           Matrícula registrada
         </p>
-        <h2 id="titulo-creada" role="status" className="mt-3 text-[22px] sm:text-[26px] leading-snug font-extrabold tracking-tight">
+        <h2 id="titulo-creada" role="status" className="aparecer [--i:2] mt-3 text-[22px] sm:text-[26px] leading-snug font-extrabold tracking-tight">
           {r.sexo === 'F' || r.sexo === 'M'
             ? `${r.nombre} quedó ${r.sexo === 'F' ? 'matriculada' : 'matriculado'} en ${r.grado} ${r.year}.`
             : `Se registró la matrícula de ${r.nombre} en ${r.grado} ${r.year}.`}
         </h2>
-        <dl className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-px rounded-[14px] overflow-hidden border border-(--p-borde) bg-(--p-borde) text-left [&>div]:bg-(--p-sup)">
+        <p className="aparecer [--i:3] mt-2 text-[14px] text-(--p-suave)">
+          Año: <b className="text-(--p-tinta)">{textoYear(r.year, r.promocion)}</b>
+        </p>
+        <dl className="aparecer [--i:4] mt-5 grid grid-cols-2 sm:grid-cols-4 gap-px rounded-[14px] overflow-hidden border border-(--p-borde) bg-(--p-borde) text-left [&>div]:bg-(--p-sup)">
           <DatoCorto etiqueta="Documento" valor={documento(r.id)} />
           <DatoCorto etiqueta="Grado" valor={r.grado} />
           <DatoCorto etiqueta="Jornada" valor={capitalizar(r.jornada)} />
@@ -1209,7 +1384,7 @@ function MatriculaCreada({ r, onNueva, onPago, onFicha }: { r: Resultado; onNuev
         </dl>
       </div>
 
-      <div className="px-5 sm:px-8 py-6 border-t border-(--p-borde)">
+      <div className="aparecer [--i:5] px-5 sm:px-8 py-6 border-t border-(--p-borde)">
         <h3 className="text-[15.5px] font-bold">Acceso al portal de acudientes</h3>
         {r.credenciales ? (
           <>
@@ -1231,7 +1406,7 @@ function MatriculaCreada({ r, onNueva, onPago, onFicha }: { r: Resultado; onNuev
         )}
       </div>
 
-      <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-3 px-5 sm:px-8 py-5 border-t border-(--p-borde)">
+      <div className="aparecer [--i:6] flex flex-col-reverse sm:flex-row sm:items-center gap-3 px-5 sm:px-8 py-5 border-t border-(--p-borde)">
         <button type="button" onClick={onFicha} className="sm:mr-auto h-11 text-[13.5px] font-semibold underline decoration-(--p-acento) decoration-2 underline-offset-4 hover:text-(--p-suave)">
           Ver ficha del estudiante
         </button>
@@ -1262,7 +1437,7 @@ function Credencial({ etiqueta, valor }: { etiqueta: string; valor: string }) {
       </div>
       <button type="button" onClick={copiar} aria-label={`Copiar ${etiqueta.toLowerCase()}`}
         className="presionable shrink-0 inline-flex items-center gap-2 h-9 px-3 rounded-[10px] border border-(--p-borde) text-[12.5px] font-semibold hover:bg-(--p-hover)">
-        {copiado ? <I.Check tam={14} /> : <I.Copiar tam={14} />}
+        {copiado ? <span key="ok" className="marca grid place-items-center"><I.Check tam={14} /></span> : <I.Copiar tam={14} />}
         {copiado ? 'Copiado' : 'Copiar'}
       </button>
     </div>

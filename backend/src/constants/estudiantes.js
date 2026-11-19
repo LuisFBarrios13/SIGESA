@@ -1,8 +1,7 @@
 // src/constants/estudiantes.js — valores permitidos en los datos del estudiante.
 
-/** Registro civil, tarjeta de identidad, cédula, cédula de extranjería,
- *  permiso de protección temporal y pasaporte. */
-export const TIPOS_DOCUMENTO = ['RC', 'TI', 'CC', 'CE', 'PPT', 'PA'];
+/** Los estudiantes son menores de edad: solo registro civil o tarjeta de identidad. */
+export const TIPOS_DOCUMENTO = ['RC', 'TI'];
 
 export const SEXOS = ['F', 'M'];
 

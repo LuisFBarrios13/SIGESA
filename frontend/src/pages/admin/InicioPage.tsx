@@ -9,7 +9,7 @@ import {
   dineroCorto, documento, fechaEncabezado, iniciales, listaY, MESES_LARGOS, nombreGrado, saludo,
 } from '../../utils/formato';
 import * as I from '../../components/iconos';
-import { Progreso, Segmentos, Tarjeta } from '../../components/panel';
+import { Progreso, Segmentos, SelectorYear, Tarjeta } from '../../components/panel';
 
 interface Props {
   user: AuthUser;
@@ -47,32 +47,7 @@ export default function InicioPage({ user, year, onCambiarYear, onIr, data, carg
 
         <div className="flex items-center justify-between gap-3">
           <p className="sm:hidden min-w-0 text-[10px] font-semibold tracking-[0.14em] text-(--p-suave)">{fechaEncabezado()}</p>
-          <div className="shrink-0 flex items-stretch h-11 rounded-xl bg-(--p-sup) border border-(--p-borde) overflow-hidden">
-            <label htmlFor="year" className="hidden lg:flex items-center px-4 text-[11px] font-bold tracking-[0.16em] text-(--p-suave) border-r border-(--p-borde)">
-              AÑO ACADÉMICO
-            </label>
-            <div className="relative flex items-center">
-              <select
-                id="year"
-                value={year}
-                onChange={e => onCambiarYear(Number(e.target.value))}
-                aria-label="Año académico"
-                className="appearance-none h-full bg-transparent pl-3 pr-8 sm:pl-4 sm:pr-9 text-[15px] lg:text-[17px] font-bold outline-none cursor-pointer"
-              >
-                {years.map(y => <option key={y} value={y} className="bg-(--p-sup)">{y}</option>)}
-              </select>
-              <span className="pointer-events-none absolute right-2.5 sm:right-3"><I.ChevronAbajo tam={16} /></span>
-            </div>
-            <button
-              type="button"
-              onClick={recargar}
-              aria-label="Actualizar datos"
-              title="Actualizar datos"
-              className="grid place-items-center w-11 bg-(--p-acento) text-[#170f27] hover:brightness-105 transition"
-            >
-              <span className={cargando ? 'animate-[spin_0.7s_linear_infinite]' : ''}><I.Recargar tam={18} /></span>
-            </button>
-          </div>
+          <SelectorYear id="year" year={year} years={years} onCambiar={onCambiarYear} onRecargar={recargar} cargando={cargando} />
 
           <button
             type="button"

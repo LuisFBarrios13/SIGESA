@@ -44,8 +44,13 @@ test('documento: dice de quién es (docente, acudiente, otra cuenta o nadie)', a
   assert.equal(acudiente.body.data.tipo, 'acudiente');
   assert.equal(acudiente.body.data.nombre, 'Rosa Pérez');
 
-  const cuenta = await s.api('GET', '/matriculas/documento/admin', { token: admin });
+  // Una cuenta cuyo usuario es un número (sin ser docente ni acudiente).
+  await s.crearUsuario('4444', 'clave123', 'ADMINISTRADOR');
+  const cuenta = await s.api('GET', '/matriculas/documento/4444', { token: admin });
   assert.equal(cuenta.body.data.tipo, 'usuario');
+
+  // Un documento con letras ni se busca: los documentos son solo números.
+  assert.equal((await s.api('GET', '/matriculas/documento/admin', { token: admin })).status, 400);
 
   const nadie = await s.api('GET', '/matriculas/documento/8888', { token: admin });
   assert.equal(nadie.status, 200);

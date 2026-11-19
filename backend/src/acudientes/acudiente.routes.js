@@ -1,6 +1,6 @@
 // src/acudientes/acudiente.routes.js
 import { Router } from 'express';
-import { actualizar, buscarPorCedula } from './acudiente.controller.js';
+import { actualizar, buscarPorCedula, coincidencias } from './acudiente.controller.js';
 import { restablecerClaveAcudiente } from '../usuarios/usuario.service.js';
 import { successResponse } from '../utils/responseHandler.js';
 import { authenticate, authorize } from '../middlewares/auth.middleware.js';
@@ -8,6 +8,10 @@ import { ROLES } from '../constants/roles.js';
 import { validar, v } from '../middlewares/validar.middleware.js';
 
 const router = Router();
+
+// Coincidencias por nombre o cédula mientras se escribe (paso 3 de la matrícula)
+router.get('/', authenticate, authorize(ROLES.ADMINISTRADOR),
+  validar([v.texto('q', 'El texto de búsqueda', 100, 'query')]), coincidencias);
 
 // Buscar acudiente por cédula (para auto-completar en formulario de matrícula)
 router.get('/:cedula', authenticate, authorize(ROLES.ADMINISTRADOR),

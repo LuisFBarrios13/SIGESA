@@ -1,7 +1,8 @@
 // src/docentes/docente.service.js  (agrega al archivo existente)
 import bcrypt from 'bcryptjs';
 import { sequelize } from '../config/database.js';
-import { Docente, Usuario, UsuarioRol, Rol, Grado } from '../models/index.js';
+import { Docente, Usuario, UsuarioRol, Rol, Grado, Estudiante } from '../models/index.js';
+import { ORDEN_ESCOLAR } from '../constants/grados.js';
 import { ROLES } from '../constants/roles.js';
 import { AppError } from '../utils/AppError.js';
 
@@ -63,23 +64,31 @@ export const registrarDocente = async (dto) => {
     const gradosAfectados = await resolverGradosAfectados(nombreGrado, jornada, t);
     await verificarDisponibilidad(gradosAfectados, nombreGrado, jornada, t);
 
-    let usuario = await Usuario.findOne({ where: { username: cedula }, transaction: t });
-
-    if (!usuario) {
-      const passwordHash = await bcrypt.hash(cedula, SALT_ROUNDS);
-      usuario = await Usuario.create(
-        { username: cedula, password: passwordHash, estado: true, primer_login: true },
-        { transaction: t }
-      );
-
-      const rolDocente = await Rol.findOne({ where: { nombre: ROLES.DOCENTE }, transaction: t });
-      if (!rolDocente) throw new Error('Rol DOCENTE no encontrado. Ejecuta los seeders primero.');
-
-      await UsuarioRol.create(
-        { id_usuario: usuario.id_usuario, id_rol: rolDocente.id_rol },
-        { transaction: t }
-      );
+    // La cédula es el usuario del docente. No puede ser el documento de un estudiante ni el
+    // usuario de otra cuenta: el usuario de un acudiente es el documento de su estudiante,
+    // así que reutilizarlo dejaría al docente pegado a la cuenta de ese acudiente.
+    // (Un docente sí puede ser acudiente: sus cuentas tienen usuarios distintos.)
+    const estudiante = await Estudiante.findByPk(cedula, { attributes: ['nombre'], transaction: t });
+    if (estudiante) {
+      throw new AppError(409, `La cédula ${cedula} es el documento del estudiante ${estudiante.nombre}. Revisa el número.`);
     }
+    if (await Usuario.findOne({ where: { username: cedula }, attributes: ['id_usuario'], transaction: t })) {
+      throw new AppError(409, `La cédula ${cedula} ya es el usuario de otra cuenta del sistema. Revisa el número.`);
+    }
+
+    const passwordHash = await bcrypt.hash(cedula, SALT_ROUNDS);
+    const usuario = await Usuario.create(
+      { username: cedula, password: passwordHash, estado: true, primer_login: true },
+      { transaction: t }
+    );
+
+    const rolDocente = await Rol.findOne({ where: { nombre: ROLES.DOCENTE }, transaction: t });
+    if (!rolDocente) throw new Error('Rol DOCENTE no encontrado. Ejecuta los seeders primero.');
+
+    await UsuarioRol.create(
+      { id_usuario: usuario.id_usuario, id_rol: rolDocente.id_rol },
+      { transaction: t }
+    );
 
     const docente = await Docente.create(
       { cedula, nombre, telefono: telefono ?? null, correo: correo ?? null, jornada, id_usuario: usuario.id_usuario },
@@ -115,15 +124,80 @@ export const listarDocentes = async () =>
 export const listarDisponibilidadGrados = async () =>
   Grado.findAll({
     include: [{ model: Docente, as: 'docente', attributes: ['cedula', 'nombre', 'jornada'] }],
-    order: [['nombre', 'ASC'], ['jornada', 'ASC']],
+    // Orden escolar (Pre Jardín, Jardín, Transición…), mañana antes que tarde.
+    order: ORDEN_ESCOLAR,
   });
 
-// ── NUEVO: actualizar datos personales del docente ────────────────────────────
+// ── Cambiar el grado y la jornada de un docente ──────────────────────────────
+//
+// Las notas no se tocan: cada nota pertenece a una matrícula (estudiante + grado + año),
+// no al docente. Quién puede verlas y editarlas se decide al momento según el director
+// actual del grado (grados.id_docente), así que al cambiar de grado el docente pasa a
+// ver las notas de su grado nuevo y el nuevo director ve las que ya estaban registradas.
+
+const CON_GRADOS = { model: Grado, as: 'grados', attributes: ['id_grado', 'nombre', 'jornada'] };
+
+/** Mueve al docente a un grado libre (en la jornada elegida) y suelta los que tenía. */
+export const cambiarAsignacion = async (cedula, { jornada, nombreGrado }) =>
+  sequelize.transaction(async (t) => {
+    const docente = await Docente.findByPk(cedula, { include: [CON_GRADOS], transaction: t });
+    if (!docente) throw new AppError(404, 'Docente no encontrado');
+
+    const mismo = docente.jornada === jornada && docente.grados.length > 0
+      && docente.grados.every((g) => g.nombre === nombreGrado);
+    if (mismo) throw new AppError(400, `${docente.nombre} ya dirige ${nombreGrado} en esa jornada.`);
+
+    // Primero suelta los suyos: así puede quedarse en el mismo grado con otra jornada
+    // (p. ej. de Primero mañana a Primero jornada completa).
+    await Grado.update({ id_docente: null }, { where: { id_docente: cedula }, transaction: t });
+
+    const gradosAfectados = await resolverGradosAfectados(nombreGrado, jornada, t);
+    await verificarDisponibilidad(gradosAfectados, nombreGrado, jornada, t);
+    for (const grado of gradosAfectados) {
+      await grado.update({ id_docente: cedula }, { transaction: t });
+    }
+    await docente.update({ jornada }, { transaction: t });
+
+    return docente.reload({ include: [CON_GRADOS], transaction: t });
+  });
+
+/**
+ * Intercambia grado y jornada entre dos docentes: cada uno queda con lo que tenía el otro.
+ * Sirve cuando todos los grados están ocupados. Siempre es válido porque los grupos
+ * ocupados siguen siendo los mismos; solo cambian de director.
+ */
+export const intercambiarAsignacion = async (cedula, cedulaOtro) => {
+  if (cedula === cedulaOtro) throw new AppError(400, 'Elige otro docente para intercambiar.');
+
+  return sequelize.transaction(async (t) => {
+    const a = await Docente.findByPk(cedula, { include: [CON_GRADOS], transaction: t });
+    const b = await Docente.findByPk(cedulaOtro, { include: [CON_GRADOS], transaction: t });
+    if (!a || !b) throw new AppError(404, 'Docente no encontrado');
+    for (const d of [a, b]) {
+      if (!d.grados.length) throw new AppError(409, `${d.nombre} no dirige ningún grado. Usa «Mover a un grado libre».`);
+    }
+
+    const idsA = a.grados.map((g) => g.id_grado);
+    const idsB = b.grados.map((g) => g.id_grado);
+    const jornadaA = a.jornada;
+
+    await Grado.update({ id_docente: b.cedula }, { where: { id_grado: idsA }, transaction: t });
+    await Grado.update({ id_docente: a.cedula }, { where: { id_grado: idsB }, transaction: t });
+    await a.update({ jornada: b.jornada }, { transaction: t });
+    await b.update({ jornada: jornadaA }, { transaction: t });
+
+    await a.reload({ include: [CON_GRADOS], transaction: t });
+    await b.reload({ include: [CON_GRADOS], transaction: t });
+    return [a, b];
+  });
+};
+
+// ── Actualizar datos personales del docente ──────────────────────────────────
 
 /**
  * Campos editables: nombre, telefono, correo.
- * La cédula (PK), la jornada y los grados asignados NO se modifican aquí,
- * ya que cambiar la jornada puede crear conflictos con los grados existentes.
+ * La cédula (PK) no cambia; el grado y la jornada se cambian con
+ * cambiarAsignacion o intercambiarAsignacion.
  */
 const CAMPOS_PERMITIDOS = ['nombre', 'telefono', 'correo'];
 
@@ -142,10 +216,6 @@ export const actualizarDocente = async (cedula, dto) => {
           ? dto[campo].trim()
           : dto[campo]?.trim() || null;
     }
-  }
-
-  if (!actualizaciones.nombre?.length) {
-    throw new AppError(400, 'El nombre del docente no puede estar vacío');
   }
 
   await docente.update(actualizaciones);

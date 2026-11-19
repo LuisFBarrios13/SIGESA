@@ -13,6 +13,7 @@ router.get(
   '/buscar',
   authenticate,
   authorize(ROLES.ADMINISTRADOR, ROLES.DOCENTE),
+  validar([v.texto('q', 'El texto de búsqueda', 100, 'query')]),
   buscar,
 );
 

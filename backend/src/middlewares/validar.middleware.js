@@ -57,13 +57,13 @@ export const v = {
       .isString().withMessage(`${etiqueta} debe ser texto`).bail()
       .isLength({ max }).withMessage(`${etiqueta} admite máximo ${max} caracteres`),
 
-  /** Documento de identidad / cédula. */
+  /** Documento de identidad / cédula: solo números (RC, TI y cédula no llevan letras). */
   documento: (campo, etiqueta, de = 'body') =>
     fuentes[de](campo)
       .isString().withMessage(`${etiqueta} es requerido`).bail()
       .trim()
       .notEmpty().withMessage(`${etiqueta} es requerido`).bail()
-      .matches(/^[A-Za-z0-9-]{3,20}$/).withMessage(`${etiqueta} solo admite letras, números y guiones (3 a 20)`),
+      .matches(/^[0-9]{3,20}$/).withMessage(`${etiqueta} solo admite números, sin puntos ni espacios (3 a 20 dígitos)`),
 
   correo: (campo) =>
     body(campo).optional({ values: 'falsy' }).trim().isEmail().withMessage('El correo no es válido'),

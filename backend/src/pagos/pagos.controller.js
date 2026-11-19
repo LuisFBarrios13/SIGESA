@@ -1,5 +1,6 @@
 // src/pagos/pagos.controller.js
 // Single Responsibility: HTTP boundary only — parse request, call service, format response.
+// Los datos llegan ya validados por pagos.routes.js; aquí solo se convierten los tipos.
 
 import {
   listarConceptos,
@@ -13,7 +14,7 @@ import {
   getTarifa,
   upsertTarifa,
 } from './pagos.service.js';
-import { successResponse, errorResponse } from '../utils/responseHandler.js';
+import { successResponse } from '../utils/responseHandler.js';
 
 /** GET /api/pagos/conceptos */
 export const getConceptos = async (_req, res) => {
@@ -30,7 +31,6 @@ export const getMetodos = async (_req, res) => {
 /** GET /api/pagos/tarifas/:year */
 export const getTarifaHandler = async (req, res) => {
   const year = Number(req.params.year);
-  if (!year || year < 2000) return errorResponse(res, 'Año inválido', 400);
   const data = await getTarifa(year);
   return successResponse(res, data ?? null);
 };
@@ -38,20 +38,14 @@ export const getTarifaHandler = async (req, res) => {
 /** POST /api/pagos/tarifas  — crea o actualiza la tarifa de un año */
 export const upsertTarifaHandler = async (req, res) => {
   const { year, valor_pension, valor_matricula } = req.body;
-  if (!year || valor_pension == null || valor_matricula == null) {
-    return errorResponse(res, 'year, valor_pension y valor_matricula son requeridos', 400);
-  }
-  if (parseFloat(valor_pension) < 0 || parseFloat(valor_matricula) < 0) {
-    return errorResponse(res, 'Los valores no pueden ser negativos', 400);
-  }
   const data = await upsertTarifa(Number(year), parseFloat(valor_pension), parseFloat(valor_matricula));
   return successResponse(res, data, 'Tarifa guardada correctamente');
 };
 
 /** GET /api/pagos/matriculas/buscar?q=&year= */
 export const buscarMatriculasHandler = async (req, res) => {
-  const { q = '', year } = req.query;
-  if (!q.trim()) return errorResponse(res, 'El parámetro q es requerido', 400);
+  // q ya viene validado; en Express 5 req.query no se puede reescribir, así que se recorta aquí.
+  const { q, year } = req.query;
   const data = await buscarMatriculas(q.trim(), year ? Number(year) : undefined);
   return successResponse(res, data);
 };
@@ -68,9 +62,6 @@ export const getResumenPagos = async (req, res) => {
  */
 export const postGenerarPension = async (req, res) => {
   const { id_matricula, year } = req.body;
-  if (!id_matricula || !year) {
-    return errorResponse(res, 'id_matricula y year son requeridos', 400);
-  }
   const data = await generarCuentasPension(Number(id_matricula), Number(year));
   return successResponse(res, data, 'Cuentas de pensión generadas', 201);
 };
@@ -81,9 +72,6 @@ export const postGenerarPension = async (req, res) => {
  */
 export const postCuentaMatricula = async (req, res) => {
   const { id_matricula, year } = req.body;
-  if (!id_matricula || !year) {
-    return errorResponse(res, 'id_matricula y year son requeridos', 400);
-  }
   const data = await crearCuentaMatricula(Number(id_matricula), Number(year));
   return successResponse(res, data, 'Cuenta de matrícula creada', 201);
 };
@@ -91,9 +79,6 @@ export const postCuentaMatricula = async (req, res) => {
 /** POST /api/pagos */
 export const postPago = async (req, res) => {
   const { id_cuenta, monto_pago, id_metodo_pago, fecha_pago, observaciones } = req.body;
-  if (!id_cuenta || !monto_pago || !id_metodo_pago) {
-    return errorResponse(res, 'id_cuenta, monto_pago e id_metodo_pago son requeridos', 400);
-  }
   const data = await registrarPago({
     id_cuenta: Number(id_cuenta),
     monto_pago: parseFloat(monto_pago),

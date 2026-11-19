@@ -60,7 +60,7 @@
   --p-borde: rgb(22 12 40 / 0.12);
   --p-tinta: #000411;          /* texto */
   --p-suave: rgb(0 4 17 / 0.64); /* texto-suave */
-  --p-tenue: rgb(0 4 17 / 0.48); /* «Sin dato» y pistas */
+  --p-tenue: rgb(0 4 17 / 0.58); /* «Sin dato» y pistas (≥4.5:1 sobre blanco) */
   --p-banda: #160c28;          /* encabezado: barras de título oscuras */
   --p-acento: #efcb68;
   --p-acento-2: #d9b65e;       /* parte más oscura del botón activo */
@@ -73,6 +73,8 @@
   --p-campo: #ffffff;          /* fondo de los campos de formulario */
   --p-boton-2: #160c28;        /* tinta: botón fuerte (p. ej. «Matricular») */
   --p-boton-2-txt: #e1efe6;
+  --p-foco: #160c28;           /* anillo de foco con teclado (≥3:1 sobre blanco y menta) */
+  --p-error: #b91c1c;          /* texto y borde de error (6.5:1 sobre blanco) */
 }
 .panel[data-tema="oscuro"] {
   --p-fondo: #000411;
@@ -81,7 +83,7 @@
   --p-borde: rgb(225 239 230 / 0.12);
   --p-tinta: #e1efe6;
   --p-suave: rgb(225 239 230 / 0.72);
-  --p-tenue: rgb(225 239 230 / 0.50);
+  --p-tenue: rgb(225 239 230 / 0.58); /* ≥4.5:1 sobre #160c28 */
   --p-banda: #2a2140;
   --p-gris: rgb(225 239 230 / 0.30);
   --p-menta: #2a2140;
@@ -92,8 +94,21 @@
   --p-campo: #0b0618;
   --p-boton-2: #e1efe6;
   --p-boton-2-txt: #160c28;
+  --p-foco: #efcb68;           /* dorado: ≥3:1 sobre las superficies oscuras */
+  --p-error: #f87171;          /* rojo claro: 6.7:1 sobre #160c28 */
   /* Controles nativos (calendario, listas desplegables) en oscuro */
   color-scheme: dark;
+}
+
+/* ── Foco con teclado ─────────────────────────────────────────────
+   Anillo visible en botones, enlaces y opciones del panel cuando se navega con Tab
+   (con el mouse no aparece). Va en la capa base: un control que dibuja su propio
+   foco (los campos, con su borde) lo reemplaza con sus clases. */
+@layer base {
+  .panel :focus-visible {
+    outline: 2px solid var(--p-foco);
+    outline-offset: 2px;
+  }
 }
 
 /* ── Movimiento del panel ─────────────────────────────────────────
@@ -253,10 +268,74 @@ html:has(.panel[data-tema="oscuro"]).desplazando { scrollbar-color: rgb(244 242 
   @starting-style { .hoja { transform: none; opacity: 0; } }
 }
 
+/* ── Matrícula (asistente de pasos) ───────────────────────────────
+   Se usa unas cuantas veces al día: movimiento corto y con propósito, nunca de adorno. */
+
+/* Cambio de paso: el contenido entra del lado hacia el que se avanza (adelante → desde la
+   derecha, atrás → desde la izquierda), así el asistente se siente como un recorrido. */
+@keyframes paso-entra {
+  from { opacity: 0; transform: translateX(var(--desde, 12px)); }
+}
+.paso-entra { animation: paso-entra 240ms var(--ease-out) both; }
+.paso-entra[data-dir="atras"] { --desde: -12px; }
+
+/* Lo que aparece como respuesta a una acción (resultado de una búsqueda, avisos, campos
+   del acudiente nuevo): sube 6px mientras aparece. Solo al insertarse. */
+.revelar { transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out); }
+@starting-style { .revelar { opacity: 0; transform: translateY(6px); } }
+
+/* Errores de los campos: solo un fundido corto (aparecen varios a la vez, sin saltos). */
+.revelar-error { transition: opacity 160ms var(--ease-out); }
+@starting-style { .revelar-error { opacity: 0; } }
+
+/* Barra de avance (celular): se desplaza con transform, no con width (no recalcula el diseño). */
+.avance { transition: transform 360ms var(--ease-in-out); }
+
+/* Pasos del costado: el círculo cambia de color y el check aparece con un pequeño impulso. */
+.circulo-paso { transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease; }
+@keyframes marca {
+  from { opacity: 0; transform: scale(0.6); }
+}
+.marca { animation: marca 260ms cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+
+/* Grupo de opciones: la cápsula elegida se desliza a la nueva opción.
+   Con teclado (flechas) salta sin animar: se repite mucho y debe sentirse inmediato. */
+.indicador-opcion { transition: transform 220ms var(--ease-out), opacity 150ms ease; }
+.indicador-opcion[data-instante] { transition: none; }
+
+/* Flecha del botón Siguiente: se adelanta un poco al pasar el mouse (solo con mouse). */
+.flecha-siguiente { transition: transform 160ms var(--ease-out); }
+@media (hover: hover) and (pointer: fine) {
+  button:hover > span > .flecha-siguiente { transform: translateX(2px); }
+}
+
+/* «Datos de trabajo»: el contenido aparece al abrir y la flecha gira. */
+details[open] > .contenido-detalles { animation: aparecer 220ms var(--ease-out) both; }
+/* Tailwind 4: rotate-180 usa la propiedad `rotate`, no `transform`. */
+.giro { transition: rotate 200ms var(--ease-out); }
+
+/* Matrícula creada: el único momento de celebración del flujo. */
+@keyframes sello {
+  from { opacity: 0; transform: scale(0.85); }
+}
+.sello { animation: sello 420ms cubic-bezier(0.34, 1.4, 0.64, 1) 80ms both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .paso-entra, .sello, .marca { animation: desvanecer 180ms ease both; }
+  @starting-style { .revelar { transform: none; } }
+  .avance, .indicador-opcion { transition: opacity 150ms ease; }
+  details[open] > .contenido-detalles { animation: desvanecer 180ms ease both; }
+  button:hover > span > .flecha-siguiente { transform: none; }
+}
+
 /* Etiquetas de jornada (sistema de diseño SIGESA: jornada-manana / jornada-tarde). */
 .chip-jornada.manana { background: rgb(239 203 104 / 0.28); }
 .chip-jornada.tarde  { background: rgb(174 183 179 / 0.35); }
+/* Jornada completa (docentes): banda violeta con el sol dorado, en claro y en oscuro. */
+.chip-jornada.completa { background: #160c28; color: #ffffff; }
+.chip-jornada.completa .icono { color: #efcb68; }
 .panel[data-tema="oscuro"] .chip-jornada { background: #2a2140; }
+.panel[data-tema="oscuro"] .chip-jornada.completa { color: #e1efe6; }
 .panel[data-tema="oscuro"] .chip-jornada.manana .icono { color: #efcb68; }
 .panel[data-tema="oscuro"] .chip-jornada.tarde .icono  { color: #aeb7b3; }
 /* Dentro de las cajas menta de las tarjetas (que en oscuro ya son violeta elevado). */

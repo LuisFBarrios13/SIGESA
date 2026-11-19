@@ -78,8 +78,6 @@ export const actualizarEstudiante = async (numero_identidad, dto) => {
  * @param {string} query - texto de búsqueda
  */
 export const buscarEstudiantes = async (query) => {
-  if (!query?.trim()) throw new AppError(400, 'El parámetro de búsqueda es requerido');
-
   return Estudiante.findAll({
     where: {
       [Op.or]: [

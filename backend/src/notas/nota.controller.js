@@ -5,14 +5,11 @@ import {
   getNotasEstudiante,
   guardarNotasEstudiante,
 } from './nota.service.js';
-import { successResponse, errorResponse } from '../utils/responseHandler.js';
+import { successResponse } from '../utils/responseHandler.js';
 
 /** GET /api/notas?id_grado=&id_materia=&numero_periodo=&year= */
 export const getNotas = async (req, res) => {
   const { id_grado, id_materia, numero_periodo, year } = req.query;
-  if (!id_grado || !id_materia || !numero_periodo) {
-    return errorResponse(res, 'id_grado, id_materia y numero_periodo son requeridos', 400);
-  }
   const data = await getNotasGrado({
     id_grado:       Number(id_grado),
     id_materia:     Number(id_materia),
@@ -25,9 +22,6 @@ export const getNotas = async (req, res) => {
 /** POST /api/notas/bulk — múltiples estudiantes, una materia */
 export const guardarBulk = async (req, res) => {
   const { notas, id_materia, numero_periodo, year } = req.body;
-  if (!Array.isArray(notas) || !id_materia || !numero_periodo || !year) {
-    return errorResponse(res, 'notas[], id_materia, numero_periodo y year son requeridos', 400);
-  }
   const data = await guardarNotasBulk(req.user.id, {
     notas,
     id_materia:     Number(id_materia),
@@ -46,10 +40,6 @@ export const getNotasDeEstudiante = async (req, res) => {
   const numero_periodo = Number(req.query.numero_periodo ?? 1);
   const year           = Number(req.query.year ?? new Date().getFullYear());
 
-  if (!id_matricula || numero_periodo < 1 || numero_periodo > 4) {
-    return errorResponse(res, 'id_matricula válido y numero_periodo (1-4) son requeridos', 400);
-  }
-
   const data = await getNotasEstudiante(id_matricula, numero_periodo, year);
   return successResponse(res, data);
 };
@@ -62,14 +52,6 @@ export const getNotasDeEstudiante = async (req, res) => {
  */
 export const guardarNotasDeEstudiante = async (req, res) => {
   const { id_matricula, numero_periodo, year, materias, puesto, observaciones } = req.body;
-
-  if (!id_matricula || !numero_periodo || !year || !Array.isArray(materias)) {
-    return errorResponse(
-      res,
-      'id_matricula, numero_periodo, year y materias[] son requeridos',
-      400,
-    );
-  }
 
   const data = await guardarNotasEstudiante(req.user.id, {
     id_matricula:   Number(id_matricula),

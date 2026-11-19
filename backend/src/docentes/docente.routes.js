@@ -1,6 +1,6 @@
 // src/docentes/docente.routes.js
 import { Router } from 'express';
-import { crear, listar, disponibilidad, actualizar } from './docente.controller.js';
+import { crear, listar, disponibilidad, actualizar, asignacion, intercambio } from './docente.controller.js';
 import { restablecerClaveDocente } from '../usuarios/usuario.service.js';
 import { successResponse } from '../utils/responseHandler.js';
 import { authenticate, authorize } from '../middlewares/auth.middleware.js';
@@ -25,6 +25,17 @@ router.patch('/:cedula', authenticate, authorize(ROLES.ADMINISTRADOR), validar([
   v.textoOpcional('telefono', 'El teléfono', 20),
   v.correo('correo'),
 ]), actualizar);
+
+// Cambiar grado y jornada: mover a un grado libre, o intercambiar con otro docente
+router.put('/:cedula/asignacion', authenticate, authorize(ROLES.ADMINISTRADOR), validar([
+  v.documento('cedula', 'La cédula', 'param'),
+  v.enLista('jornada', ['MAÑANA', 'TARDE', 'COMPLETA'], 'La jornada'),
+  v.texto('nombreGrado', 'El grado', 100),
+]), asignacion);
+router.post('/:cedula/intercambio', authenticate, authorize(ROLES.ADMINISTRADOR), validar([
+  v.documento('cedula', 'La cédula', 'param'),
+  v.documento('con', 'El otro docente'),
+]), intercambio);
 
 // Restablece la contraseña del docente a su usuario (debe cambiarla al entrar)
 router.post('/:cedula/restablecer-clave', authenticate, authorize(ROLES.ADMINISTRADOR),

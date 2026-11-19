@@ -66,22 +66,23 @@ export const api = {
   get:   <T>(path: string)                => request<T>(path, { method: 'GET' }),
   post:  <T>(path: string, body: unknown) => request<T>(path, { method: 'POST',  body: JSON.stringify(body) }),
   patch: <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
+  put:   <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT',   body: JSON.stringify(body) }),
 };
 
 // ── Imports desde types/ ──────────────────────────────────────
 
 import type { LoginResult, Grado, Credenciales }   from '../types/shared';
 import type { MatriculaPayload, MatriculaResult, MatriculaListItem, DuenoDocumento, PeriodoInfo, DestinoRematricula }  from '../types/matriculas';
-import type { DocentePayload, DocenteResult, DocenteListItem, GradoDisponibilidad } from '../types/docentes';
+import type { DocentePayload, DocenteResult, DocenteListItem, GradoDisponibilidad, ActualizarDocentePayload } from '../types/docentes';
 import type { EstudianteListItem, EstudianteDetalle, ActualizarEstudiantePayload }  from '../types/estudiantes';
-import type { AcudienteDetalle } from '../types/acudientes-admin';
+import type { AcudienteCoincidencia, AcudienteDetalle } from '../types/acudientes-admin';
 
 // ── Re-exports ────────────────────────────────────────────────
 // Las páginas siguen importando desde este archivo sin necesidad de cambios.
 
 export type { LoginResult, JornadaEstudiante, JornadaDocente, Grado, Credenciales } from '../types/shared';
 export type { MatriculaPayload, MatriculaResult, MatriculaListItem, DuenoDocumento, PeriodoMatricula, PeriodoInfo, DestinoRematricula }   from '../types/matriculas';
-export type { DocentePayload, GradoAsignado, DocenteResult, DocenteListItem, GradoDisponibilidad } from '../types/docentes';
+export type { DocentePayload, GradoAsignado, DocenteResult, DocenteListItem, GradoDisponibilidad, ActualizarDocentePayload } from '../types/docentes';
 export type { GradoResumen, EstudianteListItem, EstudianteDetalle, ActualizarEstudiantePayload }    from '../types/estudiantes';
 
 // ── Auth ──────────────────────────────────────────────────────
@@ -104,6 +105,8 @@ export const gradosApi = {
 export const acudientesApi = {
   /** null si no existe (en la matrícula eso significa "acudiente nuevo"). */
   buscar: (cedula: string) => api.get<AcudienteDetalle | null>(`/acudientes/${encodeURIComponent(cedula)}`),
+  /** Coincidencias por nombre o cédula mientras se escribe (hasta 20). */
+  coincidencias: (q: string) => api.get<AcudienteCoincidencia[]>(`/acudientes?q=${encodeURIComponent(q)}`),
 };
 
 // ── Matrículas ────────────────────────────────────────────────
@@ -141,6 +144,15 @@ export const docentesApi = {
   crear:          (p: DocentePayload) => api.post<DocenteResult>('/docentes', p),
   listar:         ()                  => api.get<DocenteListItem[]>('/docentes'),
   disponibilidad: ()                  => api.get<GradoDisponibilidad[]>('/docentes/disponibilidad'),
+  /** Nombre, teléfono y correo (la cédula no se cambia; el grado y la jornada, abajo). */
+  actualizar:     (cedula: string, p: ActualizarDocentePayload) =>
+    api.patch<DocenteListItem>(`/docentes/${encodeURIComponent(cedula)}`, p),
+  /** Mueve al docente a un grado libre en la jornada elegida y suelta el que tenía. */
+  cambiarAsignacion: (cedula: string, p: Pick<DocentePayload, 'jornada' | 'nombreGrado'>) =>
+    api.put<DocenteListItem>(`/docentes/${encodeURIComponent(cedula)}/asignacion`, p),
+  /** Intercambia grado y jornada con otro docente (cuando no hay grados libres). */
+  intercambiar:   (cedula: string, con: string) =>
+    api.post<DocenteListItem[]>(`/docentes/${encodeURIComponent(cedula)}/intercambio`, { con }),
 };
 
 // ── Estudiantes ───────────────────────────────────────────────

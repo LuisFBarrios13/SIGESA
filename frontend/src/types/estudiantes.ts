@@ -12,7 +12,8 @@ export interface GradoResumen {
 }
 
 /** Registro civil, tarjeta de identidad, cédula, cédula de extranjería, PPT y pasaporte. */
-export type TipoDocumento = 'RC' | 'TI' | 'CC' | 'CE' | 'PPT' | 'PA';
+/** Los estudiantes son menores de edad: registro civil o tarjeta de identidad. */
+export type TipoDocumento = 'RC' | 'TI';
 export type Sexo = 'F' | 'M';
 
 export interface EstudianteListItem {

@@ -1,6 +1,16 @@
 // src/acudientes/acudiente.controller.js
-import { actualizarAcudiente, buscarAcudiente } from './acudiente.service.js';
+import { actualizarAcudiente, buscarAcudiente, buscarCoincidencias } from './acudiente.service.js';
 import { successResponse } from '../utils/responseHandler.js';
+
+/**
+ * GET /api/acudientes?q=
+ * Coincidencias por nombre o cédula (hasta 20) mientras se escribe en la matrícula.
+ */
+export const coincidencias = async (req, res) => {
+  // q ya viene validado; en Express 5 req.query no se puede reescribir, así que se recorta aquí.
+  const data = await buscarCoincidencias(req.query.q.trim());
+  return successResponse(res, data);
+};
 
 /**
  * GET /api/acudientes/:cedula
